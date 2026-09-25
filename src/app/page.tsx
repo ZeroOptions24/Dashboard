@@ -1,5 +1,6 @@
 import PrototypeBoot from "@/components/PrototypeBoot";
 import ReactViews from "@/components/ReactViews";
+import DataSource from "@/components/DataSource";
 
 /* Grundgerüst (AppShell) aus dem UI-Prototyp. Die Inhalte der leeren Container
    (Navigation, Ansicht, Drawer …) rendert src/legacy/prototype.js;
@@ -71,6 +72,7 @@ export default function Home() {
       <input id="copyFallback" className="sr" aria-hidden="true" tabIndex={-1} />
 
       <PrototypeBoot />
+      <DataSource />
     </>
   );
 }
