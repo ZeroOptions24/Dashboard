@@ -30,6 +30,11 @@ export const STATUS_LABEL: Record<OnboardingStatus, string> = {
 /** Gültigkeit des Formular-Links */
 const FORM_LINK_DAYS = 7;
 
+/* Erinnerungen: nach REMINDER_AFTER_DAYS ohne Fortschritt, höchstens MAX_REMINDERS pro Schritt */
+const REMINDER_AFTER_DAYS = 3;
+const MAX_REMINDERS = 2;
+const RESET_REMINDERS = { remindersSent: 0, lastReminderAt: null };
+
 const audit = (actorId: string | null, action: string, targetUserId: string, detail?: string) =>
   db.insert(schema.auditLog).values({ actorId, action, targetUserId, detail });
 
@@ -52,7 +57,7 @@ async function getRow(userId: string) {
 
 /* ---------- 1. Einladen ---------- */
 
-async function sendFormLink(userId: string, name: string, email: string) {
+async function sendFormLink(userId: string, name: string, email: string, reminder = false) {
   const token = newToken();
   await db
     .update(schema.onboarding)
@@ -60,9 +65,9 @@ async function sendFormLink(userId: string, name: string, email: string) {
     .where(eq(schema.onboarding.userId, userId));
   await sendMail(
     email,
-    "Willkommen bei EnergyEngel – bitte deine Daten ergänzen",
+    reminder ? "Erinnerung: Bitte ergänze deine Daten für EnergyEngel" : "Willkommen bei EnergyEngel – bitte deine Daten ergänzen",
     mailLayout({
-      title: `Hallo ${name.split(" ")[0]}, schön dass du dabei bist!`,
+      title: reminder ? `Hallo ${name.split(" ")[0]}, es fehlt nur noch ein Schritt` : `Hallo ${name.split(" ")[0]}, schön dass du dabei bist!`,
       intro:
         "Für deinen Vertrag brauchen wir ein paar Angaben: Adresse, Geburtsdatum, Bankverbindung für deine Provision und Steuerdaten. Das dauert etwa 3 Minuten.",
       button: "Daten ergänzen",
@@ -85,7 +90,12 @@ export async function inviteMember(
   /* Konto ohne Passwort – das setzt der MA erst nach der Unterschrift selbst */
   const { user } = await auth.api.createUser({ body: { email, name, role: input.role }, headers: requestHeaders });
   await db.insert(schema.onboarding).values({ userId: user.id, invitedBy: adminId });
-  await db.insert(schema.profile).values({ userId: user.id, telefon: input.telefon?.trim() || null });
+  await db.insert(schema.profile).values({
+    userId: user.id,
+    telefon: input.telefon?.trim() || null,
+    /* Standard: Vorname – so trägt ihn n8n ins Pipedrive-Feld „Setter“ ein; im Team-Bereich änderbar */
+    pipedriveSetterName: input.role === "setter" ? name.split(" ")[0] : null,
+  });
   await sendFormLink(user.id, name, email);
   await audit(adminId, "onboarding.invite", user.id, input.role);
   return user.id;
@@ -182,7 +192,7 @@ export async function submitFormData(token: string, d: OnboardingFormData) {
     })
     .where(eq(schema.profile.userId, row.user.id));
   /* Link sofort entwerten */
-  await setStatus(row.user.id, "daten_erfasst", { dataSubmittedAt: new Date(), formTokenHash: null, formTokenExpiresAt: null });
+  await setStatus(row.user.id, "daten_erfasst", { dataSubmittedAt: new Date(), formTokenHash: null, formTokenExpiresAt: null, ...RESET_REMINDERS });
   await audit(row.user.id, "onboarding.data_submitted", row.user.id);
   const admins = await db.select({ email: schema.user.email }).from(schema.user).where(eq(schema.user.role, "admin"));
   for (const a of admins)
@@ -218,7 +228,7 @@ export async function sendContract(userId: string, adminId: string) {
   });
   const [first, ...rest] = user.name.split(" ");
   const requestId = await signingProvider().send(doc, { firstName: first, lastName: rest.join(" ") || first, email: user.email });
-  await setStatus(userId, "vertrag_versendet", { contractSentAt: new Date(), signatureRequestId: requestId });
+  await setStatus(userId, "vertrag_versendet", { contractSentAt: new Date(), signatureRequestId: requestId, ...RESET_REMINDERS });
   await audit(adminId, "onboarding.contract_sent", userId, requestId);
 }
 
@@ -239,7 +249,7 @@ export async function markSigned(signatureRequestId: string) {
     .where(eq(schema.onboarding.signatureRequestId, signatureRequestId));
   if (!row) throw new Error("Unbekannte Signaturanfrage");
   if (row.ob.status !== "vertrag_versendet") return; /* doppelte Webhooks ignorieren */
-  await setStatus(row.user.id, "unterschrieben", { signedAt: new Date() });
+  await setStatus(row.user.id, "unterschrieben", { signedAt: new Date(), ...RESET_REMINDERS });
   await audit(null, "onboarding.signed", row.user.id, signatureRequestId);
   await sendAccess(row.user.id, row.user.email);
 }
@@ -256,7 +266,7 @@ export async function resendAccess(userId: string, adminId: string) {
 export async function activateDirectly(userId: string, adminId: string) {
   const { ob, user } = await getRow(userId);
   if (["aktiv", "zurueckgezogen"].includes(ob.status)) throw new Error("Nicht möglich in diesem Status");
-  await setStatus(userId, "unterschrieben", { signedAt: new Date(), formTokenHash: null, formTokenExpiresAt: null });
+  await setStatus(userId, "unterschrieben", { signedAt: new Date(), formTokenHash: null, formTokenExpiresAt: null, ...RESET_REMINDERS });
   await audit(adminId, "onboarding.activate_directly", userId);
   await sendAccess(userId, user.email);
 }
@@ -279,6 +289,9 @@ export interface OnboardingRow {
   invitedAt: string;
   updatedAt: string;
   formLinkExpired: boolean;
+  remindersSent: number;
+  /** Name im Pipedrive-Feld „Setter“ (nur Setter) */
+  pipedriveSetterName: string | null;
   /** Stammdaten zur Prüfung vor dem Vertragsversand (IBAN nur maskiert) */
   data: { adresse: string; geburtsdatum: string; iban: string; kontoinhaber: string; steuernummer: string; kleinunternehmer: boolean; gewerbe: boolean } | null;
 }
@@ -299,6 +312,8 @@ export async function listOnboarding(): Promise<OnboardingRow[]> {
     invitedAt: ob.invitedAt.toISOString(),
     updatedAt: ob.updatedAt.toISOString(),
     formLinkExpired: ob.status === "eingeladen" && !!ob.formTokenExpiresAt && ob.formTokenExpiresAt < new Date(),
+    remindersSent: ob.remindersSent,
+    pipedriveSetterName: p?.pipedriveSetterName ?? null,
     data:
       p && p.ibanLast4
         ? {
@@ -312,4 +327,73 @@ export async function listOnboarding(): Promise<OnboardingRow[]> {
           }
         : null,
   }));
+}
+
+/** Pipedrive-Setter-Namen setzen (Zuordnung der Leads zu diesem Zugang). */
+export async function setPipedriveSetterName(userId: string, name: string, adminId: string) {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (clean.length > 80) throw new Error("Name ist zu lang");
+  await db.update(schema.profile).set({ pipedriveSetterName: clean || null, updatedAt: new Date() }).where(eq(schema.profile.userId, userId));
+  await audit(adminId, "profile.pipedrive_name", userId, clean);
+}
+
+/* ---------- Erinnerungen (täglich per Cron, siehe /api/cron/reminders) ---------- */
+
+export interface ReminderReport {
+  formReminders: string[];
+  accessResent: string[];
+  stuck: string[];
+}
+
+export async function sendReminders(now = new Date()): Promise<ReminderReport> {
+  const report: ReminderReport = { formReminders: [], accessResent: [], stuck: [] };
+  const rows = await db
+    .select({ ob: schema.onboarding, user: schema.user })
+    .from(schema.onboarding)
+    .innerJoin(schema.user, eq(schema.user.id, schema.onboarding.userId));
+  const daysSince = (d: Date | null) => (d ? (now.getTime() - d.getTime()) / 864e5 : 0);
+  const bump = (userId: string, sent: number) =>
+    db.update(schema.onboarding).set({ remindersSent: sent + 1, lastReminderAt: now }).where(eq(schema.onboarding.userId, userId));
+
+  for (const { ob, user } of rows) {
+    if (ob.status === "eingeladen") {
+      if (daysSince(ob.lastReminderAt ?? ob.invitedAt) < REMINDER_AFTER_DAYS) continue;
+      if (ob.remindersSent >= MAX_REMINDERS) report.stuck.push(`${user.name}: Daten nach ${MAX_REMINDERS} Erinnerungen noch nicht ergänzt`);
+      else {
+        await sendFormLink(user.id, user.name, user.email, true);
+        await bump(user.id, ob.remindersSent);
+        await audit(null, "onboarding.reminder_form", user.id);
+        report.formReminders.push(user.name);
+      }
+    } else if (ob.status === "daten_erfasst" && daysSince(ob.dataSubmittedAt) >= 1) {
+      report.stuck.push(`${user.name}: Daten erfasst – Vertrag noch nicht gesendet`);
+    } else if (ob.status === "vertrag_versendet" && daysSince(ob.contractSentAt) >= REMINDER_AFTER_DAYS) {
+      report.stuck.push(`${user.name}: Vertrag seit ${Math.floor(daysSince(ob.contractSentAt))} Tagen nicht unterschrieben`);
+    } else if (ob.status === "unterschrieben" && daysSince(ob.lastReminderAt ?? ob.accessSentAt) >= 2) {
+      /* Passwort-Link (48 Std.) abgelaufen, ohne dass ein Passwort gesetzt wurde */
+      if (ob.remindersSent >= MAX_REMINDERS) report.stuck.push(`${user.name}: Passwort trotz Erinnerungen nicht festgelegt`);
+      else {
+        await sendAccess(user.id, user.email);
+        await bump(user.id, ob.remindersSent);
+        await audit(null, "onboarding.reminder_access", user.id);
+        report.accessResent.push(user.name);
+      }
+    }
+  }
+
+  if (report.stuck.length) {
+    const admins = await db.select({ email: schema.user.email }).from(schema.user).where(eq(schema.user.role, "admin"));
+    for (const a of admins)
+      await sendMail(
+        a.email,
+        `Onboarding: ${report.stuck.length} ${report.stuck.length === 1 ? "Fall braucht" : "Fälle brauchen"} deine Hilfe`,
+        mailLayout({
+          title: "Onboarding – das hängt gerade",
+          intro: report.stuck.join(" · "),
+          button: "Im Dashboard öffnen",
+          url: `${appUrl()}/?view=team`,
+        }),
+      );
+  }
+  return report;
 }

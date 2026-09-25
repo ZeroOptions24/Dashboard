@@ -47,7 +47,7 @@ export const store = {
 };
 
 /** Ansichten, die bereits als React-Komponente umgesetzt sind. */
-export const REACT_VIEWS = new Set(["leads", "uebersicht", "team"]);
+export const REACT_VIEWS = new Set(["leads", "uebersicht", "team", "stammdaten"]);
 
 let version = 0;
 const listeners = new Set<() => void>();

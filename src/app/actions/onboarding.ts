@@ -41,6 +41,18 @@ export async function onboardingStepAction(userId: string, step: "resend" | "con
   });
 }
 
+export async function setPipedriveNameAction(userId: string, name: string) {
+  return asAdmin(async (adminId) => {
+    await ob.setPipedriveSetterName(userId, name, adminId);
+    return null;
+  });
+}
+
+/** Erinnerungen sofort prüfen (sonst täglich per Cron). */
+export async function runRemindersAction() {
+  return asAdmin(() => ob.sendReminders());
+}
+
 /** Öffentlich (nur mit gültigem Formular-Link): Stammdaten absenden. */
 export async function submitOnboardingFormAction(token: string, data: ob.OnboardingFormData) {
   try {

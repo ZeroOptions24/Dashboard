@@ -36,8 +36,10 @@ export const maskPhone = (tel: string) => {
   return digits.length > 8 ? `${t.slice(0, 4)} •••• ${digits.slice(-4)}` : t;
 };
 
-/** Setter-Name aus dem Deal-Feld → Schlüssel (vorerst der kleingeschriebene Vorname). */
-const setterKey = (name: unknown) => (typeof name === "string" && name.trim() ? name.trim().split(/\s+/)[0].toLowerCase() : "unbekannt");
+/** Setter-Name → Schlüssel für den Vergleich (klein, ohne doppelte Leerzeichen).
+ *  Gleiche Funktion für das Deal-Feld und den im Dashboard hinterlegten Namen. */
+export const setterKey = (name: unknown) =>
+  typeof name === "string" && name.trim() ? name.trim().replace(/\s+/g, " ").toLowerCase() : "unbekannt";
 
 export function statusOf(deal: PdDeal): StatusKey {
   if (deal.status === "won") return "verkauft";
@@ -79,7 +81,7 @@ export function dealToLead(deal: PdDeal, person: PdPerson | undefined): Lead {
 }
 
 /** Alle Wärmepumpen-Leads der Pipeline, neueste zuerst. */
-export async function loadLeadsFromPipedrive(): Promise<Lead[]> {
+async function fetchAllLeads(): Promise<Lead[]> {
   const deals = (await getDeals(PIPEDRIVE_PIPELINE_ID, Object.values(DEAL_FIELDS))).filter((d) =>
     d.title.startsWith(PRODUCT_TITLE_PREFIX.wp),
   );
@@ -88,4 +90,37 @@ export async function loadLeadsFromPipedrive(): Promise<Lead[]> {
   return deals
     .sort((a, b) => b.add_time.localeCompare(a.add_time))
     .map((d) => dealToLead(d, d.person_id ? persons.get(d.person_id) : undefined));
+}
+
+/* Kurzer Zwischenspeicher: nicht bei jedem Seitenaufruf alle Deals aus Pipedrive laden. */
+const CACHE_MS = 60_000;
+let cache: { at: number; leads: Promise<Lead[]> } | null = null;
+
+export function loadLeadsFromPipedrive(): Promise<Lead[]> {
+  if (!cache || Date.now() - cache.at > CACHE_MS) {
+    const leads = fetchAllLeads();
+    cache = { at: Date.now(), leads };
+    leads.catch(() => (cache = null)); /* Fehler nicht zwischenspeichern */
+  }
+  return cache.leads;
+}
+
+export interface LeadsForUser {
+  leads: Lead[];
+  /** Schlüssel der angemeldeten Person in lead.setter (für die Anzeige „Meine Leads“) */
+  userKey: string;
+  /** Hinweis, wenn für die Rolle noch keine Zuordnung existiert */
+  note?: string;
+}
+
+/** Nur die Leads, die diese Person sehen darf – die Filterung passiert hier auf dem Server. */
+export async function loadLeadsForUser(user: { role: string; pipedriveSetterName: string | null; name: string }): Promise<LeadsForUser> {
+  const all = await loadLeadsFromPipedrive();
+  if (user.role === "admin") return { leads: all, userKey: "admin" };
+  if (user.role === "setter") {
+    const key = setterKey(user.pipedriveSetterName || user.name.split(" ")[0]);
+    return { leads: all.filter((l) => l.setter === key), userKey: key };
+  }
+  /* TODO: Zuordnung für Presetter/Closer in Pipedrive klären (Deal-Owner? Feld „VQ Berater“?) */
+  return { leads: [], userKey: user.role, note: "Die Zuordnung von Presetter- und Closer-Leads aus Pipedrive ist noch offen." };
 }

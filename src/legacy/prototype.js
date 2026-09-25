@@ -724,36 +724,6 @@ function viewRangliste(){
         <button class="ee-btn ee-btn--accent" type="submit">${ico('trophy','sm')} Rangliste veröffentlichen</button>
       </form></section>${archive}</div></div>`;
 }
-/* =================== STAMMDATEN =================== */
-function profileForm(key, editable){
-  const p = PROFILES[key], ed = editable && S.editProfile;
-  const ro = ed ? '' : 'readonly';
-  const f = (id, label, val, full, type='text') => `<div class="ee-field ${full?'ee-field--full':''}"><label for="${id}">${label}</label><input class="ee-input" id="${id}" type="${type}" value="${esc(val)}" ${ro}></div>`;
-  return `<form id="profileForm" class="stack" style="gap:22px" data-component="ProfileForm" data-key="${key}">
-    <section class="ee-card"><div class="ee-card__head"><h2>Persönliche Daten</h2>${editable && !ed ? `<button type="button" class="ee-btn ee-btn--sm" data-act="profile-edit">${ico('edit','sm')} Bearbeiten</button>` : ''}</div>
-      <div class="ee-form">${f('pName','Vollständiger Name',p.name,false)}${f('pGeb','Geburtsdatum',p.geb,false)}${f('pTel','Telefon',p.tel,false,'tel')}${f('pMail','E-Mail',p.mail,false,'email')}
-      ${f('pStr','Straße und Hausnummer',p.str,true)}${f('pPlz','PLZ',p.plz,false)}${f('pOrt','Ort',p.ort,false)}</div></section>
-    <section class="ee-card"><div class="ee-card__head"><h2>Bankverbindung</h2><span class="ee-secure">${ico('shield')} Nur für dich und die Buchhaltung sichtbar</span></div>
-      <div class="ee-form">
-        <div class="ee-field ee-field--full"><label for="pIban">IBAN</label>
-          <div class="ee-masked"><input class="ee-input" id="pIban" value="${ed ? esc(fmtIban(p.iban)) : S.showIban ? esc(fmtIban(p.iban)) : maskIban(p.iban)}" ${ro} autocomplete="off">
-          ${!ed ? `<button type="button" class="ee-btn" data-act="iban-toggle" aria-label="${S.showIban?'IBAN verbergen':'IBAN anzeigen'}">${ico(S.showIban?'eyeoff':'eye','sm')} ${S.showIban?'Verbergen':'Anzeigen'}</button>` : ''}</div>
-          <span class="ee-hint" id="ibanHint">${ed ? 'Änderung wird per E-Mail bestätigt.' : ''}</span></div>
-        ${f('pInh','Kontoinhaber/in',p.inhaber,false)}${f('pBank','Bank',p.bank,false)}</div></section>
-    <section class="ee-card"><div class="ee-card__head"><h2>Steuer & Gewerbe</h2></div>
-      <div class="ee-form">${f('pSt','Steuernummer',p.steuer,false)}${f('pGew','Gewerbeanmeldung',p.gewerbe,false)}
-        <label class="ee-check ee-field--full"><input type="checkbox" id="pKlein" ${p.klein?'checked':''} ${ed?'':'disabled'}><span>Kleinunternehmerregelung (§ 19 UStG) – Abrechnung ohne Umsatzsteuer</span></label></div></section>
-    ${ed ? `<div class="row" style="position:sticky;bottom:calc(var(--bottom-h) + 10px);"><button class="ee-btn ee-btn--primary" type="submit">${ico('check','sm')} Speichern</button><button class="ee-btn" type="button" data-act="profile-cancel">Abbrechen</button></div>` : ''}
-  </form>`;
-}
-function viewStammdaten(){
-  const p = PROFILES[me()];
-  return pageHead('Stammdaten')
-  + `<div class="ee-grid g-main" style="align-items:start">${profileForm(me(), true)}
-    <div class="stack"><section class="ee-card"><h2>Konto</h2><dl class="ee-facts" style="grid-template-columns:1fr">
-      <div><dt>Rolle</dt><dd>${ROLE_LABEL[S.role]}</dd></div><div><dt>MB seit</dt><dd>${p.start}</dd></div>
-      </dl></section></div></div>`;
-}
 
 /* =================== TEAM (Admin) =================== */
 function openTeamMember(key){
@@ -780,7 +750,7 @@ function viewNeu(){
     <span class="ee-tag">Slot-ID: modul-12</span></div>`;
 }
 
-const VIEWS = { leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, stammdaten:viewStammdaten, neu:viewNeu };
+const VIEWS = { leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, neu:viewNeu };
 /* =====================================================================
    LEAD ERFASSEN (Setter) – 1:1 nach dem bestehenden Setting-Formular
    Schritt 1 „Lead anlegen“      → n8n-Webhook  POST /webhook/wp-lead
@@ -1172,9 +1142,6 @@ function handleAct(d, t){
     case 'contract-resolve': { const c = CONTRACTS.find(x => x.id === d.id); delete c.question; pushNotif(c.who, `Deine Rückfrage zu „${c.doc}“ wurde beantwortet`); toast('Rückfrage als geklärt markiert'); render(); break; }
     case 'cfilter': S.contractFilter = d.f; render(); break;
     case 'payout-release': { const p = PAYOUTS[d.who].find(x => x.id === d.id); p.status = 'freigegeben'; pushNotif(d.who, `Deine Abrechnung ${p.periode} wurde freigegeben (${eur(p.betrag)})`); toast(`${p.periode} für ${person(d.who).first} freigegeben`); render(); break; }
-    case 'profile-edit': S.editProfile = true; render(); setTimeout(() => $('#pName')?.focus(), 0); break;
-    case 'profile-cancel': S.editProfile = false; render(); break;
-    case 'iban-toggle': S.showIban = !S.showIban; render(); break;
     case 'drawer-iban': { const el = $('#drawerIban'); el.textContent = fmtIban(PROFILES[d.key].iban); t.disabled = true; toast('IBAN angezeigt – Zugriff protokolliert', 'shield'); break; }
     case 'team-row': openTeamMember(d.key); break;
     case 'theme': break;
@@ -1276,15 +1243,6 @@ document.addEventListener('submit', e => {
       const c = CONTRACTS.find(x => x.id === f.dataset.id); const q = v('askText').trim(); if (!q) return;
       c.question = q; S.ask = null; pushNotif('tim', `${person(c.who).first} hat eine Rückfrage zu „${c.doc}“`);
       toast('Frage an Tim gesendet', 'send'); render(); break;
-    }
-    case 'profileForm': {
-      const ibanEl = f.querySelector('#pIban'), iban = ibanEl.value.replace(/\s/g,'').toUpperCase();
-      if (!/^DE\d{20}$/.test(iban)) { ibanEl.classList.add('is-invalid'); const h = $('#ibanHint'); h.textContent = 'Bitte eine deutsche IBAN eingeben: DE + 20 Ziffern.'; h.classList.add('ee-hint--err'); ibanEl.focus(); return; }
-      const p = PROFILES[f.dataset.key];
-      Object.assign(p, { name:v('pName'), geb:v('pGeb'), tel:v('pTel'), mail:v('pMail'), str:v('pStr'), plz:v('pPlz'), ort:v('pOrt'), inhaber:v('pInh'), bank:v('pBank'), steuer:v('pSt'), gewerbe:v('pGew'), klein:f.querySelector('#pKlein').checked });
-      const ibanChanged = iban !== p.iban; p.iban = iban;
-      S.editProfile = false; S.showIban = false;
-      toast(ibanChanged ? 'Gespeichert – neue IBAN bitte per E-Mail bestätigen' : 'Stammdaten gespeichert'); render(); break;
     }
   }
 });

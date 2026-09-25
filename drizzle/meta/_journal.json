@@ -8,6 +8,13 @@
       "when": 1790335432854,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790337258854,
+      "tag": "0001_pipedrive_und_erinnerungen",
+      "breakpoints": true
     }
   ]
 }

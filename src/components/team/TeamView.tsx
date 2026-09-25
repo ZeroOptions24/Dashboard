@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { inviteMemberAction, listOnboardingAction, onboardingStepAction } from "@/app/actions/onboarding";
+import { inviteMemberAction, listOnboardingAction, onboardingStepAction, runRemindersAction, setPipedriveNameAction } from "@/app/actions/onboarding";
 import { clickableRow } from "@/components/pipeline/LeadTable";
 import Icon from "@/components/ui/Icon";
 import { ToneChip } from "@/components/ui/Chips";
@@ -76,8 +76,59 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+/* ---------- Pipedrive-Setter-Name (Zuordnung der Leads) ---------- */
+function PipedriveName({ row, onSaved }: { row: OnboardingRow; onSaved: () => void }) {
+  const { toast } = useDashboard();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(row.pipedriveSetterName ?? "");
+  if (!editing)
+    return (
+      <span className="ee-list__sub">
+        Pipedrive-Setter: <b>{row.pipedriveSetterName || "– nicht hinterlegt –"}</b>{" "}
+        <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={() => setEditing(true)} aria-label="Pipedrive-Namen ändern">
+          <Icon name="edit" small />
+        </button>
+      </span>
+    );
+  return (
+    <form
+      className="row"
+      style={{ gap: 6 }}
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const res = await setPipedriveNameAction(row.userId, value);
+        if (!res.ok) return toast(res.error, "info");
+        toast("Pipedrive-Zuordnung gespeichert");
+        setEditing(false);
+        onSaved();
+      }}
+    >
+      <label className="sr" htmlFor={`pd-${row.userId}`}>
+        Name im Pipedrive-Feld „Setter“
+      </label>
+      <input className="ee-input" id={`pd-${row.userId}`} value={value} onChange={(e) => setValue(e.target.value)} style={{ maxWidth: 180, minHeight: 34 }} autoFocus />
+      <button className="ee-btn ee-btn--primary ee-btn--sm" type="submit">
+        Speichern
+      </button>
+      <button className="ee-btn ee-btn--ghost ee-btn--sm" type="button" onClick={() => setEditing(false)}>
+        Abbrechen
+      </button>
+    </form>
+  );
+}
+
 /* ---------- Onboarding-Übersicht (echte Daten aus der Datenbank) ---------- */
-function OnboardingList({ rows, onStep, busy }: { rows: OnboardingRow[] | null; onStep: (id: string, s: Step) => void; busy: string | null }) {
+function OnboardingList({
+  rows,
+  onStep,
+  busy,
+  onReload,
+}: {
+  rows: OnboardingRow[] | null;
+  onStep: (id: string, s: Step) => void;
+  busy: string | null;
+  onReload: () => void;
+}) {
   const [open, setOpen] = useState<string | null>(null);
   if (!rows) return <div className="ee-empty">Lade …</div>;
   const visible = rows.filter((r) => r.role !== "admin");
@@ -102,7 +153,9 @@ function OnboardingList({ rows, onStep, busy }: { rows: OnboardingRow[] | null; 
                 {r.email}
                 {s.next ? ` · ${s.next}` : ""}
                 {r.formLinkExpired ? " · Link abgelaufen" : ""}
+                {r.remindersSent ? ` · ${r.remindersSent}× erinnert` : ""}
               </div>
+              {r.role === "setter" && r.status !== "zurueckgezogen" && <PipedriveName row={r} onSaved={onReload} />}
             </div>
             <ToneChip label={s.label} tone={r.formLinkExpired ? "bad" : s.tone} />
             <div className="row" style={{ width: "100%", justifyContent: "flex-end", gap: 6 }}>
@@ -256,6 +309,15 @@ export default function TeamView() {
     void load();
   }
 
+  async function reminders() {
+    const res = await runRemindersAction();
+    if (!res.ok) return toast(res.error, "info");
+    const { formReminders, accessResent, stuck } = res.data;
+    const n = formReminders.length + accessResent.length;
+    toast(n || stuck.length ? `${n} Erinnerung(en) gesendet${stuck.length ? ` · ${stuck.length} Fall/Fälle an Admins gemeldet` : ""}` : "Nichts zu erinnern", "bell");
+    void load();
+  }
+
   return (
     <>
       <PageHead title="Team & Setter" />
@@ -263,9 +325,14 @@ export default function TeamView() {
         <section className="ee-card" data-component="OnboardingList">
           <div className="ee-card__head">
             <h2>Neue MAs · Onboarding</h2>
-            {rows && <span className="ee-chip">{rows.filter((r) => r.role !== "admin" && !["aktiv", "zurueckgezogen"].includes(r.status)).length} offen</span>}
+            <div className="row" style={{ gap: 6 }}>
+              {rows && <span className="ee-chip">{rows.filter((r) => r.role !== "admin" && !["aktiv", "zurueckgezogen"].includes(r.status)).length} offen</span>}
+              <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={reminders} title="Läuft sonst täglich automatisch">
+                <Icon name="bell" small /> Erinnerungen prüfen
+              </button>
+            </div>
           </div>
-          {error ? <div className="ee-alert ee-alert--bad">{error}</div> : <OnboardingList rows={rows} onStep={step} busy={busy} />}
+          {error ? <div className="ee-alert ee-alert--bad">{error}</div> : <OnboardingList rows={rows} onStep={step} busy={busy} onReload={load} />}
         </section>
         <InviteForm onDone={load} />
       </div>

@@ -21,10 +21,15 @@ Stand: 25.09.2026. Die Technik für Login, Einladung, Datenerfassung, Vertrag, U
   - Bis dahin verschickt das System einen deutlich gekennzeichneten **Platzhalter**-Vertrag (`src/server/contracts.ts`).
 - [ ] **Datenschutzhinweise für MAs** (Text für `/datenschutz`): welche Daten, wofür, Speicherdauer, Zugriff, Rechte.
 - [ ] **AV-Verträge** mit Hoster, Yousign, E-Mail-Anbieter, Pipedrive, n8n.
+- [ ] **Täglicher Erinnerungs-Aufruf**: `CRON_SECRET` setzen (`openssl rand -base64 32`) und im Hosting eine tägliche Aufgabe anlegen:
+  `curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<eure-domain>/api/cron/reminders`
+  (Bis dahin kann ein Admin im Team-Bereich auf „Erinnerungen prüfen“ klicken.)
+- [ ] **Pipedrive-Token** (`PIPEDRIVE_API_TOKEN`) auf dem Server setzen und `NEXT_PUBLIC_DATA_SOURCE=pipedrive`.
+- [ ] **Pipedrive-Namen der Setter prüfen**: Im Team-Bereich steht bei jedem Setter, unter welchem Namen n8n ihn ins Pipedrive-Feld „Setter“ schreibt (Standard: Vorname). Muss exakt zum n8n-Setter-Verzeichnis passen, sonst sieht der Setter seine Leads nicht.
 
 ## Später / nice to have
 
-- [ ] Erinnerungen, wenn Formular oder Unterschrift nach 2–3 Tagen fehlen (braucht einen zeitgesteuerten Job auf dem Server).
 - [ ] Zweiter Faktor (App-Code) für Admin-Konten.
 - [ ] Bestehende MAs (Tim, Florian, Max …) einladen und mit „Direkt freischalten“ ohne neuen Vertrag aktivieren.
-- [ ] Offene Frage: Woran erkennt man Presetter und Closer in Pipedrive (Deal-Owner, Feld „VQ Berater“)?
+- [ ] **Offene Frage (blockiert Presetter-/Closer-Ansicht mit echten Daten):** Woran erkennt man Presetter und Closer in Pipedrive (Deal-Owner, Feld „VQ Berater“)?
+- [ ] Zwei Setter mit gleichem Vornamen: dann im n8n-Setter-Verzeichnis und im Dashboard eindeutige Namen verwenden (z. B. „Max M.“).

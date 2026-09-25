@@ -85,6 +85,7 @@ export const onboarding = pgTable("onboarding", {
   accessSentAt: timestamp("access_sent_at"),
   activatedAt: timestamp("activated_at"),
   remindersSent: integer("reminders_sent").notNull().default(0),
+  lastReminderAt: timestamp("last_reminder_at"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -106,6 +107,8 @@ export const profile = pgTable("profile", {
   kleinunternehmer: boolean("kleinunternehmer").notNull().default(false),
   gewerbeAngemeldet: boolean("gewerbe_angemeldet").notNull().default(false),
   datenschutzAkzeptiertAt: timestamp("datenschutz_akzeptiert_at"),
+  /** Name, den n8n ins Pipedrive-Deal-Feld „Setter“ schreibt (Zuordnung der Leads) */
+  pipedriveSetterName: text("pipedrive_setter_name"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
