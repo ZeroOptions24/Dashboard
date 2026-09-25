@@ -756,34 +756,6 @@ function viewStammdaten(){
 }
 
 /* =================== TEAM (Admin) =================== */
-function viewTeam(){
-  const ns = S.newSetter;
-  const leadsOf = k => LEADS.filter(l => l.setter===k).length;
-  const cupOf = k => (BOARD.rows.find(r => r[0]===k) || [0,0])[1];
-  return pageHead('Team & Setter')
-  + `<div class="ee-grid g-main" style="align-items:start">
-    <section class="ee-card ee-card--flush" data-component="TeamTable"><div class="ee-card__head"><h2>Team (${TEAM.length})</h2></div>
-      <div class="ee-table-wrap"><table class="ee-table ee-table--stack"><thead><tr><th>Name</th><th>Rolle</th><th class="r">Leads</th><th class="r">Cup</th><th>Status</th></tr></thead><tbody>
-      ${TEAM.map(t => { const p = PROFILES[t.key], openC = CONTRACTS.some(c => c.who===t.key && c.status==='open');
-        return `<tr class="is-click" data-act="team-row" data-key="${t.key}" tabindex="0"><td><div class="row" style="gap:10px;flex-wrap:nowrap"><div class="ee-avatar">${person(t.key).initials}</div><div><div class="who">${esc(person(t.key).name)}</div><div class="sub">seit ${p.start}</div></div></div></td>
-        <td data-hide-sm>${ROLE_LABEL[person(t.key).role]}</td>
-        <td class="r num" data-hide-sm>${leadsOf(t.key)}</td><td class="r num" data-hide-sm>${cupOf(t.key)}</td>
-        <td class="r-sm">${t.status==='onboarding' ? toneChip('Onboarding','info') : openC ? toneChip('Vertrag offen','warn') : toneChip('Aktiv','ok')}</td></tr>`; }).join('')}
-      </tbody></table></div></section>
-    <section class="ee-card" data-component="SetterCreateForm"><h2>Neuen MB anlegen</h2>
-      ${ns ? `<div class="stack" style="gap:12px"><div class="row">${toneChip('Angelegt','ok')}<b>${esc(ns.name)}</b></div>
-        <button class="ee-btn ee-btn--sm" data-act="copy" data-label="Willkommensnachricht kopiert" data-text="Willkommen bei EnergyEngel, ${esc(ns.first)}! Deinen Zugang zum MB-Dashboard hast du gerade per E-Mail an ${esc(ns.mail)} bekommen. Bitte melde dich an und ergänze deine Stammdaten.">${ico('msg','sm')} WhatsApp-Willkommensnachricht kopieren</button>
-        <ul class="ee-timeline" style="margin-top:6px"><li>Dashboard-Zugang (Einladung per E-Mail) an ${esc(ns.mail)} gesendet</li><li>Handelsvertretervertrag über DocuSign gesendet</li><li>Stammdaten (IBAN, Adresse) ergänzt ${esc(ns.first)} selbst</li></ul>
-        <button class="ee-btn" data-act="ns-reset">${ico('plus','sm')} Weiteren MB anlegen</button></div>`
-      : `<form id="setterForm" class="stack">
-        <div class="ee-field"><label for="nsName">Vor- und Nachname</label><input class="ee-input" id="nsName" required placeholder="z. B. Jana Lehmann"></div>
-        <div class="ee-field"><label for="nsTel">Telefon (WhatsApp)</label><input class="ee-input" id="nsTel" type="tel" placeholder="0170 1234567"></div>
-        <div class="ee-field"><label for="nsMail">E-Mail</label><input class="ee-input" id="nsMail" type="email" required placeholder="name@beispiel.de"></div>
-        <div class="ee-field"><label for="nsRole">Rolle</label><select class="ee-select" id="nsRole"><option value="setter">Setter</option><option value="presetter">Presetter</option><option value="closer">Closer</option></select></div>
-        <label class="ee-check"><input type="checkbox" id="nsContract" checked><span>Handelsvertretervertrag direkt per DocuSign senden</span></label>
-        <button class="ee-btn ee-btn--primary" type="submit">${ico('send','sm')} Anlegen & Zugang senden</button></form>`}
-    </section></div>`;
-}
 function openTeamMember(key){
   const p = PROFILES[key];
   const prev = S.showIban;
@@ -808,7 +780,7 @@ function viewNeu(){
     <span class="ee-tag">Slot-ID: modul-12</span></div>`;
 }
 
-const VIEWS = { leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, stammdaten:viewStammdaten, team:viewTeam, neu:viewNeu };
+const VIEWS = { leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, stammdaten:viewStammdaten, neu:viewNeu };
 /* =====================================================================
    LEAD ERFASSEN (Setter) – 1:1 nach dem bestehenden Setting-Formular
    Schritt 1 „Lead anlegen“      → n8n-Webhook  POST /webhook/wp-lead
@@ -1205,7 +1177,6 @@ function handleAct(d, t){
     case 'iban-toggle': S.showIban = !S.showIban; render(); break;
     case 'drawer-iban': { const el = $('#drawerIban'); el.textContent = fmtIban(PROFILES[d.key].iban); t.disabled = true; toast('IBAN angezeigt – Zugriff protokolliert', 'shield'); break; }
     case 'team-row': openTeamMember(d.key); break;
-    case 'ns-reset': S.newSetter = null; render(); break;
     case 'theme': break;
     case 'notif-read': (NOTIFS[me()]||[]).forEach(n => n.unread = false); render(); renderNotif(); break;
     case 'notif-demo': {
@@ -1277,18 +1248,6 @@ document.addEventListener('submit', e => {
       B.published = `${pad(NOW.getDate())}.${pad(NOW.getMonth()+1)}.${NOW.getFullYear()}, ${pad(NOW.getHours())}:${pad(NOW.getMinutes())}`; B.by = 'Tim';
       (boardFor() === 'setter' ? ['romy'] : ['leo']).forEach(k => { const r = rankOf(k, B); pushNotif(k, r.rank === '–' ? `Neue Rangliste: ${B.title}` : `Neue Rangliste: ${B.title} – du bist auf Platz ${r.rank}`); });
       toast('Rangliste veröffentlicht', 'trophy'); render(); break;
-    }
-    case 'setterForm': {
-      const name = v('nsName').trim(), mail = v('nsMail').trim(), role = v('nsRole');
-      if (!name || !mail) return;
-      const first = name.split(' ')[0], key = slug(first) + rnd();
-      PEOPLE[key] = { key, name, first, role, initials: name.split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase() };
-      PROFILES[key] = { name, geb:'—', tel:v('nsTel')||'—', mail, str:'—', plz:'', ort:'', iban:'DE00000000000000000000', inhaber:'—', bank:'—', steuer:'—', klein:false, gewerbe:'fehlt', start:'23.09.2026' };
-      TEAM.unshift({ key, status:'onboarding' });
-      BOARD.rows.push([key, 0]);
-      if (f.querySelector('#nsContract').checked) CONTRACTS.unshift({ id:'V-'+rnd().toUpperCase(), who:key, doc:'Handelsvertretervertrag (§ 84 HGB)', status:'open', sent:'23.09.2026', signed:null });
-      S.newSetter = { name, first, mail };
-      toast(`${first} angelegt – Zugang per E-Mail gesendet`); render(); break;
     }
     case 'feedbackForm': {
       const r = f.querySelector('input[name="fb"]:checked'); if (!r) return;

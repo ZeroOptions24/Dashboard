@@ -18,7 +18,7 @@ const newestFirst = (a: Lead, b: Lead) => b.id.localeCompare(a.id);
 
 /* ======================= Setter ======================= */
 function SetterOverview() {
-  const { data, role, me, person, go, openLead } = useDashboard();
+  const { data, role, me, person, go, openLead, firstName } = useDashboard();
   const L = leadsForUser(data.LEADS, role, me);
   const sep = L.filter((l) => l.datum.includes(".09."));
   const q = L.filter((l) => hadTermin(l.status)).length;
@@ -30,7 +30,7 @@ function SetterOverview() {
   /* Reihenfolge nach Priorität: Geld · Heute · Eingereicht · Quote · Setter-Rangliste · Letzte Leads · (Event, Verlauf) */
   return (
     <>
-      <PageHead title={`Hallo ${person(me).first}`} />
+      <PageHead title={`Hallo ${firstName}`} />
       <div className="ee-grid g-hero">
         <MoneyCard />
         <DailyGoal />
@@ -127,7 +127,7 @@ function CallQueue({ queue }: { queue: Lead[] }) {
 }
 
 function PresetterOverview() {
-  const { data, role, me, now, person } = useDashboard();
+  const { data, role, me, now, person, firstName } = useDashboard();
   const L = leadsForUser(data.LEADS, role, me);
   const queue = L.filter((l) => l.status === "eingereicht").sort(urgencySort(now));
   const overdue = queue.filter((l) => isOverdue(l, now) || callbackLate(l, now)).length;
@@ -136,7 +136,7 @@ function PresetterOverview() {
   const closer = "leo";
   return (
     <>
-      <PageHead title={`Hallo ${person(me).first}`} />
+      <PageHead title={`Hallo ${firstName}`} />
       <div className="ee-grid g-main" style={{ alignItems: "start" }}>
         <div className="stack" style={{ gap: 18 }}>
           <div className="ee-grid g-kpi4">
@@ -241,7 +241,7 @@ interface Todo {
 }
 
 function CloserOverview() {
-  const { data, me, now, person, act, go } = useDashboard();
+  const { data, me, now, act, go, firstName } = useDashboard();
   const lead = (id: string) => data.LEADS.find((l) => l.id === id)!;
   const up = data.APPTS.filter((a) => a.closer === me && apptEnd(a) > now).sort((a, b) => apptStart(a).getTime() - apptStart(b).getTime());
   const due = pendingFeedback(data.APPTS, me, now).sort((a, b) => feedbackDue(a).getTime() - feedbackDue(b).getTime());
@@ -285,7 +285,7 @@ function CloserOverview() {
   const week = up.filter((a) => a.date <= "2026-09-27");
   return (
     <>
-      <PageHead title={`Hallo ${person(me).first}`} />
+      <PageHead title={`Hallo ${firstName}`} />
       {closerPaused(data.APPTS, me, now) && (
         <div className="ee-alert ee-alert--bad">
           <Icon name="lock" small /> Deine Slots sind für neue Leads pausiert, bis alle Rückmeldungen erledigt sind.

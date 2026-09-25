@@ -14,6 +14,9 @@ export function useDashboard() {
     data,
     ui,
     role: ui.role,
+    /** Vorname für die Begrüßung: die angemeldete Person – schaut ein Admin in eine
+     *  andere Rolle hinein, die Beispielperson dieser Rolle */
+    firstName: store.session?.role === ui.role ? store.session.name.split(" ")[0] : person(me).first,
     me,
     now: data.NOW,
     person,

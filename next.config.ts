@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* Datenbanktreiber nicht bündeln */
+  serverExternalPackages: ["pg"],
 };
 
 export default nextConfig;

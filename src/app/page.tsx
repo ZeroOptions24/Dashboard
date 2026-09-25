@@ -1,11 +1,22 @@
 import PrototypeBoot from "@/components/PrototypeBoot";
 import ReactViews from "@/components/ReactViews";
 import DataSource from "@/components/DataSource";
+import UserMenu from "@/components/auth/UserMenu";
+import { redirect } from "next/navigation";
+import { getSession } from "@/server/auth";
+import type { Role } from "@/lib/types";
 
 /* Grundgerüst (AppShell) aus dem UI-Prototyp. Die Inhalte der leeren Container
    (Navigation, Ansicht, Drawer …) rendert src/legacy/prototype.js;
-   bereits umgestellte Ansichten rendert <ReactViews />. */
-export default function Home() {
+   bereits umgestellte Ansichten rendert <ReactViews />.
+   Nur mit Anmeldung; den Rollenwechsel „Ansicht als“ sehen nur Admins. */
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const role = (session.user.role || "setter") as Role;
+  const isAdmin = role === "admin";
+  const sp = await searchParams;
+  const view = typeof sp.view === "string" ? sp.view : undefined;
   return (
     <>
       <div className="ee-shell" data-component="AppShell">
@@ -42,7 +53,7 @@ export default function Home() {
             <div className="ee-top__title" id="topTitle"></div>
             <div className="ee-top__spacer"></div>
             <span className="ee-proto">Prototyp · Beispieldaten</span>
-            <div className="ee-role" data-component="RoleSwitch">
+            <div className="ee-role" data-component="RoleSwitch" hidden={!isAdmin}>
               <span className="ee-role__label">Ansicht als</span>
               <div className="ee-seg" role="group" aria-label="Rolle wechseln" id="roleSeg"></div>
               <label className="sr" htmlFor="roleSelect">
@@ -57,6 +68,7 @@ export default function Home() {
               aria-label="Hell-/Dunkelmodus wechseln"
             ></button>
             <button className="ee-iconbtn" id="bellBtn" aria-label="Benachrichtigungen" aria-expanded="false"></button>
+            <UserMenu name={session.user.name} />
           </header>
           <main className="ee-content" id="view" tabIndex={-1}></main>
           <ReactViews />
@@ -71,7 +83,7 @@ export default function Home() {
       <div className="ee-toasts" id="toasts" aria-live="polite"></div>
       <input id="copyFallback" className="sr" aria-hidden="true" tabIndex={-1} />
 
-      <PrototypeBoot />
+      <PrototypeBoot role={role} view={view} name={session.user.name} />
       <DataSource />
     </>
   );

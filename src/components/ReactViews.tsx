@@ -2,11 +2,13 @@
 
 import OverviewView from "@/components/overview/OverviewView";
 import PipelineView from "@/components/pipeline/PipelineView";
+import TeamView from "@/components/team/TeamView";
 import { REACT_VIEWS, useStore } from "@/lib/store";
 
 const VIEWS: Record<string, () => React.ReactNode> = {
   uebersicht: () => <OverviewView />,
   leads: () => <PipelineView />,
+  team: () => <TeamView />,
 };
 
 /* Zeigt die bereits auf React umgestellten Ansichten; alle anderen rendert

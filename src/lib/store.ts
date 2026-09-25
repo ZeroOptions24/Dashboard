@@ -42,10 +42,12 @@ export const store = {
     leadView: "board",
   } as UiState,
   legacy: null as LegacyBridge | null,
+  /** Angemeldete Person (aus der Sitzung) */
+  session: null as { name: string; role: Role } | null,
 };
 
 /** Ansichten, die bereits als React-Komponente umgesetzt sind. */
-export const REACT_VIEWS = new Set(["leads", "uebersicht"]);
+export const REACT_VIEWS = new Set(["leads", "uebersicht", "team"]);
 
 let version = 0;
 const listeners = new Set<() => void>();
