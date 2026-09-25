@@ -7,8 +7,7 @@ import type { StatusKey } from "@/lib/types";
 
 export const PIPEDRIVE_PIPELINE_ID = 21;
 
-/** Pipedrive-Stufe → Dashboard-Status.
- *  VORSCHLAG – fachlich noch zu bestätigen (siehe README, Abschnitt Pipedrive). */
+/** Pipedrive-Stufe → Dashboard-Status (fachlich bestätigt am 25.09.2026). */
 export const STAGE_TO_STATUS: Record<number, StatusKey> = {
   180: "eingereicht", // Empfehlung kommt
   248: "eingereicht", // QUALI
@@ -36,5 +35,6 @@ export const DEAL_FIELDS = {
   berater: "b26e5007fe5d58e224227bf142eac5384c826c96",
 } as const;
 
-/** Dashboard ist vorerst nur auf Wärmepumpen ausgelegt – Deal-Titel „Wärmepumpe – Name“. */
+/** Dashboard ist vorerst nur auf Wärmepumpen ausgelegt – Deal-Titel „Wärmepumpe – Name“.
+ *  PV und weitere Produkte kommen später dazu (entschieden 25.09.2026). */
 export const PRODUCT_TITLE_PREFIX = { wp: "Wärmepumpe" } as const;

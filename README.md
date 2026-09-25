@@ -21,9 +21,12 @@ Dann http://localhost:3000 öffnen. Oben rechts lässt sich die Rolle wechseln (
 
 Das Dashboard lädt dann alle Wärmepumpen-Deals der Pipeline „Empfehlung kommt“ (ID 21). Telefonnummern werden maskiert, und `/api/leads` antwortet nur im lokalen Entwicklungsmodus, solange es keinen Login gibt.
 
-**Noch zu klären** (Zuordnung in `src/server/pipedrive/config.ts`):
-- Stufen → Status: „An Mitarbeiter übergeben“ und „Mitarbeiter in Bearbeitung“ gelten als *Termin gelegt*; „Später Interessant“, „Anderes Potential“ und „Ablehnung“ als *Abgesagt*.
-- Setter: kommt aus dem Deal-Feld „Setter“ (Name, von n8n gesetzt). Besser wäre eine feste Setter-ID.
+**Zuordnung** (`src/server/pipedrive/config.ts`, bestätigt am 25.09.2026):
+- Empfehlung kommt, QUALI, Kontaktieren (2) → *Lead eingereicht* · An Mitarbeiter übergeben, Mitarbeiter in Bearbeitung → *Termin gelegt* · Checks → *In den Checks* · Verkauf / gewonnen → *Verkauf* · Später Interessant, Anderes Potential, Ablehnung → *Abgesagt*
+- Setter: Deal-Feld „Setter“ (Name, von n8n über den Setter-Link gesetzt). Fehlt der Link, bleibt das Feld leer → Lead erscheint als „unbekannt“.
+- Vorerst nur Wärmepumpen; PV und weitere Produkte kommen später.
+
+**Noch offen:**
 - Presetter und Closer: Woran erkennt man sie in Pipedrive (Deal-Owner, Feld „VQ Berater“)?
 - *Ausgezahlt* gibt es in Pipedrive nicht – kommt später aus der eigenen Datenbank.
 
