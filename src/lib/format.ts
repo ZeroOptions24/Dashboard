@@ -1,6 +1,7 @@
 /* Formatierung von Datum, Uhrzeit und Beträgen (deutsch). */
 
 export const WD = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+export const MON = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
 export const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -24,3 +25,7 @@ export const fmtHour = (h: number) => `${pad(Math.floor(h))}:${h % 1 ? "30" : "0
 
 export const eur = (n: number) =>
   n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: n % 1 ? 2 : 0 });
+
+/** Frist-Zeitpunkt: „heute 14:00“ bzw. „Do 24.09. 14:00“ */
+export const fmtDue = (d: Date, now: Date) =>
+  `${dkey(d) === dkey(now) ? "heute" : `${WD[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`} ${pad(d.getHours())}:${pad(d.getMinutes())}`;

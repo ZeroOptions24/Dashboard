@@ -41,7 +41,7 @@ Das Dashboard lädt dann alle Wärmepumpen-Deals der Pipeline „Empfehlung komm
 | `src/lib/domain.ts` | Geschäftsregeln: Pipeline-Status, Provisionssätze, Verlustgründe, Leitfaden |
 | `src/lib/demo-data.ts` | Beispieldaten (`createDemoData()`), wird später durch Datenbank/Pipedrive ersetzt |
 | `src/lib/store.ts` | Gemeinsamer Zustand für React-Ansichten und Übergangsschicht; `REACT_VIEWS` listet umgestellte Ansichten |
-| `src/components/` | React-Komponenten (umgestellt: Pipeline) |
+| `src/components/` | React-Komponenten (umgestellt: Übersicht aller Rollen, Pipeline) |
 | `src/server/pipedrive/` | Pipedrive-Anbindung (nur Server): Client, Zuordnung Stufen/Felder, Deal → Lead |
 | `src/app/api/leads/route.ts` | Endpunkt `/api/leads` – vorerst nur lokal, bis Login steht |
 | `src/legacy/prototype.js` | **Übergangsschicht:** Ansichten und Logik des Prototyps, unverändert übernommen |

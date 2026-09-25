@@ -25,6 +25,10 @@ export interface LegacyBridge {
   render: () => void;
   /** Lead-Details im Drawer öffnen */
   openLead: (id: string) => void;
+  /** Kurzmeldung unten einblenden */
+  toast: (msg: string, icon?: string) => void;
+  /** Aktion der Übergangsschicht auslösen (wie ein Klick auf data-act), z. B. act("feedback", { id }) */
+  act: (name: string, data?: Record<string, string>) => void;
 }
 
 export const store = {
@@ -41,7 +45,7 @@ export const store = {
 };
 
 /** Ansichten, die bereits als React-Komponente umgesetzt sind. */
-export const REACT_VIEWS = new Set(["leads"]);
+export const REACT_VIEWS = new Set(["leads", "uebersicht"]);
 
 let version = 0;
 const listeners = new Set<() => void>();
@@ -59,11 +63,24 @@ function subscribe(l: () => void) {
 /** Aktueller Benutzer (Prototyp: fester Beispielbenutzer je Rolle). */
 export const currentUser = () => store.data.ROLE_USER[store.ui.role];
 
+/** Alles neu zeichnen (Shell der Übergangsschicht und React-Ansichten). */
+function rerender() {
+  if (store.legacy) store.legacy.render();
+  else notify();
+}
+
 /** UI-Zustand ändern und alles neu zeichnen. */
 export function updateUi(patch: Partial<UiState>) {
   Object.assign(store.ui, patch);
-  if (store.legacy) store.legacy.render();
-  else notify();
+  rerender();
+}
+
+/* ---------- Aktionen: Daten nur über diese Funktionen ändern ---------- */
+
+/** Monatsziel Verdienst einer Person setzen. */
+export function setMoneyGoal(user: PersonKey, euro: number) {
+  store.data.MONEY_GOAL[user] = euro;
+  rerender();
 }
 
 /** Abonniert den Store; die Komponente wird bei jeder Änderung neu gerendert. */

@@ -51,7 +51,7 @@ const ROLE_LABEL = { setter:'Setter', presetter:'Presetter', closer:'Closer', ad
 const S = Object.assign(store.ui, {
   guideProduct:'wp', guideLead:null, guideSlot:null,
   calWeek:0, calDay:2,
-  editProfile:false, showIban:false, editGoal:false,
+  editProfile:false, showIban:false,
   newSetter:null, contractFilter:'alle', ask:null, board:'cup',
 });
 /* Array in place filtern (statt neu zuzuweisen), damit der Store dasselbe Objekt behält */
@@ -341,225 +341,6 @@ function setStatus(id, status, silent, reason, note){
   if (status === 'verloren') keepWhere(APPTS, a => a.lead !== id || apptEnd(a) <= NOW); /* künftige Termine entfallen, gelaufene bleiben für die Historie */
   pushNotif(l.setter, `${l.kunde}: Status → ${STATUS[status].label}${reason ? ` (${reason})` : ''}`, status);
   if (!silent) toast(attempt ? `${l.kunde}: Versuch ${l.attempts} – nächster ${l.nextTry}` : `${l.kunde}: ${STATUS[status].label} · ${person(l.setter).first} wurde benachrichtigt`);
-}
-/* =================== ÜBERSICHT =================== */
-function viewUebersicht(){
-  return ({ setter:overSetter, presetter:overPresetter, closer:overCloser, admin:overAdmin })[S.role]();
-}
-/* ---------- DailyGoal (Setter) – Hero-Karte ---------- */
-function dailyGoal(){
-  const today = myLeads().filter(l => l.datum === dkey(NOW).split('-').reverse().join('.')).length;
-  const g = DAY_GOAL.goal, done = today >= g, streak = DAY_GOAL.streak + (done ? 1 : 0);
-  return `<section class="ee-card ee-card--forest ee-hero ee-daygoal ${done ? 'is-done' : ''}" data-component="DailyGoal">
-    <div class="ee-card__head"><span class="eyebrow">Heute</span>${done ? `<span class="ee-daygoal__badge">${ico('check','sm')} Tagesziel erreicht</span>` : `<span class="eyebrow">Ziel ${g} Leads</span>`}</div>
-    <div class="ee-daygoal__main">
-      <div class="ee-daygoal__num"><b class="num">${today}</b><span>/ ${g} Leads</span></div>
-      <div class="ee-daygoal__bar" role="progressbar" aria-valuenow="${today}" aria-valuemax="${g}" aria-label="Tagesziel"><i style="width:${Math.min(100, today/g*100)}%"></i></div>
-    </div>
-    <div class="ee-week" aria-label="Diese Woche">${DAY_GOAL.week.map(([d,v]) => { const isToday = d === WD[NOW.getDay()]; const val = isToday ? today : v; const hit = val !== null && val >= g;
-      return `<div class="ee-week__day ${hit?'is-hit':''} ${isToday?'is-today':''} ${val===null?'is-future':''}"><span>${d}</span><b class="num">${val===null ? '·' : val}</b></div>`; }).join('')}</div>
-    <p class="ee-daygoal__streak">${ico('bolt','sm')} Serie: <b>${streak} Tage</b>${done ? '' : ` · noch <b>${g - today}</b> bis zum Ziel`}</p>
-  </section>`;
-}
-
-/* ---------- MoneyGoal: Monatsziel Verdienst (Setter, Presetter, Closer) ---------- */
-function moneyCard(){
-  const L = myLeads(), P = PAYOUTS[me()] || [], cur = P[0];
-  const rate = S.role === 'presetter' ? PROV.presetter.termin : PROV[S.role].abschluss;
-  const per = S.role === 'presetter' ? 'Termine' : 'Verkäufe';
-  const goal = MONEY_GOAL[me()] || 3000, earned = cur ? cur.betrag : 0;
-  const soonLeads = S.role === 'presetter' ? [] : L.filter(l => ['termin','checks'].includes(l.status));
-  const soon = soonLeads.length * rate;
-  const pE = Math.min(100, earned / goal * 100), pS = Math.min(100 - pE, soon / goal * 100);
-  const missing = Math.max(0, goal - earned - soon);
-  const line = earned >= goal ? `${ico('check','sm')} Monatsziel erreicht`
-    : !missing ? `Schaffbar: Wenn deine ${soonLeads.length} laufenden Termine verkaufen, kommst du auf <b>${eur(earned + soon)}</b>`
-    : `Noch <b>${Math.ceil(missing / rate)} ${per}</b> bis zum Ziel${soon ? ` – zusätzlich zu ${soonLeads.length} laufenden Terminen` : ''}`;
-  return `<section class="ee-card ee-goalcard" data-component="MoneyGoal">
-    <div class="ee-card__head"><span class="eyebrow">Dein Geld · September</span><button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="goal-edit">${ico('edit','sm')} Ziel ändern</button></div>
-    ${S.editGoal ? `<form id="goalForm" class="row" style="gap:8px"><label class="sr" for="goalInput">Monatsziel in Euro</label><input class="ee-input num" id="goalInput" type="number" min="100" step="100" value="${goal}" style="max-width:160px"><button class="ee-btn ee-btn--primary ee-btn--sm" type="submit">Speichern</button></form>` : ''}
-    <div class="ee-goalcard__num"><b class="num is-money">${eur(earned)}</b><span>von ${eur(goal)} Ziel</span></div>
-    <div class="ee-goalbar" role="progressbar" aria-valuenow="${earned}" aria-valuemax="${goal}" aria-label="Monatsziel Verdienst"><i class="is-earned" style="width:${pE}%"></i><i class="is-soon" style="width:${pS}%"></i></div>
-    <div class="ee-goalcard__legend"><span><i class="is-earned"></i>verdient</span>${soon ? `<span><i class="is-soon"></i>in Aussicht ${eur(soon)}</span>` : ''}</div>
-    <p class="ee-goalcard__line">${line}</p>
-    <div class="ee-goalcard__foot"><div><span class="eyebrow">Auszahlung</span><span>${cur ? `am <b>${cur.datum}</b> · ${PAYOUT_STATUS[cur.status].label}` : '–'}</span></div>
-      <button class="ee-btn ee-btn--sm" data-act="nav" data-view="auszahlungen">Abrechnung ${ico('right','sm')}</button></div>
-  </section>`;
-}
-
-/* ---------- SetterRankCard: Setter-Rangliste in Klartext (Startseite Setter) ---------- */
-function setterRankCard(){
-  const B = SETTER_BOARD, R = ranked(B.rows), my = rankOf(me(), B), n = R.length, top = R[0].val || 1;
-  const above = R.filter(r => r.val > my.val).slice(-1)[0];
-  return `<section class="ee-card ee-cup" data-component="SetterRankCard">
-    <div class="ee-card__head"><span class="eyebrow">Setter-Rangliste · bis ${B.ends.slice(0,6)}</span><button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="nav" data-view="rangliste">Rangliste ${ico('right','sm')}</button></div>
-    <div class="ee-cup__head"><b class="num">Platz ${my.rank}</b><span>von ${n} · ${my.val} ${B.unit}</span></div>
-    <div class="ee-ranks">${R.map(r => `<div class="ee-ranks__row ${r.key === me() ? 'is-me' : ''}"><span>${r.rank}.</span><b>${r.key === me() ? 'Du' : esc(person(r.key).first)}</b><div class="ee-ranks__bar"><i style="width:${r.val / top * 100}%"></i></div><span class="num">${r.val}</span></div>`).join('')}</div>
-    <p class="ee-cup__list" style="display:block">${above ? `Noch <b>${above.val - my.val + 1} ${B.unit}</b> bis Platz ${above.rank}` : '<b>Du führst die Setter-Rangliste</b>'}</p>
-  </section>`;
-}
-
-/* ---------- CupCard: Wärmepumpen-Cup in Klartext (Closer) ---------- */
-function cupCard(){
-  const R = ranked(BOARD.rows), my = rankOf(me()), n = R.length;
-  const next = my.val < 5 ? 5 : my.val < 10 ? 10 : null;
-  const prize = next === 5 ? '200 € Gutschein' : '500 € Tank-/Reisegutschein';
-  const third = R.find(r => r.rank <= 3 && R.filter(x => x.rank <= 3).slice(-1)[0] === r) || R[2];
-  const toPodium = my.rank > 3 ? third.val - my.val : 0; /* Gleichstand zählt als Podestplatz */
-  const max = 10;
-  const total = BOARD.rows.reduce((s,r) => s + r[1], 0);
-  return `<section class="ee-card ee-cup" data-component="CupCard">
-    <div class="ee-card__head"><span class="eyebrow">Wärmepumpen-Cup · bis ${BOARD.ends.slice(0,6)}</span><button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="nav" data-view="rangliste">Rangliste ${ico('right','sm')}</button></div>
-    <div class="ee-cup__head"><b class="num">Platz ${my.rank}</b><span>von ${n} · ${my.val} Anlagen</span></div>
-    <div class="ee-ladder" aria-label="Fortschritt bis zur Prämie">
-      <div class="ee-ladder__track"><i style="width:${Math.min(100, my.val / max * 100)}%"></i></div>
-      <div class="ee-ladder__marks">${[5,10].map(m => `<span class="${my.val >= m ? 'is-hit' : ''}" style="left:${m / max * 100}%"><b>${m}</b><small>${m === 5 ? '200 €' : '500 €'}</small></span>`).join('')}<span class="is-me" style="left:${Math.min(100, my.val / max * 100)}%"><b>Du</b></span></div>
-    </div>
-    <ul class="ee-cup__list">
-      ${next ? `<li>Noch <b>${next - my.val} Anlagen</b> bis <b class="is-money">${prize}</b></li>` : '<li>Beide Prämienstufen erreicht</li>'}
-      ${toPodium > 0 ? `<li>Noch <b>${toPodium} Anlagen</b> bis Platz 3 <b class="is-money">+100 €</b></li>` : my.rank === 1 ? '<li>Du führst – <b class="is-money">+200 €</b></li>' : '<li>Du bist auf dem Podest – <b class="is-money">+100 €</b></li>'}
-      <li class="faint">Team: ${total} von ${BOARD.goal} Anlagen</li>
-    </ul>
-  </section>`;
-}
-function overSetter(){
-  const L = myLeads(), sep = L.filter(l => l.datum.includes('.09.'));
-  const q = L.filter(l => hadTermin(l.status)).length;
-  const rank = rankOf(me());
-  const nextEvent = EVENTS.slice().sort((a,b) => a.date.localeCompare(b.date))[0];
-  const m = MB_STATS.find(x => x.key === me()) || { leads:sep.length, termin:q }; const qq = Math.round(m.termin/m.leads*100);
-  /* Reihenfolge nach Priorität: Geld · Heute · Eingereicht · Quote · Setter-Rangliste · Letzte Leads · (Event, Verlauf) */
-  return pageHead(`Hallo ${person(me()).first}`)
-  + `<div class="ee-grid g-hero">${moneyCard()}${dailyGoal()}</div>
-    <div class="ee-grid g-setter2">
-      <div class="ee-setter-kpis">${kpi('Eingereichte Leads · Sep.', m.leads, vsTeam(m.leads, BENCH.setterLeads), perfTone(m.leads, BENCH.setterLeads))}
-      ${kpi('Terminquote', qq + ' %', vsTeam(qq, BENCH.setterTermin, ' %'), perfTone(qq, BENCH.setterTermin))}</div>
-      ${setterRankCard()}
-    </div>
-    <section class="ee-card ee-card--flush"><div class="ee-card__head"><h2>Letzte Leads</h2><button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="nav" data-view="leads">Alle ${ico('right','sm')}</button></div>
-      ${leadTable(activeLeads(L).sort((a,b) => b.id.localeCompare(a.id)).slice(0,5))}</section>
-    <div class="ee-grid g-2" style="align-items:start">
-      ${nextEvent ? `<section class="ee-card"><div class="ee-card__head"><h2>Nächstes Event</h2></div>${eventCard(nextEvent)}</section>` : ''}
-      <section class="ee-card" data-component="StatusFeed"><div class="ee-card__head"><h2>Verlauf</h2>${unread() ? `<span class="ee-chip ee-chip--info">${unread()} neu</span>` : ''}</div>
-        <div class="ee-feed">${(NOTIFS[me()]||[]).slice(0,4).map(n => `<div class="ee-feed__row ${n.unread ? 'is-new' : ''}">${n.status ? chip(n.status) : '<span class="ee-chip">Info</span>'}<div class="ee-feed__main"><div class="ee-feed__text">${esc(n.t)}</div><div class="ee-feed__time">${esc(n.time)}</div></div></div>`).join('')}</div>
-      </section>
-    </div>`;
-}
-/* ---------- CallQueue: Anrufliste (Presetter) ---------- */
-function callQueue(queue){
-  if (!queue.length) return `<div class="ee-empty">Alle Leads sind angerufen.</div>`;
-  return `<div class="ee-calls">${queue.map(l => `<div class="ee-call ${isOverdue(l) || callbackLate(l) ? 'is-over' : ''}">
-      <button class="ee-call__who" data-act="lead" data-id="${l.id}"><b>${esc(l.kunde)}</b><span>${esc(l.ort)} · von ${esc(person(l.setter).first)}</span><span class="mono">${telFull(l)}</span></button>
-      <div class="ee-call__meta">${tryChip(l)}<span class="faint">${l.attempts ? `${l.attempts}. Versuch` : 'noch nicht angerufen'}</span></div>
-      <div class="ee-call__actions"><button class="ee-btn ee-btn--sm" data-act="set-status" data-id="${l.id}" data-status="nicht_erreicht">Nicht erreicht</button><a class="ee-btn ee-btn--primary ee-btn--sm" href="${telHref(l)}" data-act="call" data-id="${l.id}">${ico('phone','sm')} Anrufen</a></div>
-    </div>`).join('')}</div>`;
-}
-function overPresetter(){
-  const L = myLeads();
-  const queue = L.filter(l => l.status === 'eingereicht').sort(urgencySort);
-  const overdue = queue.filter(l => isOverdue(l) || callbackLate(l)).length;
-  const q = L.filter(l => hadTermin(l.status)).length;
-  return pageHead(`Hallo ${person(me()).first}`)
-  + `<div class="ee-grid g-main" style="align-items:start">
-    <div class="stack" style="gap:18px">
-      <div class="ee-grid g-kpi4">${kpi('Anrufe heute', `${CALL_DAY.done} <small>von ${CALL_DAY.goal}</small>`, `<span class="ee-kpi__bar"><i style="width:${Math.min(100, CALL_DAY.done / CALL_DAY.goal * 100)}%"></i></span>`, CALL_DAY.done >= CALL_DAY.goal ? 'good' : '')}${kpi('Überfällig', overdue, overdue ? 'Neu > 24 Std. oder Rückruf verpasst' : 'alles im Plan', overdue ? 'bad' : 'good')}${kpi('Ø bis Erstanruf', '3,4 <small>Std.</small>', `<span class="is-bad">▲ 1,4 Std.</span> über Ziel (${BENCH.firstCallH} Std.)`, perfTone(BENCH.firstCallMe, BENCH.firstCallH, false))}${kpi('Terminquote', BENCH.presetterTerminMe + ' %', vsTeam(BENCH.presetterTerminMe, BENCH.presetterTermin, ' %'), perfTone(BENCH.presetterTerminMe, BENCH.presetterTermin))}</div>
-      <section class="ee-card ee-card--flush" data-component="CallQueue"><div class="ee-card__head"><h2>Anrufliste</h2><span class="ee-chip ${queue.length ? 'ee-chip--info' : 'ee-chip--pos'}">${queue.length} offen</span></div>${callQueue(queue)}</section>
-    </div>
-    <div class="stack" style="gap:18px">
-      ${moneyCard()}
-      <section class="ee-card"><div class="ee-card__head"><h2>Freie Closer-Slots</h2><span class="muted">Leo</span></div>
-      <div class="ee-list">${closerPaused('leo') ? `<div class="ee-alert ee-alert--bad">${ico('lock','sm')} Leo ist pausiert – offene Rückmeldungen</div>` : ''}${freeSlots('leo').slice(0,4).map(s => `<div class="ee-list__row"><div class="ee-list__main"><div class="ee-list__title">${fmtDay(s.date)} · ${fmtHour(s.start)} Uhr</div></div><span class="ee-chip ee-chip--pos">frei</span></div>`).join('')}</div></section>
-    </div></div>`;
-}
-/* ---------- CloserMoneyHero: Geld auf einen Blick (Closer-Startseite) ---------- */
-function closerMoneyHero(){
-  const P = PAYOUTS[me()] || [], cur = P[0], rate = PROV.closer.abschluss;
-  const goal = MONEY_GOAL[me()] || 8000, earned = cur ? cur.betrag : 0;
-  const open = myLeads().filter(l => ['termin','checks'].includes(l.status)).length, soon = open * rate;
-  const pE = Math.min(100, earned / goal * 100), pS = Math.min(100 - pE, soon / goal * 100);
-  const toGoal = Math.max(0, Math.ceil((goal - earned) / rate));
-  return `<section class="ee-card ee-card--forest ee-hero ee-chero" data-component="CloserMoneyHero">
-    <div class="ee-card__head"><span class="eyebrow">Dein Geld · September</span><button class="ee-btn ee-btn--sm" data-act="goal-edit">${ico('edit','sm')} Ziel</button></div>
-    ${S.editGoal ? `<form id="goalForm" class="row" style="gap:8px"><label class="sr" for="goalInput">Monatsziel in Euro</label><input class="ee-input num" id="goalInput" type="number" min="100" step="100" value="${goal}" style="max-width:160px"><button class="ee-btn ee-btn--accent ee-btn--sm" type="submit">Speichern</button></form>` : ''}
-    <div class="ee-chero__num"><b class="num">${eur(earned)}</b><span>von ${eur(goal)}</span></div>
-    <div class="ee-chero__bar" role="progressbar" aria-valuenow="${earned}" aria-valuemax="${goal}" aria-label="Monatsziel"><i class="is-earned" style="width:${pE}%"></i><i class="is-soon" style="width:${pS}%"></i></div>
-    <div class="ee-chero__stats">
-      <div><b class="num">${toGoal ? toGoal + (toGoal === 1 ? ' Verkauf' : ' Verkäufe') : '✓'}</b><span>${toGoal ? 'bis zum Ziel' : 'Ziel erreicht'}</span></div>
-      <div><b class="num">+${eur(soon)}</b><span>in Aussicht · ${open} Kunden</span></div>
-      <button data-act="nav" data-view="auszahlungen"><b class="num">${cur ? cur.datum.slice(0,6) : '–'}</b><span>Auszahlung ${ico('right','sm')}</span></button>
-    </div>
-  </section>`;
-}
-function overCloser(){
-  const up = APPTS.filter(a => a.closer === me() && apptEnd(a) > NOW).sort((a,b) => apptStart(a) - apptStart(b));
-  const due = pendingFeedback(me()).sort((a,b) => feedbackDue(a) - feedbackDue(b));
-  const inChecks = LEADS.filter(l => l.closer === me() && l.status === 'checks' && !APPTS.some(a => a.lead === l.id && a.kind === 'closing' && !a.feedback));
-  const nextWeek = SLOTS.filter(s => s.closer === me() && s.date >= '2026-09-28' && s.date <= '2026-10-04').length;
-  const dueChip = a => { const d = feedbackDue(a), h = (d - NOW) / 36e5; return toneChip(h < 0 ? 'überfällig' : `bis ${fmtDue(d)}`, h < 0 ? 'bad' : h < 6 ? 'bad' : 'warn'); };
-  /* Aufgaben: nur was jetzt zu tun ist, dringendstes zuerst */
-  const todo = [
-    ...due.map(a => ({ tone: feedbackDue(a) < NOW || (feedbackDue(a) - NOW) < 216e5 ? 'bad' : 'warn', title:lead(a.lead).kunde, sub:`Ergebnis ${kindLabel(a)} · ${fmtDay(a.date)}`, right:dueChip(a), act:`data-act="feedback" data-id="${a.id}"` })),
-    ...inChecks.map(l => ({ tone:'info', title:l.kunde, sub:`Ergebnis aus den Checks`, right:toneChip('offen','info'), act:`data-act="feedback" data-id="LEAD:${l.id}"` })),
-    ...(nextWeek < 4 ? [{ tone:'warn', title:'Slots nächste Woche', sub: nextWeek ? `erst ${nextWeek} eingetragen` : 'noch keine eingetragen', right:toneChip(`${nextWeek} / 4`, 'warn'), act:'data-act="nav" data-view="kalender"' }] : []),
-  ];
-  const week = up.filter(a => a.date <= '2026-09-27');
-  return pageHead(`Hallo ${person(me()).first}`)
-  + (closerPaused(me()) ? pausedBanner() : '')
-  + closerMoneyHero()
-  + `<div class="ee-grid g-2" style="align-items:start">
-    <section class="ee-card" data-component="CloserTasks"><div class="ee-card__head"><h2>Zu erledigen</h2>${todo.length ? `<span class="ee-count ${todo.some(t => t.tone === 'bad') ? 'is-bad' : ''}">${todo.length}</span>` : ''}</div>
-      ${todo.length ? `<div class="ee-todo">${todo.map(t => `<button class="ee-todo__row is-${t.tone}" ${t.act}><div class="ee-list__main"><div class="ee-list__title">${esc(t.title)}</div><div class="ee-list__sub">${esc(t.sub)}</div></div><span class="ee-todo__right">${t.right}</span>${ico('right','sm')}</button>`).join('')}</div>
-        ${due.length ? `<p class="ee-rule">${ico('lock','sm')} Ohne Rückmeldung nach 24 Std. keine neuen Leads</p>` : ''}`
-      : `<div class="ee-alert ee-alert--ok">${ico('check','sm')} Alles erledigt</div>`}
-    </section>
-    <section class="ee-card" data-component="CloserWeek"><div class="ee-card__head"><h2>Diese Woche</h2><button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="nav" data-view="termine">Alle ${ico('right','sm')}</button></div>
-      ${week.length ? `<div class="ee-agenda">${week.map(a => { const d = parseKey(a.date); return `<button class="ee-agenda__row" data-act="nav" data-view="termine"><span class="ee-agenda__day"><small>${WD[d.getDay()]}</small><b>${d.getDate()}</b></span><span class="ee-agenda__time num">${fmtHour(a.start)}</span><div class="ee-list__main"><div class="ee-list__title">${esc(lead(a.lead).kunde)}</div><div class="ee-list__sub">${kindLabel(a)} · ${esc(a.ort)}</div></div>${relWhen(a)}</button>`; }).join('')}</div>` : `<div class="ee-empty">Keine Termine mehr diese Woche</div>`}
-    </section></div>`;
-}
-function overAdmin(){
-  const openC = CONTRACTS.filter(c => c.status==='open').length;
-  const funnel = [['Eingereicht',146],['Termin gelegt',58],['In den Checks',39],['Verkauft',27]];
-  const max = Math.max(...WEEKLY.map(w => w[1]));
-  const payOpen = Object.values(PAYOUTS).flat().filter(p => p.status !== 'ausgezahlt').reduce((s,p) => s + p.betrag, 0);
-  const inactive = MB_STATS.filter(m => m.days >= 3);
-  const lossMax = Math.max(...LOSS_STATS.map(x => x[1]));
-  const pct = (a,b) => b ? Math.round(a/b*100) : 0;
-  const team = MB_STATS.reduce((t,m) => ({ leads:t.leads+m.leads, termin:t.termin+m.termin, checks:t.checks+m.checks, verkauft:t.verkauft+m.verkauft }), { leads:0, termin:0, checks:0, verkauft:0 });
-  const quoteCell = (v, avg) => { const t = perfTone(v, avg); return `<div class="ee-quote"><span class="num ${t ? 'is-'+t : ''}">${v} %</span><i><b class="${t ? 'is-'+t : ''}" style="width:${Math.min(100,v)}%"></b></i></div>`; };
-  const avgQ = pct(team.termin, team.leads), avgT = pct(team.checks, team.leads), avgA = pct(team.verkauft, team.leads);
-  const todo = [
-    ...['leo'].filter(k => pendingFeedback(k).length).map(k => ({ tone: closerPaused(k) ? 'bad' : 'warn', chip: closerPaused(k) ? 'Pausiert' : 'Offen', title:`${person(k).first}: ${pendingFeedback(k).length} Rückmeldungen offen`, sub: pendingFeedback(k).map(a => lead(a.lead).kunde).join(', '), act:`data-act="team-row" data-key="${k}"` })),
-    ...inactive.map(m => ({ tone: m.days >= 5 ? 'bad' : 'warn', chip:'Inaktiv', title:`${person(m.key).first} seit ${m.days} Tagen ohne Lead`, sub:`Letzter Lead am ${m.last}`, act:`data-act="team-row" data-key="${m.key}"` })),
-    ...CONTRACTS.filter(c => c.question).map(c => ({ tone:'warn', chip:'Klären', title:`Rückfrage von ${person(c.who).first}`, sub:c.question, act:'data-act="nav" data-view="vertraege"' })),
-    { tone:'warn', chip:'Offen', title:`${openC} Verträge nicht unterschrieben`, sub:'Erinnerung per DocuSign', act:'data-act="nav" data-view="vertraege"' },
-    { tone:'info', chip:'Freigeben', title:'2 Abrechnungen in Prüfung', sub:'Auszahlung am 15.10.2026', act:'data-act="nav" data-view="auszahlungen"' },
-  ];
-  return pageHead('Gesamtübersicht', `<button class="ee-btn ee-btn--primary" data-act="nav" data-view="team">${ico('plus','sm')} Setter anlegen</button><button class="ee-btn" data-act="nav" data-view="events">${ico('flag','sm')} Event posten</button>`)
-  + `<div class="ee-grid g-kpi">${kpi('Leads eingereicht', 146, '+12 % ggü. August', perfTone(146, 125))}${kpi('Terminquote', '40 %', 'Ziel 42 %', perfTone(40, 42))}${kpi('In den Checks', 39, '11 diese Woche')}${kpi('Verkauft', 27, 'Soll heute: 50 von 65', perfTone(27, 50))}${kpi('Offene Verträge', openC, 'DocuSign', openC ? 'bad' : 'good')}${kpi('Auszahlungen offen', eur(payOpen), 'zum 15.10.', 'money')}</div>
-  <div class="ee-grid g-main" style="align-items:start">
-    <section class="ee-card" data-component="Funnel"><div class="ee-card__head"><h2>Pipeline September</h2><button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="nav" data-view="leads">Board ${ico('right','sm')}</button></div>
-      <div class="ee-flow">${[['Eingereicht',146,null,null],['Termin gelegt',58,42,'termin'],['In den Checks',39,65,'checks'],['Verkauf',27,70,'verkauft']].map(([k,n,target,cls],i,arr) => {
-        const conv = i ? Math.round(n / arr[i-1][1] * 100) : null, t = conv !== null ? perfTone(conv, target) : '';
-        return `${i ? `<div class="ee-flow__arrow ${t ? 'is-' + t : ''}"><b class="num">${conv} %</b><small>Ziel ${target} %</small></div>` : ''}<div class="ee-flow__step ${cls ? 'is-' + cls : ''}"><b class="num">${n}</b><span>${k}</span></div>`; }).join('')}</div>
-      <div class="ee-flow__total">Von 146 eingereichten Leads wurden <b class="is-money">27 verkauft (${Math.round(27/146*100)} %)</b></div>
-      <hr class="divider">
-      <div class="ee-card__head"><h3>Eingereichte Leads je Woche</h3></div>
-      <div class="ee-bars" data-component="BarChart">${WEEKLY.map(([k,v],i) => `<div class="ee-bars__col ${i===WEEKLY.length-1?'is-cur':''}"><span class="ee-bars__v">${v}</span><div class="ee-bars__bar" style="height:${v/max*100}%"></div><span class="ee-bars__l">${k}</span></div>`).join('')}</div></section>
-    <section class="ee-card" data-component="TodoList"><div class="ee-card__head"><h2>Handlungsbedarf</h2><span class="ee-chip ee-chip--bad">${todo.length}</span></div>
-      <div class="ee-todo">${todo.map(t => `<button class="ee-todo__row is-${t.tone}" ${t.act}><div class="ee-list__main"><div class="ee-list__title">${esc(t.title)}</div><div class="ee-list__sub">${esc(t.sub)}</div></div>${toneChip(t.chip, t.tone)}</button>`).join('')}</div></section>
-  </div>
-  <div class="ee-grid g-main" style="align-items:start">
-    <section class="ee-card ee-card--flush" data-component="QuoteTable"><div class="ee-card__head"><h2>Quoten je Setter</h2><span class="muted">September</span></div>
-      <div class="ee-table-wrap"><table class="ee-table ee-table--stack"><thead><tr><th>Setter</th><th class="r">Leads</th><th>Termin</th><th>Checks</th><th>Verkauft</th><th>Letzter Lead</th></tr></thead><tbody>
-      ${MB_STATS.map(m => `<tr class="is-click" data-act="team-row" data-key="${m.key}" tabindex="0"><td class="who">${esc(person(m.key).first)}</td><td class="r num">${m.leads}</td>
-        <td data-hide-sm>${quoteCell(pct(m.termin,m.leads), avgQ)}</td><td data-hide-sm>${quoteCell(pct(m.checks,m.leads), avgT)}</td><td>${quoteCell(pct(m.verkauft,m.leads), avgA)}</td>
-        <td class="r-sm">${m.days >= 5 ? toneChip(`seit ${m.days} Tagen`,'bad') : m.days >= 3 ? toneChip(`seit ${m.days} Tagen`,'warn') : `<span class="sub">${m.days ? 'gestern' : 'heute'}</span>`}</td></tr>`).join('')}
-      <tr><td class="who">Team</td><td class="r num"><b>${team.leads}</b></td><td data-hide-sm class="num">${avgQ} %</td><td data-hide-sm class="num">${avgT} %</td><td class="num">${avgA} %</td><td data-hide-sm></td></tr>
-      </tbody></table></div></section>
-    <section class="ee-card" data-component="LossReasons"><div class="ee-card__head"><h2>Verlustgründe</h2><span class="muted">September</span></div>
-      <div class="ee-funnel">${LOSS_STATS.map(([k,v]) => `<div class="ee-funnel__row ee-funnel__row--loss"><span>${k}</span><div class="ee-funnel__track"><i style="width:${v/lossMax*100}%"></i></div><b class="num" style="text-align:right">${v}</b></div>`).join('')}</div></section>
-  </div>
-  <section class="ee-card ee-card--flush"><div class="ee-card__head"><h2>Neueste Leads</h2><button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="nav" data-view="leads">Pipeline ${ico('right','sm')}</button></div>${leadTable(activeLeads(LEADS).sort((a,b) => b.id.localeCompare(a.id)).slice(0,6), {setter:true})}</section>`;
 }
 /* =================== LEITFADEN (Presetter) =================== */
 function freeSlots(closer, ignorePause){ if (!ignorePause && closerPaused(closer)) return []; return SLOTS.filter(s => s.closer===closer && (s.date > dkey(NOW) || (s.date===dkey(NOW) && s.start > NOW.getHours()))).sort((a,b) => (a.date+pad(a.start)).localeCompare(b.date+pad(b.start))); }
@@ -1027,7 +808,7 @@ function viewNeu(){
     <span class="ee-tag">Slot-ID: modul-12</span></div>`;
 }
 
-const VIEWS = { uebersicht:viewUebersicht, leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, stammdaten:viewStammdaten, team:viewTeam, neu:viewNeu };
+const VIEWS = { leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, stammdaten:viewStammdaten, team:viewTeam, neu:viewNeu };
 /* =====================================================================
    LEAD ERFASSEN (Setter) – 1:1 nach dem bestehenden Setting-Formular
    Schritt 1 „Lead anlegen“      → n8n-Webhook  POST /webhook/wp-lead
@@ -1369,7 +1150,10 @@ document.addEventListener('click', e => {
     if (!$('#notifPanel').hidden && !e.target.closest('#notifPanel')) { $('#notifPanel').hidden = true; $('#bellBtn').setAttribute('aria-expanded','false'); }
     return;
   }
-  const d = t.dataset;
+  handleAct(t.dataset, t);
+});
+/* Aktionen per data-act – auch von React-Ansichten über store.legacy.act() aufrufbar */
+function handleAct(d, t){
   switch (d.act) {
     case 'nav': go(d.view); break;
     case 'role': S.role = d.role; S.leadFilter='alle'; S.leadSearch=''; S.leadSetter='alle'; S.newSetter=null; S.ask=null; go(S.view); toast(`Ansicht: ${ROLE_LABEL[d.role]} (${person(me()).first})`, 'user'); break;
@@ -1390,7 +1174,6 @@ document.addEventListener('click', e => {
     case 'board-tab': S.board = d.b; render(); break;
     case 'nav-guide': { const l = lead(d.id); S.guideLead = d.id; S.guideProduct = l.produkt; go('leitfaden'); break; }
     case 'feedback': openFeedback(d.id); break;
-    case 'goal-edit': S.editGoal = !S.editGoal; render(); if (S.editGoal) setTimeout(() => $('#goalInput')?.focus(), 0); break;
     case 'guide-pick': S.guideLead = d.id; S.guideSlot = null; render(); window.scrollTo({ top:0 }); break;
     case 'guide-slot': S.guideSlot = d.slot; render(); break;
     case 'guide-callback': openCallback(d.id); break;
@@ -1434,7 +1217,7 @@ document.addEventListener('click', e => {
       render(); renderNotif(); toast(`Pipedrive: ${cand.kunde} ist jetzt „${STATUS[next].label}“`, 'bolt'); break;
     }
   }
-});
+}
 
 $('#themeBtn').addEventListener('click', () => {
   const dark = theme ? theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
@@ -1507,10 +1290,6 @@ document.addEventListener('submit', e => {
       S.newSetter = { name, first, mail };
       toast(`${first} angelegt – Zugang per E-Mail gesendet`); render(); break;
     }
-    case 'goalForm': {
-      const val = Math.max(100, Math.round(+v('goalInput') || 0));
-      MONEY_GOAL[me()] = val; S.editGoal = false; toast(`Monatsziel: ${eur(val)}`); render(); break;
-    }
     case 'feedbackForm': {
       const r = f.querySelector('input[name="fb"]:checked'); if (!r) return;
       const ap = APPTS.find(x => x.id === f.dataset.id) || { id:f.dataset.id, lead:f.dataset.id.replace('LEAD:',''), kind:'closing', virtual:true }; /* Lead in den Checks ohne eingetragenen 2. Termin */
@@ -1555,7 +1334,7 @@ matchMedia('(max-width: 900px)').addEventListener('change', () => { if (S.view =
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
 /* Schnittstelle für die React-Ansichten */
-store.legacy = { render, openLead };
+store.legacy = { render, openLead, toast, act: (name, data = {}) => handleAct({ act:name, ...data }, null) };
 
 /* Start */
 applyTheme();

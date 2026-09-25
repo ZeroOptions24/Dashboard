@@ -84,3 +84,18 @@ export function provFor(l: Lead, role: Role): Provision {
   if (l.status === "ausgezahlt") return { txt: `${eur(a)} ausgezahlt`, amount: 0 };
   return { txt: `+${eur(a)} bei Verkauf`, amount: a };
 }
+
+/** Offene Anrufe: überfällige Rückrufe und neue Leads zuerst (älteste oben), dann nach Fälligkeit. */
+export function urgencySort(now: Date) {
+  const grp = (l: Lead) => (callbackLate(l, now) ? 0 : !l.attempts && !l.nextTry ? 1 : 2);
+  const due = (l: Lead) => dueAt(l, now)?.getTime() ?? 0;
+  return (a: Lead, b: Lead) => grp(a) - grp(b) || (grp(a) === 1 ? ageH(b, now) - ageH(a, now) : due(a) - due(b));
+}
+
+/** Lead hatte bereits einen Termin (für Terminquoten). */
+export const hadTermin = (s: StatusKey) => ["termin", "checks", "verkauft", "ausgezahlt", "verloren"].includes(s);
+
+/** PROTOTYP: volle Nummer aus der maskierten Demo-Nummer. Später liefert der Server
+ *  die volle Nummer nur an Rollen, die sie sehen dürfen (Presetter, Closer). */
+export const telFull = (l: Lead) => l.tel.replace("••••", "4418");
+export const telHref = (l: Lead) => "tel:" + telFull(l).replace(/\s/g, "");

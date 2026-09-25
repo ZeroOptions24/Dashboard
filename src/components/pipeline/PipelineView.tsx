@@ -2,10 +2,11 @@
 
 import { useSyncExternalStore } from "react";
 import Icon from "@/components/ui/Icon";
-import { PipelineSteps, StatusChip } from "@/components/ui/Chips";
+import { StatusChip } from "@/components/ui/Chips";
 import LeadCard from "@/components/pipeline/LeadCard";
+import LeadTable, { clickableRow, type LeadListCtx as Ctx } from "@/components/pipeline/LeadTable";
 import { PIPELINE, STATUS } from "@/lib/domain";
-import { activeLeads, isLost, leadsForUser, provFor, stageOf } from "@/lib/leads";
+import { activeLeads, isLost, leadsForUser, stageOf } from "@/lib/leads";
 import { currentUser, updateUi, useStore, type LeadFilter } from "@/lib/store";
 import type { Lead, Person, PersonKey, StatusKey } from "@/lib/types";
 
@@ -22,15 +23,6 @@ function useMobile() {
     () => false,
   );
 }
-
-const clickableRow = (open: () => void) => ({
-  className: "is-click",
-  tabIndex: 0,
-  onClick: open,
-  onKeyDown: (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") open();
-  },
-});
 
 /* ---------- PipelineBar: die 5 Stufen als Pfeilleiste mit Anzahl (klickbar) ---------- */
 function PipelineBar({ leads, filter }: { leads: Lead[]; filter: LeadFilter }) {
@@ -59,64 +51,6 @@ function PipelineBar({ leads, filter }: { leads: Lead[]; filter: LeadFilter }) {
   );
 }
 
-interface Ctx {
-  onOpen: (id: string) => void;
-  person: (k: string) => Person;
-}
-
-/* ---------- LeadTable (Listenansicht) ---------- */
-function LeadTable({ leads, showSetter, ...ctx }: { leads: Lead[]; showSetter: boolean } & Ctx) {
-  const role = useStore().ui.role;
-  if (!leads.length) return <div className="ee-empty">Keine Leads für diesen Filter.</div>;
-  const showProv = role !== "admin";
-  return (
-    <div className="ee-table-wrap">
-      <table className="ee-table ee-table--stack" data-component="LeadTable">
-        <thead>
-          <tr>
-            <th>Kunde</th>
-            <th>Status</th>
-            <th>Pipeline</th>
-            {showSetter && <th>Setter</th>}
-            {showProv && <th>Deine Provision</th>}
-            <th>Eingereicht</th>
-          </tr>
-        </thead>
-        <tbody>
-          {leads.map((l) => {
-            const p = provFor(l, role);
-            return (
-              <tr key={l.id} {...clickableRow(() => ctx.onOpen(l.id))}>
-                <td>
-                  <div className="who">{l.kunde}</div>
-                  <div className="sub">{l.ort}</div>
-                </td>
-                <td className="r-sm">
-                  <StatusChip status={l.status} />
-                  {l.reason && (
-                    <div className="sub" style={{ marginTop: 3 }}>
-                      {l.reason}
-                    </div>
-                  )}
-                </td>
-                <td data-hide-sm="">
-                  <PipelineSteps status={l.status} />
-                </td>
-                {showSetter && <td data-hide-sm="">{ctx.person(l.setter).first}</td>}
-                {showProv && (
-                  <td>
-                    <span className={p.amount ? "ee-prov" : "ee-prov is-muted"}>{p.txt}</span>
-                  </td>
-                )}
-                <td className="sub num">{l.datum.slice(0, 6)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 /* ---------- LostOverview: verlorene Leads gesammelt statt in der Hauptliste ---------- */
 function LostOverview({ leads, showSetter, ...ctx }: { leads: Lead[]; showSetter: boolean } & Ctx) {
