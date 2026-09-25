@@ -1,6 +1,7 @@
 /* eslint-disable */
 import * as DOMAIN from '@/lib/domain';
-import { createDemoData } from '@/lib/demo-data';
+import { store, notify, REACT_VIEWS } from '@/lib/store';
+import { ICONS } from '@/lib/icons';
 /* =====================================================================
    Übergangsschicht: Logik des UI-Prototyps (EnergyEngel/mb-dashboard.html)
    unverändert übernommen, damit das Dashboard 1:1 gleich aussieht und sich
@@ -12,48 +13,13 @@ let started = false;
 export function startPrototype() {
   if (started) return; /* React StrictMode ruft Effekte im Dev-Modus doppelt auf */
   started = true;
-/* Geschäftsregeln (src/lib/domain.ts) und Beispieldaten (src/lib/demo-data.ts).
-   Die Daten-Variablen bleiben per let veränderbar, weil die Ansichten sie noch direkt ändern. */
+/* Geschäftsregeln (src/lib/domain.ts) und Daten aus dem gemeinsamen Store (src/lib/store.ts).
+   Arrays nur in place ändern (push/splice), nie neu zuweisen – sonst sehen die React-Ansichten die Änderung nicht. */
 const { PRODUCTS, STATUS, PIPELINE, FEEDBACK_FRIST_H, FEEDBACK_OPTIONS, PAYOUT_STATUS, CONTRACT_TEMPLATES, GUIDES, LOSS_REASONS, PROV, WIDERRUF_TAGE } = DOMAIN;
-let { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, DAY_GOAL, SETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL } = createDemoData();
+const { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, DAY_GOAL, SETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL } = store.data;
 /* =====================================================================
    CORE – Zustand, Helfer, Shell (Navigation, Rollen, Theme, Overlays)
    ===================================================================== */
-const ICONS = {
-  home:'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
-  list:'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
-  euro:'M17.5 7.5a6.5 6.5 0 1 0 0 9M4 10.5h10M4 13.5h10',
-  doc:'M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M9 13h6M9 17h6',
-  cal:'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
-  flag:'M5 21V4M5 4h12l-2.5 4L17 12H5',
-  trophy:'M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8M10 17h4v4h-4z',
-  user:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
-  plus:'M12 5v14M5 12h14',
-  phone:'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2',
-  team:'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20a7 7 0 0 1 14 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14a6 6 0 0 1 4 6',
-  bell:'M6 16v-5a6 6 0 1 1 12 0v5l2 2H4zM10 21h4',
-  copy:'M9 9h11v11H9zM5 15H4V4h11v1',
-  link:'M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1',
-  moon:'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
-  sun:'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
-  eye:'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
-  eyeoff:'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2',
-  more:'M5 12h.01M12 12h.01M19 12h.01',
-  close:'M6 6l12 12M18 6L6 18',
-  left:'M15 6l-6 6 6 6', right:'M9 6l6 6-6 6',
-  check:'M5 12l5 5L20 7',
-  lock:'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
-  send:'M4 12l16-8-6 16-3-7z',
-  pin:'M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11zM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
-  clock:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
-  qr:'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2',
-  msg:'M4 5h16v11H9l-5 4z',
-  bolt:'M13 2L4 14h7l-1 8 9-12h-7z',
-  info:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01',
-  edit:'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
-  ext:'M14 4h6v6M20 4l-9 9M18 14v6H4V6h6',
-  shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
-};
 const ico = (n, cls='') => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[n]||''}"/></svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const eur = n => n.toLocaleString('de-DE', { style:'currency', currency:'EUR', maximumFractionDigits: n % 1 ? 2 : 0 });
@@ -81,14 +47,15 @@ const NAV = {
 const ROLE_LABEL = { setter:'Setter', presetter:'Presetter', closer:'Closer', admin:'Admin' };
 
 /* ---------- Zustand (nur im Speicher) ---------- */
-const S = {
-  role:'setter', view:'uebersicht',
-  leadFilter:'alle', leadSearch:'', leadSetter:'alle',
+/* Gemeinsame Felder (role, view, lead*) liegen in store.ui, damit React-Ansichten sie lesen können */
+const S = Object.assign(store.ui, {
   guideProduct:'wp', guideLead:null, guideSlot:null,
   calWeek:0, calDay:2,
   editProfile:false, showIban:false, editGoal:false,
   newSetter:null, contractFilter:'alle', ask:null, board:'cup',
-};
+});
+/* Array in place filtern (statt neu zuzuweisen), damit der Store dasselbe Objekt behält */
+const keepWhere = (arr, pred) => { for (let i = arr.length - 1; i >= 0; i--) if (!pred(arr[i])) arr.splice(i, 1); };
 const me = () => ROLE_USER[S.role];
 
 let theme = null;
@@ -223,9 +190,12 @@ function renderShell(){
 function render(){
   if (!NAV[S.role].some(i => i[0]===S.view)) S.view = 'uebersicht';
   renderShell();
-  const fn = VIEWS[S.view];
-  $('#view').innerHTML = fn ? fn() : '';
+  /* Bereits umgestellte Ansichten zeichnet React (src/components/ReactViews.tsx) */
+  const isReact = REACT_VIEWS.has(S.view), fn = VIEWS[S.view];
+  $('#view').hidden = isReact;
+  $('#view').innerHTML = !isReact && fn ? fn() : '';
   if (!$('#notifPanel').hidden) renderNotif();
+  notify();
 }
 function go(view){ S.view = view; S.editProfile = false; S.showIban = false; closeOverlays(); render(); window.scrollTo({top:0}); }
 /* =====================================================================
@@ -309,57 +279,6 @@ function leadTable(leads, opts={}){
 }
 const isLost = l => !!STATUS[l.status].fail;
 const activeLeads = leads => leads.filter(l => !isLost(l));
-function stageOf(l){ return isLost(l) ? 'verloren' : l.status; }
-/* ---------- PipelineBar: die 5 Stufen als Pfeilleiste mit Anzahl (klickbar) ---------- */
-function pipelineBar(leads){
-  const act = activeLeads(leads), lost = leads.filter(isLost).length;
-  return `<div class="ee-pbar" role="tablist" aria-label="Pipeline-Stufen" data-component="PipelineBar">
-    <button class="ee-pbar__all" data-act="filter" data-filter="alle" aria-pressed="${S.leadFilter === 'alle'}"><b class="num">${act.length}</b><span>Alle aktiven</span></button>
-    <div class="ee-pbar__stages">${PIPELINE.map((k,i) => { const n = act.filter(l => l.status === k).length;
-      return `<button class="ee-pbar__stage is-${k}" data-act="filter" data-filter="${k}" aria-pressed="${S.leadFilter === k}"><b class="num">${n}</b><span>${STATUS[k].label}</span></button>`; }).join('')}</div>
-    <button class="ee-pbar__lost" data-act="filter" data-filter="verloren" aria-pressed="${S.leadFilter === 'verloren'}"><b class="num">${lost}</b><span>Verloren</span></button>
-  </div>`;
-}
-/* Nächster Schritt je Lead in Klartext */
-function nextStep(l){
-  const appt = APPTS.filter(a => a.lead === l.id).sort((a,b) => apptStart(b) - apptStart(a))[0];
-  if (l.status === 'eingereicht' && !l.attempts && !l.nextTry) return ageBadge(l);
-  if (l.status === 'eingereicht') return tryChip(l);
-  if (l.status === 'termin') return appt ? `<span class="ee-lcard__when">${ico('cal','sm')} ${fmtDay(appt.date)} ${fmtHour(appt.start)}${appt.closer ? ' · ' + esc(person(appt.closer).first) : ''}</span>` : '';
-  if (l.status === 'checks') { const c = APPTS.find(a => a.lead === l.id && a.kind === 'closing' && !a.feedback); return c ? `<span class="ee-lcard__when">${ico('cal','sm')} 2. Termin ${fmtDay(c.date)} ${fmtHour(c.start)}</span>` : `<span class="ee-lcard__when">${ico('clock','sm')} in den Checks seit ${esc(l.hist[0][1].split(' ')[0])}</span>`; }
-  if (l.status === 'verkauft') return `<span class="ee-lcard__when is-good">${ico('check','sm')} verkauft ${esc(l.hist[0][1].split(' ')[0])} · Auszahlung 15.10.</span>`;
-  if (l.status === 'ausgezahlt') return `<span class="ee-lcard__when is-good">${ico('euro','sm')} ausgezahlt ${esc(l.hist[0][1].split(' ')[0])}</span>`;
-  return '';
-}
-function leadCard(l){
-  return `<button class="ee-lcard" data-act="lead" data-id="${l.id}" data-component="LeadCard">
-    <div class="ee-lcard__top"><b>${esc(l.kunde)}</b>${isOverdue(l) ? '<i class="ee-dot is-bad" title="Überfällig"></i>' : ''}</div>
-    <div class="ee-lcard__sub">${esc(l.ort)}${S.role !== 'setter' ? ' · ' + esc(person(l.setter).first) : ''}</div>
-    <div class="ee-lcard__next">${nextStep(l)}</div>
-    ${S.role !== 'admin' ? (() => { const p = provFor(l); return `<div class="ee-lcard__prov"><span class="ee-prov ${p.amount ? '' : 'is-muted'}">${p.amount ? '+' + eur(p.amount) + ' möglich' : p.txt}</span></div>`; })() : ''}
-  </button>`;
-}
-function pipelineBoard(leads){
-  const act = activeLeads(leads);
-  const mobileOne = matchMedia('(max-width: 900px)').matches;
-  const cols = mobileOne ? [S.leadFilter !== 'alle' && S.leadFilter !== 'verloren' ? S.leadFilter : (PIPELINE.find(k => act.some(l => l.status === k)) || 'eingereicht')] : PIPELINE;
-  return `<div class="ee-board2" data-component="PipelineBoard">${cols.map(k => { const ls = act.filter(l => l.status === k);
-    return `<section class="ee-bcol is-${k} ${S.leadFilter === k ? 'is-active' : ''}"><header><span>${STATUS[k].label}</span><b class="num">${ls.length}</b></header>
-      <div class="ee-bcol__cards">${ls.map(leadCard).join('') || '<div class="ee-bcol__empty">–</div>'}</div></section>`; }).join('')}</div>`;
-}
-function leadBody(){
-  const r = filtered(myLeads());
-  if (S.leadFilter === 'verloren') return lostOverview(r);
-  if ((S.leadView || 'board') === 'board') return pipelineBoard(filtered(myLeads(), true));
-  return leadTable(r, {setter: S.role !== 'setter'});
-}
-function filtered(leads, allStages){
-  let r = leads;
-  if (!allStages) r = S.leadFilter === 'alle' ? activeLeads(r) : r.filter(l => stageOf(l) === S.leadFilter);
-  if (S.leadSetter !== 'alle') r = r.filter(l => l.setter === S.leadSetter);
-  if (S.leadSearch) { const q = S.leadSearch.toLowerCase(); r = r.filter(l => (l.kunde+l.ort+l.id).toLowerCase().includes(q)); }
-  return r;
-}
 
 /* ---------- Lead-Details (Drawer) ---------- */
 function openLead(id){
@@ -419,7 +338,7 @@ function setStatus(id, status, silent, reason, note){
   l.status = status;
   if (reason) { l.reason = reason; l.reasonNote = note || ''; }
   l.hist.unshift([(attempt ? `Nicht erreicht (Versuch ${l.attempts})` : STATUS[status].label) + (reason ? ` – ${reason}` : ''), nowStamp()]);
-  if (status === 'verloren') APPTS = APPTS.filter(a => a.lead !== id || apptEnd(a) <= NOW); /* künftige Termine entfallen, gelaufene bleiben für die Historie */
+  if (status === 'verloren') keepWhere(APPTS, a => a.lead !== id || apptEnd(a) <= NOW); /* künftige Termine entfallen, gelaufene bleiben für die Historie */
   pushNotif(l.setter, `${l.kunde}: Status → ${STATUS[status].label}${reason ? ` (${reason})` : ''}`, status);
   if (!silent) toast(attempt ? `${l.kunde}: Versuch ${l.attempts} – nächster ${l.nextTry}` : `${l.kunde}: ${STATUS[status].label} · ${person(l.setter).first} wurde benachrichtigt`);
 }
@@ -642,36 +561,6 @@ function overAdmin(){
   </div>
   <section class="ee-card ee-card--flush"><div class="ee-card__head"><h2>Neueste Leads</h2><button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="nav" data-view="leads">Pipeline ${ico('right','sm')}</button></div>${leadTable(activeLeads(LEADS).sort((a,b) => b.id.localeCompare(a.id)).slice(0,6), {setter:true})}</section>`;
 }
-/* =================== LEADS =================== */
-function viewLeads(){
-  const L = myLeads();
-  const admin = S.role === 'admin', view = S.leadView || 'board';
-  const setters = [...new Set(LEADS.map(l => l.setter))];
-  return pageHead(admin ? 'Pipeline · alle Leads' : S.role === 'setter' ? 'Meine Pipeline' : 'Pipeline',
-    `<div class="ee-seg" role="group" aria-label="Ansicht"><button data-act="lead-view" data-v="board" aria-pressed="${view === 'board'}">${ico('cal','sm')} Board</button><button data-act="lead-view" data-v="list" aria-pressed="${view === 'list'}">${ico('list','sm')} Liste</button></div>`)
-  + pipelineBar(L)
-  + `<div class="row ee-leadtools">${admin ? `<label class="sr" for="leadSetter">Setter</label><select class="ee-select" id="leadSetter" style="width:auto;min-height:40px"><option value="alle">Alle Setter</option>${setters.map(k => `<option value="${k}" ${S.leadSetter===k?'selected':''}>${esc(person(k).first)}</option>`).join('')}</select>` : ''}
-      <label class="sr" for="leadSearch">Suche</label><input class="ee-input" id="leadSearch" placeholder="Kunde oder Ort suchen" value="${esc(S.leadSearch)}" style="max-width:280px;min-height:40px"></div>
-    <div id="leadTableWrap" class="${view === 'list' || S.leadFilter === 'verloren' ? 'ee-card ee-card--flush' : ''}">${leadBody()}</div>`;
-}
-
-/* ---------- LostOverview: verlorene Leads gesammelt statt in der Hauptliste ---------- */
-function lostOverview(leads){
-  if (!leads.length) return `<div class="ee-empty">Keine verlorenen Leads.</div>`;
-  const counts = {}; leads.forEach(l => { const k = l.reason || 'Ohne Grund'; counts[k] = (counts[k]||0) + 1; });
-  const top = Object.entries(counts).sort((a,b) => b[1]-a[1]);
-  return `<div data-component="LostOverview">
-    <div class="ee-lost__sum"><div><div class="ee-kpi__value">${leads.length}</div><div class="faint" style="font-size:.8rem">verlorene Leads</div></div>
-      <div class="row">${top.map(([k,n]) => `<span class="ee-tag">${esc(k)} · ${n}</span>`).join('')}</div></div>
-    <div class="ee-table-wrap"><table class="ee-table ee-table--stack"><thead><tr><th>Kunde</th><th>Verloren in</th><th>Grund</th>${S.role!=='setter'?'<th>Setter</th>':''}<th>Datum</th></tr></thead><tbody>
-    ${leads.map(l => `<tr class="is-click" data-act="lead" data-id="${l.id}" tabindex="0"><td><div class="who">${esc(l.kunde)}</div><div class="sub">${esc(l.ort)}</div></td>
-      <td>${chip(l.status)}<div class="sub" style="margin-top:3px">${STATUS[l.status].phase}</div></td>
-      <td data-span><b style="font-weight:600">${esc(l.reason || 'Ohne Grund')}</b>${l.reasonNote ? `<div class="sub">${esc(l.reasonNote)}</div>` : ''}</td>
-      ${S.role!=='setter'?`<td data-hide-sm>${esc(person(l.setter).first)}</td>`:''}
-      <td class="sub num">${esc(l.hist[0][1].split(' ')[0])}</td></tr>`).join('')}
-    </tbody></table></div></div>`;
-}
-
 /* =================== LEITFADEN (Presetter) =================== */
 function freeSlots(closer, ignorePause){ if (!ignorePause && closerPaused(closer)) return []; return SLOTS.filter(s => s.closer===closer && (s.date > dkey(NOW) || (s.date===dkey(NOW) && s.start > NOW.getHours()))).sort((a,b) => (a.date+pad(a.start)).localeCompare(b.date+pad(b.start))); }
 /* ---------- Telefonleitfaden (Presetter) ---------- */
@@ -1138,7 +1027,7 @@ function viewNeu(){
     <span class="ee-tag">Slot-ID: modul-12</span></div>`;
 }
 
-const VIEWS = { uebersicht:viewUebersicht, leads:viewLeads, leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, stammdaten:viewStammdaten, team:viewTeam, neu:viewNeu };
+const VIEWS = { uebersicht:viewUebersicht, leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, stammdaten:viewStammdaten, team:viewTeam, neu:viewNeu };
 /* =====================================================================
    LEAD ERFASSEN (Setter) – 1:1 nach dem bestehenden Setting-Formular
    Schritt 1 „Lead anlegen“      → n8n-Webhook  POST /webhook/wp-lead
@@ -1406,7 +1295,7 @@ VIEWS.erfassen = viewErfassen;
 
 /* ---------- Termin buchen (auch vom Leitfaden genutzt) ---------- */
 function bookSlot(l, s, quiet){
-  SLOTS = SLOTS.filter(x => x.id !== s.id);
+  keepWhere(SLOTS, x => x.id !== s.id);
   APPTS.push({ id:'T-'+Math.random().toString(36).slice(2,6), lead:l.id, closer:s.closer, kind:'erst', date:s.date, start:s.start, dur:1.5, ort:l.ort, feedback:null });
   l.closer = s.closer;
   setStatus(l.id, 'termin', true);
@@ -1489,8 +1378,6 @@ document.addEventListener('click', e => {
     case 'copy': copyText(d.text, d.label || 'Kopiert'); break;
     case 'toast': toast(d.msg, 'info'); break;
     case 'lead': openLead(d.id); break;
-    case 'filter': S.leadFilter = d.filter; render(); break;
-    case 'lead-view': S.leadView = d.v; render(); break;
     case 'set-status': {
       if (!d.id) return;
       if (['abgesagt','verloren'].includes(d.status)) { openReason(d.id, d.status); break; }
@@ -1519,7 +1406,7 @@ document.addEventListener('click', e => {
       SLOTS.push({ id:'S-'+rnd(), closer:me(), date:d.date, start:+d.h });
       toast(`Freier Slot eingetragen: ${fmtDay(d.date)} ${fmtHour(+d.h)}`); render(); break;
     }
-    case 'slot-remove': SLOTS = SLOTS.filter(s => s.id !== d.id); toast('Slot entfernt', 'close'); render(); break;
+    case 'slot-remove': keepWhere(SLOTS, s => s.id !== d.id); toast('Slot entfernt', 'close'); render(); break;
     case 'appt': { const a = APPTS.find(x => x.id === d.id); openDrawer(drawerHead('Termin', `${fmtDay(a.date)} · ${fmtHour(a.start)}–${fmtHour(a.start + a.dur)}`) + `<div class="ee-drawer__body">${apptCard(a)}</div>`); break; }
     case 'cal-week': S.calWeek += +d.dir; render(); break;
     case 'cal-day': S.calDay = +d.i; render(); break;
@@ -1571,11 +1458,9 @@ document.addEventListener('keydown', e => {
 /* Eingaben ohne Neurendern der ganzen Seite (Fokus bleibt) */
 document.addEventListener('input', e => {
   if (e.target.id === 'guideNote') { const l = lead(S.guideLead); if (l) l.preNote = e.target.value; }
-  if (e.target.id === 'leadSearch') { S.leadSearch = e.target.value; $('#leadTableWrap').innerHTML = leadBody(); }
 });
 document.addEventListener('change', e => {
   if (e.target.name === 'fb') document.querySelectorAll('[data-fb-show]').forEach(el => { el.hidden = el.dataset.fbShow !== e.target.value; });
-  if (e.target.id === 'leadSetter') { S.leadSetter = e.target.value; render(); }
   if (e.target.id === 'guideLead') { S.guideLead = e.target.value; S.guideProduct = lead(e.target.value).produkt; render(); }
 });
 
@@ -1666,8 +1551,11 @@ document.addEventListener('submit', e => {
   }
 });
 
-matchMedia('(max-width: 900px)').addEventListener('change', () => { if (['kalender','leads'].includes(S.view)) render(); });
+matchMedia('(max-width: 900px)').addEventListener('change', () => { if (S.view === 'kalender') render(); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+/* Schnittstelle für die React-Ansichten */
+store.legacy = { render, openLead };
 
 /* Start */
 applyTheme();

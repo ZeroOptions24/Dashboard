@@ -1,7 +1,9 @@
 import PrototypeBoot from "@/components/PrototypeBoot";
+import ReactViews from "@/components/ReactViews";
 
 /* Grundgerüst (AppShell) aus dem UI-Prototyp. Die Inhalte der leeren Container
-   (Navigation, Ansicht, Drawer …) rendert src/legacy/prototype.js. */
+   (Navigation, Ansicht, Drawer …) rendert src/legacy/prototype.js;
+   bereits umgestellte Ansichten rendert <ReactViews />. */
 export default function Home() {
   return (
     <>
@@ -56,6 +58,7 @@ export default function Home() {
             <button className="ee-iconbtn" id="bellBtn" aria-label="Benachrichtigungen" aria-expanded="false"></button>
           </header>
           <main className="ee-content" id="view" tabIndex={-1}></main>
+          <ReactViews />
         </div>
       </div>
 

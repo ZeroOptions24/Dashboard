@@ -62,6 +62,8 @@ export interface StatusDef {
   step?: number;
   /** Ausstieg mit Pflichtgrund (Abgesagt / Verloren) */
   fail?: boolean;
+  /** Wann der Ausstieg passiert ist (nur bei fail) */
+  phase?: string;
 }
 
 /** Verlaufseintrag: [Text, Zeitstempel „TT.MM. hh:mm“] */

@@ -18,8 +18,8 @@ export const STATUS: Record<StatusKey, StatusDef> = {
   checks:         { label:'In den Checks',        stage:3, tone:'closing', step:4 },
   ausgezahlt:     { label:'Ausgezahlt',           stage:5, tone:'paid',    step:6 }, /* Provision ist beim MB angekommen */
   verkauft:       { label:'Verkauf',             stage:4, tone:'done',    step:5 },
-  abgesagt:       { label:'Abgesagt',             stage:1, tone:'bad',     fail:true },
-  verloren:       { label:'Verloren',             stage:3, tone:'bad',     fail:true },
+  abgesagt:       { label:'Abgesagt',             stage:1, tone:'bad',     fail:true, phase:'vor dem Termin' },
+  verloren:       { label:'Verloren',             stage:3, tone:'bad',     fail:true, phase:'nach dem Termin' },
 };
 export const PIPELINE: StatusKey[] = ['eingereicht','termin','checks','verkauft','ausgezahlt'];
 
