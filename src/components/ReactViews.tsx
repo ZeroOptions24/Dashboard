@@ -1,5 +1,7 @@
 "use client";
 
+import KalenderView from "@/components/closer/KalenderView";
+import TermineView from "@/components/closer/TermineView";
 import VertraegeView from "@/components/contracts/VertraegeView";
 import EventsView from "@/components/events/EventsView";
 import NeuView from "@/components/misc/NeuView";
@@ -21,6 +23,8 @@ const VIEWS: Record<string, () => React.ReactNode> = {
   auszahlungen: () => <AuszahlungenView />,
   rangliste: () => <RanglisteView />,
   neu: () => <NeuView />,
+  kalender: () => <KalenderView />,
+  termine: () => <TermineView />,
 };
 
 /* Zeigt die bereits auf React umgestellten Ansichten; alle anderen rendert

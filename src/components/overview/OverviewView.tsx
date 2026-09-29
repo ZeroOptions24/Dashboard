@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, type ReactNode } from "react";
+import { RelWhen } from "@/components/closer/AppointmentCard";
 import EventCard from "@/components/events/EventCard";
 import LeadTable, { clickableRow } from "@/components/pipeline/LeadTable";
 import { CloserMoneyHero, DailyGoal, MoneyCard, SetterRankCard } from "@/components/overview/Cards";
@@ -9,7 +10,7 @@ import { StatusChip, ToneChip, TryChip } from "@/components/ui/Chips";
 import { Kpi, PageHead, VsTeam } from "@/components/ui/Kpi";
 import { apptEnd, closerPaused, feedbackDue, freeSlots, kindLabel, pendingFeedback } from "@/lib/appointments";
 import { TARGETS } from "@/lib/domain";
-import { WD, dkey, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
+import { WD, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
 import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, newestFirst, telFull, telHref, urgencySort } from "@/lib/leads";
 import { perfTone } from "@/lib/ranking";
 import { useDashboard } from "@/lib/useDashboard";
@@ -224,14 +225,6 @@ function PresetterOverview() {
 }
 
 /* ======================= Closer ======================= */
-/** „in 40 Min.“ / „heute“ / „morgen“ / „in 2 Tagen“ – nur für die nächsten 72 Std. */
-function RelWhen({ appt, now }: { appt: Appointment; now: Date }) {
-  const st = apptStart(appt),
-    h = (st.getTime() - now.getTime()) / 36e5;
-  if (h < 0 || h > 72) return null;
-  const tag = dkey(st) === dkey(now) ? "heute" : dkey(st) === dkey(new Date(now.getTime() + 864e5)) ? "morgen" : "";
-  return <ToneChip label={h < 3 ? `in ${Math.max(1, Math.round(h * 60))} Min.` : tag ? tag : `in ${Math.round(h / 24)} Tagen`} tone="info" />;
-}
 
 interface Todo {
   tone: "bad" | "warn" | "info";

@@ -416,52 +416,7 @@ function openCallback(id){
     <button class="ee-btn ee-btn--primary" type="submit">${ico('check','sm')} Rückruf speichern</button></form></div>`);
 }
 /* =================== KALENDER (Closer) =================== */
-const mobileCal = () => matchMedia('(max-width: 900px)').matches;
-function weekDays(){
-  const mon = new Date(2026, 8, 21 + S.calWeek*7);
-  return [...Array(7)].map((_,i) => new Date(mon.getFullYear(), mon.getMonth(), mon.getDate()+i));
-}
 const HOURS = [8,9,10,11,12,13,14,15,16,17,18,19];
-function isPast(k, h){ const d = parseKey(k); d.setHours(h); return d < NOW; }
-function slotAt(k,h){ return SLOTS.find(s => s.closer===me() && s.date===k && s.start===h); }
-function apptAt(k,h){ return APPTS.find(a => a.closer===me() && a.date===k && Math.floor(a.start)===h); }
-function calCell(k, h){
-  const a = apptAt(k,h), s = slotAt(k,h), past = isPast(k,h);
-  if (a) { const l = lead(a.lead); return `<div class="ee-cal__cell" style="cursor:default"><button class="ee-slot ee-slot--appt ${past?'ee-slot--past':''} ${needsFeedback(a) ? 'is-due' : ''}" style="height:${a.dur*52-6}px" data-act="appt" data-id="${a.id}" title="${esc(l.kunde)} · ${kindLabel(a)}"><b>${fmtHour(a.start)}</b><span>${esc(l.kunde)}</span><small>${kindLabel(a)}</small></button></div>`; }
-  if (s) return `<div class="ee-cal__cell" style="cursor:default"><button class="ee-slot ee-slot--free" style="height:46px" data-act="slot-remove" data-id="${s.id}" title="Freier Slot – klicken zum Entfernen" aria-label="Freien Slot ${fmtDay(k)} ${fmtHour(h)} entfernen"><b>${fmtHour(h)}</b><span>frei</span></button></div>`;
-  if (past) return `<div class="ee-cal__cell is-past" aria-hidden="true"></div>`;
-  return `<button class="ee-cal__cell" data-act="cal-add" data-date="${k}" data-h="${h}" aria-label="Freien Slot ${fmtDay(k)} ${fmtHour(h)} eintragen"></button>`;
-}
-function viewKalender(){
-  const days = weekDays();
-  const title = `${pad(days[0].getDate())}.${pad(days[0].getMonth()+1)}. – ${pad(days[6].getDate())}.${pad(days[6].getMonth()+1)}.`;
-  const nav = `<div class="row"><button class="ee-iconbtn" data-act="cal-week" data-dir="-1" aria-label="Vorige Woche">${ico('left')}</button><b class="num" style="min-width:120px;text-align:center">${title}</b><button class="ee-iconbtn" data-act="cal-week" data-dir="1" aria-label="Nächste Woche">${ico('right')}</button></div>`;
-  const inWeek = x => days.some(d => dkey(d) === x.date);
-  let grid;
-  if (mobileCal()) {
-    const d = days[S.calDay], k = dkey(d);
-    grid = `<div class="ee-daypick" data-component="CalendarDayPicker">${days.map((x,i) => { const kk = dkey(x); const has = SLOTS.some(s => s.closer===me() && s.date===kk) || APPTS.some(a => a.closer===me() && a.date===kk); return `<button data-act="cal-day" data-i="${i}" aria-pressed="${i===S.calDay}">${WD[x.getDay()]}<b>${x.getDate()}</b>${has?'<span class="dot"></span>':''}</button>`; }).join('')}</div>
-      <section class="ee-card ee-card--flush"><div class="ee-calday" data-component="CalendarDay">${HOURS.map(h => `<div class="ee-calday__row"><div class="ee-cal__time">${fmtHour(h)}</div>${calCell(k,h)}</div>`).join('')}</div></section>`;
-  } else {
-    grid = `<section class="ee-card ee-card--flush"><div class="ee-cal" data-component="CalendarWeek">
-      <div class="ee-cal__corner"></div>${days.map(d => `<div class="ee-cal__dayhead ${dkey(d)===dkey(NOW)?'is-today':''}"><span>${WD[d.getDay()]}</span><b>${d.getDate()}</b></div>`).join('')}
-      ${HOURS.map(h => `<div class="ee-cal__time">${fmtHour(h)}</div>${days.map(d => calCell(dkey(d),h)).join('')}`).join('')}
-    </div></section>`;
-  }
-  const dateOpts = [...Array(21)].map((_,i) => { const d = new Date(2026,8,23+i); return d.getDay()===0 ? '' : `<option value="${dkey(d)}">${fmtDay(dkey(d))}</option>`; }).join('');
-  return pageHead('Kalender', nav)
-  + `<details class="ee-card ee-slotbar" data-component="SlotForm" ${mobileCal() ? '' : 'open'}><summary class="ee-slotbar__sum">${ico('plus','sm')} Freie Slots eintragen</summary>
-      <form id="slotForm" class="ee-slotbar__form">
-        <div class="ee-field"><label for="slotDate">Tag</label><select class="ee-select" id="slotDate">${dateOpts}</select></div>
-        <div class="ee-field"><label for="slotFrom">Von</label><select class="ee-select" id="slotFrom">${HOURS.map(h => `<option value="${h}" ${h===10?'selected':''}>${fmtHour(h)}</option>`).join('')}</select></div>
-        <div class="ee-field"><label for="slotTo">Bis</label><select class="ee-select" id="slotTo">${HOURS.map(h => `<option value="${h+1}" ${h===12?'selected':''}>${fmtHour(h+1)}</option>`).join('')}</select></div>
-        <label class="ee-check"><input type="checkbox" id="slotRepeat"><span>4 Wochen wiederholen</span></label>
-        <button class="ee-btn ee-btn--primary" type="submit">${ico('plus','sm')} Slots eintragen</button>
-      </form>
-      <div class="ee-slotbar__stats"><div><b class="num ${SLOTS.filter(s => s.closer===me() && inWeek(s)).length < 4 ? 'is-bad' : 'is-good'}">${SLOTS.filter(s => s.closer===me() && inWeek(s)).length}</b><span>freie Slots</span></div><div><b class="num">${APPTS.filter(a => a.closer===me() && inWeek(a)).length}</b><span>Termine</span></div></div>
-    </details>
-    ${grid}`;
-}
 /* ---------- Closer-Rückmeldung (Pflicht nach jedem Termin mit Dashboard-Leads) ---------- */
 const apptStart = a => { const d = parseKey(a.date); d.setMinutes(Math.round(a.start * 60)); return d; };
 const apptEnd = a => { const d = parseKey(a.date); d.setMinutes(Math.round((a.start + a.dur) * 60)); return d; };
@@ -553,17 +508,6 @@ function applyFeedback(a, res, o){
   if (o.note && res !== 'verloren') l.hist[0][0] += ` – ${o.note}`;
   toast(`Rückmeldung gespeichert · ${person(l.setter).first} informiert`);
 }
-function viewTermine(){
-  const mine = APPTS.filter(a => a.closer === me()).sort((a,b) => apptStart(a) - apptStart(b));
-  const due = mine.filter(needsFeedback), up = mine.filter(a => apptEnd(a) > NOW), done = mine.filter(a => a.feedback).reverse();
-  const inChecks = LEADS.filter(l => l.closer === me() && l.status === 'checks' && !APPTS.some(a => a.lead === l.id && a.kind === 'closing' && !a.feedback));
-  return pageHead('Termine · Eigenleads')
-  + (closerPaused(me()) ? pausedBanner() : '')
-  + (due.length ? `<div class="stack"><h2 class="is-bad">Rückmeldung offen (${due.length})</h2><div class="ee-grid g-2">${due.map(a => apptCard(a)).join('')}</div></div>` : '')
-  + (inChecks.length ? `<section class="ee-card ee-card--flush" data-component="ChecksList"><div class="ee-card__head"><h2>In den Checks (${inChecks.length})</h2></div><div class="ee-table-wrap"><table class="ee-table ee-table--stack"><tbody>${inChecks.map(l => `<tr><td><div class="who">${esc(l.kunde)}</div><div class="sub">${esc(l.ort)} · seit ${esc(l.hist[0][1].split(' ')[0])}</div></td><td class="r" data-span><button class="ee-btn ee-btn--sm" data-act="feedback" data-id="LEAD:${l.id}">${ico('check','sm')} Ergebnis eintragen</button></td></tr>`).join('')}</tbody></table></div></section>` : '')
-  + `<div class="stack"><h2>Anstehend (${up.length})</h2><div class="ee-grid g-2">${up.map((a,i) => apptCard(a, i === 0)).join('')}</div></div>`
-  + (done.length ? `<div class="stack"><h2>Erledigt</h2><div class="ee-grid g-2">${done.map(a => apptCard(a)).join('')}</div></div>` : '');
-}
 
 /* =================== AUSZAHLUNGEN =================== */
 
@@ -588,7 +532,7 @@ function openTeamMember(key){
 }
 
 
-const VIEWS = { leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine };
+const VIEWS = { leitfaden:viewLeitfaden };
 /* =====================================================================
    LEAD ERFASSEN (Setter) – 1:1 nach dem bestehenden Setting-Formular
    Schritt 1 „Lead anlegen“      → n8n-Webhook  POST /webhook/wp-lead
@@ -964,14 +908,7 @@ function handleAct(d, t){
       if (S.view === 'leitfaden') guideAdvance(l.id);
       render(); break;
     }
-    case 'cal-add': {
-      SLOTS.push({ id:'S-'+rnd(), closer:me(), date:d.date, start:+d.h });
-      toast(`Freier Slot eingetragen: ${fmtDay(d.date)} ${fmtHour(+d.h)}`); render(); break;
-    }
-    case 'slot-remove': keepWhere(SLOTS, s => s.id !== d.id); toast('Slot entfernt', 'close'); render(); break;
     case 'appt': { const a = APPTS.find(x => x.id === d.id); openDrawer(drawerHead('Termin', `${fmtDay(a.date)} · ${fmtHour(a.start)}–${fmtHour(a.start + a.dur)}`) + `<div class="ee-drawer__body">${apptCard(a)}</div>`); break; }
-    case 'cal-week': S.calWeek += +d.dir; render(); break;
-    case 'cal-day': S.calDay = +d.i; render(); break;
     case 'drawer-iban': { const el = $('#drawerIban'); el.textContent = fmtIban(PROFILES[d.key].iban); t.disabled = true; toast('IBAN angezeigt – Zugriff protokolliert', 'shield'); break; }
     case 'team-row': openTeamMember(d.key); break;
     case 'theme': break;
@@ -1020,17 +957,6 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target, v = id => (f.querySelector('#'+id) || {}).value;
   switch (f.id) {
-    case 'slotForm': {
-      const from = +v('slotFrom'), to = +v('slotTo'), rep = f.querySelector('#slotRepeat').checked;
-      if (to <= from) { toast('„Bis“ muss nach „Von“ liegen', 'info'); return; }
-      let n = 0;
-      for (let w = 0; w < (rep ? 4 : 1); w++) {
-        const day = parseKey(v('slotDate')); day.setDate(day.getDate() + w*7);
-        for (let h = from; h < to; h++) { const k = dkey(day); if (!slotAt(k,h) && !apptAt(k,h)) { SLOTS.push({ id:'S-'+rnd(), closer:me(), date:k, start:h }); n++; } }
-      }
-      pushNotif('inan', `${person(me()).first} hat ${n} neue freie Slots eingetragen`);
-      toast(`${n} freie Slot${n===1?'':'s'} eingetragen`); render(); break;
-    }
     case 'feedbackForm': {
       const r = f.querySelector('input[name="fb"]:checked'); if (!r) return;
       const ap = APPTS.find(x => x.id === f.dataset.id) || { id:f.dataset.id, lead:f.dataset.id.replace('LEAD:',''), kind:'closing', virtual:true }; /* Lead in den Checks ohne eingetragenen 2. Termin */
@@ -1057,7 +983,6 @@ document.addEventListener('submit', e => {
   }
 });
 
-matchMedia('(max-width: 900px)').addEventListener('change', () => { if (S.view === 'kalender') render(); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
 /* Schnittstelle für die React-Ansichten */

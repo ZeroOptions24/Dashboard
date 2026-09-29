@@ -2,7 +2,7 @@
    Heute ändern sie die Beispieldaten im Store; später rufen sie hier die echte
    Datenquelle auf (Datenbank, DocuSign/Yousign, n8n) – die Ansichten bleiben gleich. */
 
-import { eur, fmtDay, pad } from "./format";
+import { dkey, eur, fmtDay, fmtHour, pad, parseKey } from "./format";
 import { ranked } from "./ranking";
 import { currentUser, rerender, store } from "./store";
 import type { Board, PersonKey, StatusKey, TeamEvent } from "./types";
@@ -107,4 +107,41 @@ export function publishBoard(board: Board, patch: { title: string; goal?: number
     pushNotif(k, r ? `Neue Rangliste: ${board.title} – du bist auf Platz ${r.rank}` : `Neue Rangliste: ${board.title}`);
   }
   rerender();
+}
+
+/* ---------- Closer-Kalender ---------- */
+
+const mySlotAt = (k: string, h: number) => d().SLOTS.find((s) => s.closer === currentUser() && s.date === k && s.start === h);
+const myApptAt = (k: string, h: number) => d().APPTS.find((a) => a.closer === currentUser() && a.date === k && Math.floor(a.start) === h);
+
+/** Einen freien Slot eintragen */
+export function addSlot(date: string, hour: number) {
+  d().SLOTS.push({ id: `S-${rnd()}`, closer: currentUser(), date, start: hour });
+  rerender();
+  return `Freier Slot eingetragen: ${fmtDay(date)} ${fmtHour(hour)}`;
+}
+
+export function removeSlot(id: string) {
+  const i = d().SLOTS.findIndex((s) => s.id === id);
+  if (i >= 0) d().SLOTS.splice(i, 1);
+  rerender();
+}
+
+/** Stundenweise Slots von–bis eintragen (optional 4 Wochen); liefert die Anzahl neuer Slots */
+export function addSlotRange(date: string, from: number, to: number, repeat4Weeks: boolean): number {
+  let n = 0;
+  for (let w = 0; w < (repeat4Weeks ? 4 : 1); w++) {
+    const day = parseKey(date);
+    day.setDate(day.getDate() + w * 7);
+    const k = dkey(day);
+    for (let h = from; h < to; h++)
+      if (!mySlotAt(k, h) && !myApptAt(k, h)) {
+        d().SLOTS.push({ id: `S-${rnd()}`, closer: currentUser(), date: k, start: h });
+        n++;
+      }
+  }
+  /* Prototyp: Presetterin „Inan“ bekommt die neuen Slots angezeigt */
+  pushNotif("inan", `${first(currentUser())} hat ${n} neue freie Slots eingetragen`);
+  rerender();
+  return n;
 }

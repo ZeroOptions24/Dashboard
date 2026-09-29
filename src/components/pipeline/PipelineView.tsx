@@ -1,6 +1,5 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import Icon from "@/components/ui/Icon";
 import { StatusChip } from "@/components/ui/Chips";
 import LeadCard from "@/components/pipeline/LeadCard";
@@ -8,21 +7,9 @@ import LeadTable, { clickableRow, type LeadListCtx as Ctx } from "@/components/p
 import { PIPELINE, STATUS } from "@/lib/domain";
 import { activeLeads, isLost, leadsForUser, stageOf } from "@/lib/leads";
 import { currentUser, updateUi, useStore, type LeadFilter } from "@/lib/store";
+import { useMobile } from "@/lib/useMobile";
 import type { Lead, Person, PersonKey, StatusKey } from "@/lib/types";
 
-/* Unter 900 px zeigt das Board nur eine Spalte (wie im Prototyp). */
-const MOBILE = "(max-width: 900px)";
-function useMobile() {
-  return useSyncExternalStore(
-    (cb) => {
-      const m = matchMedia(MOBILE);
-      m.addEventListener("change", cb);
-      return () => m.removeEventListener("change", cb);
-    },
-    () => matchMedia(MOBILE).matches,
-    () => false,
-  );
-}
 
 /* ---------- PipelineBar: die 5 Stufen als Pfeilleiste mit Anzahl (klickbar) ---------- */
 function PipelineBar({ leads, filter }: { leads: Lead[]; filter: LeadFilter }) {

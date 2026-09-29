@@ -74,7 +74,7 @@ Das Dashboard lädt dann die Wärmepumpen-Deals der Pipeline „Empfehlung kommt
 | `src/lib/domain.ts` | Geschäftsregeln: Pipeline-Status, Provisionssätze, Verlustgründe, Leitfaden |
 | `src/lib/demo-data.ts` | Beispieldaten (`createDemoData()`), wird später durch Datenbank/Pipedrive ersetzt |
 | `src/lib/store.ts` | Gemeinsamer Zustand für React-Ansichten und Übergangsschicht; `REACT_VIEWS` listet umgestellte Ansichten |
-| `src/components/` | React-Komponenten (umgestellt: Übersicht, Pipeline, Team & Onboarding, Stammdaten, Events, Verträge, Auszahlungen, Rangliste) |
+| `src/components/` | React-Komponenten (umgestellt: Übersicht, Pipeline, Team & Onboarding, Stammdaten, Events, Verträge, Auszahlungen, Rangliste, Kalender, Termine) |
 | `src/lib/actions.ts` | Aktionen auf den Dashboard-Daten (Zusagen, Verträge, Freigaben, Ranglisten) – hier dockt später die echte Datenquelle an |
 | `src/server/db/` | Datenbankschema (Drizzle) und Verbindung; Migrationen in `drizzle/` (`npm run db:generate`) |
 | `src/server/auth.ts` | Login (Better Auth): Rollen, Passwort-Links, `requireAdmin()` |
