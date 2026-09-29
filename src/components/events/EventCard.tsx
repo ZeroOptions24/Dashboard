@@ -2,12 +2,13 @@
 
 import Icon from "@/components/ui/Icon";
 import { ToneChip } from "@/components/ui/Chips";
+import { toggleEventGoing } from "@/lib/actions";
 import { MON, WD, parseKey } from "@/lib/format";
 import { useDashboard } from "@/lib/useDashboard";
 import type { TeamEvent } from "@/lib/types";
 
 export default function EventCard({ event: e }: { event: TeamEvent }) {
-  const { me, role, person, act } = useDashboard();
+  const { me, role, person, toast } = useDashboard();
   const d = parseKey(e.date);
   const going = e.going.includes(me);
   return (
@@ -41,7 +42,7 @@ export default function EventCard({ event: e }: { event: TeamEvent }) {
               gepostet von {person(e.by).first}
             </span>
           ) : (
-            <button className={going ? "ee-btn ee-btn--sm ee-btn--primary" : "ee-btn ee-btn--sm"} onClick={() => act("event-going", { id: e.id })}>
+            <button className={going ? "ee-btn ee-btn--sm ee-btn--primary" : "ee-btn ee-btn--sm"} onClick={() => (toggleEventGoing(e.id) ? toast("Zugesagt – bis dann!") : toast("Zusage zurückgenommen", "close"))}>
               {going ? (
                 <>
                   <Icon name="check" small /> Zugesagt

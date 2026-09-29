@@ -1,6 +1,11 @@
 "use client";
 
+import VertraegeView from "@/components/contracts/VertraegeView";
+import EventsView from "@/components/events/EventsView";
+import NeuView from "@/components/misc/NeuView";
 import OverviewView from "@/components/overview/OverviewView";
+import AuszahlungenView from "@/components/payouts/AuszahlungenView";
+import RanglisteView from "@/components/ranking/RanglisteView";
 import PipelineView from "@/components/pipeline/PipelineView";
 import StammdatenView from "@/components/profile/StammdatenView";
 import TeamView from "@/components/team/TeamView";
@@ -11,6 +16,11 @@ const VIEWS: Record<string, () => React.ReactNode> = {
   leads: () => <PipelineView />,
   team: () => <TeamView />,
   stammdaten: () => <StammdatenView />,
+  events: () => <EventsView />,
+  vertraege: () => <VertraegeView />,
+  auszahlungen: () => <AuszahlungenView />,
+  rangliste: () => <RanglisteView />,
+  neu: () => <NeuView />,
 };
 
 /* Zeigt die bereits auf React umgestellten Ansichten; alle anderen rendert

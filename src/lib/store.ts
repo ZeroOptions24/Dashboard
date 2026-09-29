@@ -48,7 +48,7 @@ export const store = {
 };
 
 /** Ansichten, die bereits als React-Komponente umgesetzt sind. */
-export const REACT_VIEWS = new Set(["leads", "uebersicht", "team", "stammdaten"]);
+export const REACT_VIEWS = new Set(["leads", "uebersicht", "team", "stammdaten", "events", "vertraege", "auszahlungen", "rangliste", "neu"]);
 
 let version = 0;
 const listeners = new Set<() => void>();
@@ -67,7 +67,7 @@ function subscribe(l: () => void) {
 export const currentUser = () => store.data.ROLE_USER[store.ui.role];
 
 /** Alles neu zeichnen (Shell der Übergangsschicht und React-Ansichten). */
-function rerender() {
+export function rerender() {
   if (store.legacy) store.legacy.render();
   else notify();
 }

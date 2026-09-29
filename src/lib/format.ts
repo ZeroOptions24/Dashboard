@@ -29,3 +29,9 @@ export const eur = (n: number) =>
 /** Frist-Zeitpunkt: „heute 14:00“ bzw. „Do 24.09. 14:00“ */
 export const fmtDue = (d: Date, now: Date) =>
   `${dkey(d) === dkey(now) ? "heute" : `${WD[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+/** „DE•• •••• •••• 3000“ */
+export const maskIban = (iban: string) => {
+  const c = iban.replace(/\s/g, "");
+  return `${c.slice(0, 2)}•• •••• •••• ${c.slice(-4)}`;
+};

@@ -566,164 +566,9 @@ function viewTermine(){
 }
 
 /* =================== AUSZAHLUNGEN =================== */
-function postenState(st){
-  if (!st || st === 'fest') return toneChip('Fest','ok');
-  if (st === 'offen') return toneChip('Stand offen','');
-  if (st === 'storno') return toneChip('Storno','bad');
-  if (st.startsWith('vorlaeufig')) return toneChip(`Vorläufig bis ${st.split(':')[1]}`,'info');
-  return '';
-}
-function viewAuszahlungen(){
-  if (S.role === 'admin') return adminPayouts();
-  const P = PAYOUTS[me()] || [], cur = P[0];
-  const paid = P.filter(p => p.status==='ausgezahlt').reduce((s,p) => s+p.betrag, 0);
-  const vorl = cur.posten.filter(x => String(x[4]).startsWith('vorlaeufig')).reduce((s,x) => s+x[3], 0);
-  const pr = PROFILES[me()];
-  return pageHead('Auszahlungen')
-  + `<div class="ee-grid g-kpi">${kpi('Aktueller Monat', eur(cur.betrag), PAYOUT_STATUS[cur.status].label, true)}${vorl ? kpi('Davon vorläufig', eur(vorl), 'bis Storno-Frist', 'money') : ''}${kpi('Ausgezahlt 2026', eur(paid), `${P.filter(p => p.status==='ausgezahlt').length} Abrechnungen`, 'money')}${kpi('Nächste Auszahlung', cur.datum, `auf <span class="mono">${maskIban(pr.iban)}</span>`)}</div>
-  <section class="ee-card ee-card--flush" data-component="PayoutTable"><div class="ee-card__head"><h2>${cur.periode} · Positionen</h2>${toneChip(PAYOUT_STATUS[cur.status].label, PAYOUT_STATUS[cur.status].tone)}</div>
-    <div class="ee-table-wrap"><table class="ee-table ee-table--stack"><thead><tr><th>Datum</th><th>Kunde / Anlass</th><th>Status</th><th class="r">Betrag</th></tr></thead><tbody>
-    ${cur.posten.map(([d,k,a,b,st]) => `<tr><td class="sub num" data-hide-sm>${d}</td><td><div class="who">${esc(k)}</div><div class="sub">${esc(a)}</div></td><td>${postenState(st)}</td><td class="r num"><b class="${b<0?'is-neg':'is-money'}">${eur(b)}</b></td></tr>`).join('')}
-    <tr><td data-hide-sm></td><td class="who">Summe (vorläufig)</td><td data-hide-sm></td><td class="r num"><b class="is-money">${eur(cur.betrag)}</b></td></tr></tbody></table></div></section>
-  <section class="ee-card ee-card--flush"><div class="ee-card__head"><h2>Verlauf</h2></div>
-    <div class="ee-table-wrap"><table class="ee-table ee-table--stack"><thead><tr><th>Abrechnung</th><th>Zeitraum</th><th>Auszahlung</th><th>Status</th><th class="r">Betrag</th></tr></thead><tbody>
-    ${P.map(p => `<tr><td class="mono faint" data-hide-sm>${p.id}</td><td class="who">${p.periode}</td><td class="sub num">${p.datum}</td><td>${toneChip(PAYOUT_STATUS[p.status].label, PAYOUT_STATUS[p.status].tone)}</td><td class="r num"><b class="is-money">${eur(p.betrag)}</b></td></tr>`).join('')}
-    </tbody></table></div></section>`;
-}
-function adminPayouts(){
-  const rows = Object.entries(PAYOUTS).flatMap(([k,ps]) => ps.map(p => ({...p, who:k})));
-  const open = rows.filter(r => r.status!=='ausgezahlt');
-  return pageHead('Auszahlungen')
-  + `<div class="ee-grid g-kpi">${kpi('In Prüfung', open.filter(r => r.status==='pruefung').length)}${kpi('Freigegeben', eur(open.filter(r => r.status==='freigegeben').reduce((s,r) => s+r.betrag,0)), '', 'money')}${kpi('Summe offen', eur(open.reduce((s,r) => s+r.betrag,0)), 'Auszug', true)}</div>
-  <section class="ee-card ee-card--flush" data-component="PayoutTable"><div class="ee-card__head"><h2>Abrechnungen</h2></div>
-    <div class="ee-table-wrap"><table class="ee-table ee-table--stack"><thead><tr><th>MB</th><th>Zeitraum</th><th>Status</th><th class="r">Betrag</th><th class="r">Aktion</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td><div class="who">${esc(person(r.who).name)}</div><div class="sub">${ROLE_LABEL[person(r.who).role]} · <span class="mono">${maskIban(PROFILES[r.who].iban)}</span></div></td><td class="sub">${r.periode}</td><td>${toneChip(PAYOUT_STATUS[r.status].label, PAYOUT_STATUS[r.status].tone)}</td><td class="r num"><b class="is-money">${eur(r.betrag)}</b></td>
-      <td class="r" data-span>${r.status==='pruefung' ? `<button class="ee-btn ee-btn--primary ee-btn--sm" data-act="payout-release" data-who="${r.who}" data-id="${r.id}">Freigeben</button>` : '<span class="faint">—</span>'}</td></tr>`).join('')}
-    </tbody></table></div></section>`;
-}
 
-/* =================== VERTRÄGE =================== */
-function contractRow(c, admin){
-  const st = c.status==='signed' ? toneChip('Unterschrieben','ok') : toneChip('Offen','warn');
-  return `<div class="ee-doc">
-    <div class="ee-doc__icon">${ico('doc')}</div>
-    <div class="ee-doc__main"><div style="font-weight:650">${esc(c.doc)}</div>
-      <div class="faint" style="font-size:.8rem">${admin ? esc(person(c.who).name)+' · ' : ''}gesendet ${c.sent}${c.signed ? ' · unterschrieben '+c.signed : ''} · <span class="mono">${c.id}</span></div>
-      ${c.question ? `<div class="ee-note" style="margin-top:8px"><b>Rückfrage:</b> ${esc(c.question)}</div>` : ''}</div>
-    ${st}
-    <div class="row">${admin
-      ? (c.status==='open' ? `<button class="ee-btn ee-btn--sm" data-act="contract-remind" data-id="${c.id}">${ico('send','sm')} Erinnern</button>` : '') + (c.question ? `<button class="ee-btn ee-btn--sm ee-btn--primary" data-act="contract-resolve" data-id="${c.id}">Als geklärt markieren</button>` : '')
-      : (c.status==='open' ? `<button class="ee-btn ee-btn--primary ee-btn--sm" data-act="contract-sign" data-id="${c.id}">In DocuSign unterschreiben</button>` : `<button class="ee-btn ee-btn--sm" data-act="toast" data-msg="Würde das PDF aus DocuSign öffnen">PDF ansehen</button>`) + `<button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="contract-ask" data-id="${c.id}">Frage stellen</button>`}</div>
-    ${S.ask===c.id ? `<form class="ee-field ee-field--full" id="askForm" data-id="${c.id}" style="flex-basis:100%" data-component="ContractQuestionForm"><label for="askText">Deine Frage an Tim zu diesem Vertrag</label><textarea class="ee-textarea" id="askText" required placeholder="z. B. Ab wann gilt die neue Staffel?"></textarea><div class="row"><button class="ee-btn ee-btn--primary ee-btn--sm" type="submit">Frage senden</button><button class="ee-btn ee-btn--ghost ee-btn--sm" type="button" data-act="contract-ask" data-id="">Abbrechen</button></div></form>` : ''}
-  </div>`;
-}
-function viewVertraege(){
-  if (S.role === 'admin') {
-    const f = S.contractFilter;
-    const list = CONTRACTS.filter(c => f==='alle' || (f==='open' && c.status==='open') || (f==='signed' && c.status==='signed') || (f==='q' && c.question));
-    const cnt = k => k==='alle' ? CONTRACTS.length : k==='open' ? CONTRACTS.filter(c => c.status==='open').length : k==='signed' ? CONTRACTS.filter(c => c.status==='signed').length : CONTRACTS.filter(c => c.question).length;
-    return pageHead('Verträge verwalten')
-    + `<div class="ee-grid g-main" style="align-items:start">
-      <section class="ee-card" data-component="ContractList"><div class="ee-filters">${[['alle','Alle'],['open','Offen'],['signed','Unterschrieben'],['q','Rückfragen']].map(([k,l]) => `<button class="ee-filter" data-act="cfilter" data-f="${k}" aria-pressed="${f===k}">${l}<span class="c">${cnt(k)}</span></button>`).join('')}</div>
-        <div>${list.map(c => contractRow(c, true)).join('') || '<p class="muted">Keine Verträge.</p>'}</div></section>
-      <section class="ee-card"><h2>Vertrag senden</h2>
-        <form id="contractForm" class="stack">
-          <div class="ee-field"><label for="cWho">An</label><select class="ee-select" id="cWho">${TEAM.map(t => `<option value="${t.key}">${esc(person(t.key).name)}</option>`).join('')}</select></div>
-          <div class="ee-field"><label for="cDoc">Vorlage</label><select class="ee-select" id="cDoc">${CONTRACT_TEMPLATES.map(d => `<option>${esc(d)}</option>`).join('')}</select></div>
-          <button class="ee-btn ee-btn--primary" type="submit">${ico('send','sm')} Über DocuSign senden</button></form></section></div>`;
-  }
-  const mine = CONTRACTS.filter(c => c.who===me());
-  const open = mine.filter(c => c.status==='open').length;
-  return pageHead('Verträge')
-  + `<section class="ee-card" data-component="ContractList">${mine.map(c => contractRow(c, false)).join('')}</section>`;
-}
 
-/* =================== EVENTS =================== */
-function eventCard(e){
-  const d = parseKey(e.date), going = e.going.includes(me());
-  return `<article class="ee-event ${e.isNew?'is-new':''}" data-component="EventCard">
-    <div class="ee-datebox"><span>${MON[d.getMonth()]}</span><b>${d.getDate()}</b><small>${WD[d.getDay()]}</small></div>
-    <div class="stack" style="gap:8px;min-width:0">
-      <div class="row"><span class="ee-tag">${esc(e.type)}</span><span class="ee-tag">für ${esc(e.target)}</span>${e.isNew?toneChip('Neu','info'):''}</div>
-      <h3>${esc(e.title)}</h3>
-      <div class="faint" style="font-size:.84rem">${ico('clock','sm')} ${esc(e.time)} &nbsp; ${ico('pin','sm')} ${esc(e.ort)}</div>
-      ${e.desc ? `<p class="muted" style="font-size:.9rem">${esc(e.desc)}</p>` : ''}
-      <div class="row row--between"><span class="faint" style="font-size:.8rem">${e.going.length} Zusagen</span>
-        ${S.role==='admin' ? `<span class="faint" style="font-size:.8rem">gepostet von ${esc(person(e.by).first)}</span>` : `<button class="ee-btn ee-btn--sm ${going?'ee-btn--primary':''}" data-act="event-going" data-id="${e.id}">${going ? ico('check','sm')+' Zugesagt' : 'Zusagen'}</button>`}</div>
-    </div></article>`;
-}
-function viewEvents(){
-  const list = EVENTS.slice().sort((a,b) => (b.isNew?1:0)-(a.isNew?1:0) || a.date.localeCompare(b.date));
-  if (S.role !== 'admin') return pageHead('Events') + `<div class="ee-grid g-2">${list.map(eventCard).join('')}</div>`;
-  return pageHead('Events posten')
-  + `<div class="ee-grid g-main" style="align-items:start">
-    <div class="ee-grid" style="gap:14px">${list.map(eventCard).join('')}</div>
-    <section class="ee-card" data-component="EventForm"><h2>Neues Event</h2>
-      <form id="eventForm" class="ee-form">
-        <div class="ee-field ee-field--full"><label for="evTitle">Titel</label><input class="ee-input" id="evTitle" required value="Team-Frühstück vor der Tour"></div>
-        <div class="ee-field"><label for="evDate">Datum</label><input class="ee-input" type="date" id="evDate" required value="2026-10-03"></div>
-        <div class="ee-field"><label for="evTime">Uhrzeit</label><input class="ee-input" id="evTime" value="08:30"></div>
-        <div class="ee-field ee-field--full"><label for="evOrt">Ort</label><input class="ee-input" id="evOrt" value="Büro Leipzig, Fabrikstraße 21"></div>
-        <div class="ee-field"><label for="evType">Art</label><select class="ee-select" id="evType"><option>Team</option><option>Training</option><option>Schulung</option><option>Onboarding</option></select></div>
-        <div class="ee-field"><label for="evTarget">Zielgruppe</label><select class="ee-select" id="evTarget"><option>Alle</option><option>Setter</option><option>Presetter</option><option>Closer</option></select></div>
-        <div class="ee-field ee-field--full"><label for="evDesc">Beschreibung</label><textarea class="ee-textarea" id="evDesc">Gemeinsam starten, Gebiete verteilen, dann raus an die Türen.</textarea></div>
-        <label class="ee-check ee-field--full"><input type="checkbox" id="evWa" checked><span>Zusätzlich in der WhatsApp-Gruppe ankündigen (über n8n)</span></label>
-        <button class="ee-btn ee-btn--primary ee-field--full" type="submit">${ico('send','sm')} Event posten</button>
-      </form></section></div>`;
-}
 
-/* =================== RANGLISTE =================== */
-function ranked(rows){
-  const s = rows.slice().sort((a,b) => b[1]-a[1]); let last = null, rank = 0;
-  return s.map(([k,v],i) => { if (v !== last) { rank = i+1; last = v; } return { key:k, val:v, rank }; });
-}
-function rankOf(k, B = BOARD){ return ranked(B.rows).find(r => r.key===k) || { rank:'–', val:0 }; }
-/* Setter sehen nur die Setter-Rangliste, Closer nur den Wärmepumpen-Cup, Admin beide */
-const boardFor = () => S.role === 'setter' ? 'setter' : S.role === 'closer' ? 'cup' : (S.board || 'cup');
-const curBoard = () => boardFor() === 'setter' ? SETTER_BOARD : BOARD;
-function leaderboard(B){
-  const R = ranked(B.rows), top = R.length ? R[0].val : 0;
-  const max = B.marks.length ? Math.max(11, top + 1) : Math.max(5, top + 2);
-  const labels = B.marks.length ? [0, ...B.marks] : [0, top];
-  const total = B.rows.reduce((s,r) => s+r[1], 0);
-  const head = B.goal
-    ? `<section class="ee-card ee-card--forest" data-component="TeamGoal">
-      <div class="row row--between"><div><span class="eyebrow">Teamziel</span><h2 style="color:#fff;margin-top:4px">${esc(B.title)}</h2></div>
-      <div style="text-align:right"><div class="ee-kpi__value" style="color:var(--accent-bright)">${total}<small style="color:rgba(255,255,255,.7)">/ ${B.goal}</small></div><div class="muted" style="font-size:.8rem">${B.unit} · Ende ${B.ends}</div></div></div>
-      <div class="ee-goal__bar" role="progressbar" aria-valuenow="${total}" aria-valuemax="${B.goal}" aria-label="Teamziel"><i style="width:${Math.min(100,total/B.goal*100)}%"></i></div>
-      <p class="muted" style="font-size:.84rem">Noch ${Math.max(0,B.goal-total)} ${B.unit} bis zum Teamziel · veröffentlicht ${B.published} von ${B.by}</p></section>`
-    : `<section class="ee-card ee-card--forest"><span class="eyebrow">Nur Setter · ${esc(B.unit)}</span><h2 style="color:#fff">${esc(B.title)}</h2>
-      <p class="muted" style="font-size:.84rem">Team: ${total} · veröffentlicht ${B.published} von ${B.by}</p></section>`;
-  return head
-    + (B.prizes.length ? `<div class="ee-prizes" data-component="PrizeStrip">${B.prizes.map(([a,b]) => `<div class="ee-prize"><span>${a}</span><b>${b}</b></div>`).join('')}</div>` : '')
-    + `<section class="ee-card" data-component="Leaderboard"><div class="ee-card__head"><h2>Rangliste</h2><span class="muted">${esc(B.unit)} je MB</span></div>
-      <div class="ee-board">
-        <div class="ee-board__scale" aria-hidden="true"><span></span><span></span><div>${labels.map(v => `<span style="left:${v/max*100}%">${v}</span>`).join('')}</div><span></span></div>
-        ${R.map(r => `<div class="ee-board__row ${r.key===me()?'is-me':''}"><div class="ee-board__rank">${r.rank}</div>
-          <div class="ee-board__name"><span>${esc(person(r.key).first)}</span>${r.key===me()?'<span class="ee-tag">Du</span>':''}${B.marks.length && r.val>=5?`<span class="ee-medal" title="Prämienstufe erreicht">${r.val>=10?'500 €':'200 €'}</span>`:''}</div>
-          <div class="ee-board__track"><div class="ee-board__fill" style="width:${r.val/max*100}%"></div>${B.marks.map(m => `<i class="ee-board__mark" style="left:${m/max*100}%"></i>`).join('')}</div>
-          <div class="ee-board__val">${r.val}</div></div>`).join('')}
-      </div></section>`;
-}
-function viewRangliste(){
-  const B = curBoard();
-  const tabs = `<div class="ee-tabs" role="tablist" data-component="BoardTabs">${[['cup','Wärmepumpen-Cup'],['setter','Setter-Rangliste']].map(([k,l]) => `<button role="tab" aria-selected="${boardFor()===k}" data-act="board-tab" data-b="${k}">${l}</button>`).join('')}</div>`;
-  const archive = `<section class="ee-card"><h2>Frühere Wettbewerbe</h2><div class="ee-list">${BOARD_ARCHIVE.map(a => `<div class="ee-list__row"><div class="ee-list__main"><div class="ee-list__title">${esc(a.title)}</div><div class="ee-list__sub">Sieger: ${esc(a.winner)} · Team: ${esc(a.total)}</div></div><span class="faint" style="font-size:.8rem">${a.date}</span></div>`).join('')}</div></section>`;
-  if (S.role !== 'admin') return pageHead(boardFor() === 'setter' ? 'Setter-Rangliste' : 'Wärmepumpen-Cup') + `<div class="ee-grid g-main" style="align-items:start"><div class="stack" style="gap:18px">${leaderboard(B)}</div><div class="stack">${S.role === 'closer' ? archive : ''}</div></div>`;
-  const R = ranked(B.rows);
-  return pageHead('Ranglisten posten') + tabs
-  + `<div class="ee-grid g-main" style="align-items:start"><div class="stack" style="gap:18px">${leaderboard(B)}</div>
-    <div class="stack"><section class="ee-card" data-component="BoardEditor"><h2>Stand bearbeiten</h2>
-      <form id="boardForm" class="stack">
-        <div class="ee-field"><label for="bTitle">Titel</label><input class="ee-input" id="bTitle" value="${esc(B.title)}"></div>
-        <div class="ee-grid g-2" style="gap:10px">
-          ${B.goal ? `<div class="ee-field"><label for="bGoal">Teamziel</label><input class="ee-input" type="number" id="bGoal" min="1" value="${B.goal}"></div>` : ''}
-          <div class="ee-field"><label for="bEnds">Ende</label><input class="ee-input" id="bEnds" value="${B.ends}"></div></div>
-        <div class="stack" style="gap:6px">${R.map(r => `<div class="row" style="gap:10px;flex-wrap:nowrap"><label for="b-${r.key}" style="flex:1;font-weight:600">${esc(person(r.key).name)}</label><input class="ee-input num" type="number" min="0" id="b-${r.key}" data-key="${r.key}" value="${r.val}" style="width:90px"></div>`).join('')}</div>
-        <label class="ee-check"><input type="checkbox" id="bWa" checked><span>In der WhatsApp-Gruppe posten (über n8n)</span></label>
-        <button class="ee-btn ee-btn--accent" type="submit">${ico('trophy','sm')} Rangliste veröffentlichen</button>
-      </form></section>${archive}</div></div>`;
-}
 
 /* =================== TEAM (Admin) =================== */
 function openTeamMember(key){
@@ -742,15 +587,8 @@ function openTeamMember(key){
   </div>`);
 }
 
-/* =================== WEITERE FUNKTION (Platzhalter) =================== */
-function viewNeu(){
-  return pageHead('Weitere Funktion')
-  + `<div class="ee-empty" data-component="EmptyState">${mascot('Maskottchen<br>Chibi-Engel<br>(Platzhalter)')}
-    <h2>Platzhalter – Funktion noch offen</h2>
-    <span class="ee-tag">Slot-ID: modul-12</span></div>`;
-}
 
-const VIEWS = { leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine, auszahlungen:viewAuszahlungen, vertraege:viewVertraege, events:viewEvents, rangliste:viewRangliste, neu:viewNeu };
+const VIEWS = { leitfaden:viewLeitfaden, kalender:viewKalender, termine:viewTermine };
 /* =====================================================================
    LEAD ERFASSEN (Setter) – 1:1 nach dem bestehenden Setting-Formular
    Schritt 1 „Lead anlegen“      → n8n-Webhook  POST /webhook/wp-lead
@@ -1113,7 +951,6 @@ function handleAct(d, t){
       render(); break;
     }
     case 'call': { const l = lead(d.id); S.guideLead = d.id; S.guideProduct = l.produkt; go('leitfaden'); break; } /* href="tel:" wählt parallel die Nummer */
-    case 'board-tab': S.board = d.b; render(); break;
     case 'nav-guide': { const l = lead(d.id); S.guideLead = d.id; S.guideProduct = l.produkt; go('leitfaden'); break; }
     case 'feedback': openFeedback(d.id); break;
     case 'guide-pick': S.guideLead = d.id; S.guideSlot = null; render(); window.scrollTo({ top:0 }); break;
@@ -1135,13 +972,6 @@ function handleAct(d, t){
     case 'appt': { const a = APPTS.find(x => x.id === d.id); openDrawer(drawerHead('Termin', `${fmtDay(a.date)} · ${fmtHour(a.start)}–${fmtHour(a.start + a.dur)}`) + `<div class="ee-drawer__body">${apptCard(a)}</div>`); break; }
     case 'cal-week': S.calWeek += +d.dir; render(); break;
     case 'cal-day': S.calDay = +d.i; render(); break;
-    case 'event-going': { const ev = EVENTS.find(x => x.id === d.id); const i = ev.going.indexOf(me()); if (i >= 0) { ev.going.splice(i,1); toast('Zusage zurückgenommen','close'); } else { ev.going.push(me()); toast('Zugesagt – bis dann!'); } render(); break; }
-    case 'contract-sign': { const c = CONTRACTS.find(x => x.id === d.id); c.status = 'signed'; c.signed = '23.09.2026'; pushNotif('tim', `${person(c.who).first} hat „${c.doc}“ unterschrieben`); toast('DocuSign-Demo: Vertrag als unterschrieben markiert'); render(); break; }
-    case 'contract-ask': S.ask = d.id || null; render(); if (S.ask) setTimeout(() => $('#askText')?.focus(), 0); break;
-    case 'contract-remind': { const c = CONTRACTS.find(x => x.id === d.id); pushNotif(c.who, `Erinnerung: Bitte „${c.doc}“ in DocuSign unterschreiben`); toast(`Erinnerung an ${person(c.who).first} gesendet`, 'send'); break; }
-    case 'contract-resolve': { const c = CONTRACTS.find(x => x.id === d.id); delete c.question; pushNotif(c.who, `Deine Rückfrage zu „${c.doc}“ wurde beantwortet`); toast('Rückfrage als geklärt markiert'); render(); break; }
-    case 'cfilter': S.contractFilter = d.f; render(); break;
-    case 'payout-release': { const p = PAYOUTS[d.who].find(x => x.id === d.id); p.status = 'freigegeben'; pushNotif(d.who, `Deine Abrechnung ${p.periode} wurde freigegeben (${eur(p.betrag)})`); toast(`${p.periode} für ${person(d.who).first} freigegeben`); render(); break; }
     case 'drawer-iban': { const el = $('#drawerIban'); el.textContent = fmtIban(PROFILES[d.key].iban); t.disabled = true; toast('IBAN angezeigt – Zugriff protokolliert', 'shield'); break; }
     case 'team-row': openTeamMember(d.key); break;
     case 'theme': break;
@@ -1201,21 +1031,6 @@ document.addEventListener('submit', e => {
       pushNotif('inan', `${person(me()).first} hat ${n} neue freie Slots eingetragen`);
       toast(`${n} freie Slot${n===1?'':'s'} eingetragen`); render(); break;
     }
-    case 'eventForm': {
-      const title = v('evTitle').trim(); if (!title) return;
-      const ev = { id:'E-'+rnd(), title, date:v('evDate'), time:v('evTime'), ort:v('evOrt'), type:v('evType'), target:v('evTarget'), desc:v('evDesc'), going:[], by:'tim', isNew:true };
-      EVENTS.push(ev);
-      ['romy','inan','leo'].forEach(k => pushNotif(k, `Neues Event: ${title} am ${fmtDay(ev.date)}`));
-      toast(f.querySelector('#evWa').checked ? 'Event gepostet und in WhatsApp angekündigt' : 'Event gepostet', 'send'); render(); break;
-    }
-    case 'boardForm': {
-      const B = curBoard();
-      B.title = v('bTitle'); if (B.goal) B.goal = Math.max(1, +v('bGoal') || B.goal); B.ends = v('bEnds');
-      B.rows = [...f.querySelectorAll('input[data-key]')].map(i => [i.dataset.key, Math.max(0, +i.value || 0)]);
-      B.published = `${pad(NOW.getDate())}.${pad(NOW.getMonth()+1)}.${NOW.getFullYear()}, ${pad(NOW.getHours())}:${pad(NOW.getMinutes())}`; B.by = 'Tim';
-      (boardFor() === 'setter' ? ['romy'] : ['leo']).forEach(k => { const r = rankOf(k, B); pushNotif(k, r.rank === '–' ? `Neue Rangliste: ${B.title}` : `Neue Rangliste: ${B.title} – du bist auf Platz ${r.rank}`); });
-      toast('Rangliste veröffentlicht', 'trophy'); render(); break;
-    }
     case 'feedbackForm': {
       const r = f.querySelector('input[name="fb"]:checked'); if (!r) return;
       const ap = APPTS.find(x => x.id === f.dataset.id) || { id:f.dataset.id, lead:f.dataset.id.replace('LEAD:',''), kind:'closing', virtual:true }; /* Lead in den Checks ohne eingetragenen 2. Termin */
@@ -1238,11 +1053,6 @@ document.addEventListener('submit', e => {
       setStatus(id, f.dataset.status, false, r.value, v('reasonNote').trim());
       if (S.view === 'leitfaden') guideAdvance(id);
       closeOverlays(); render(); break;
-    }
-    case 'askForm': {
-      const c = CONTRACTS.find(x => x.id === f.dataset.id); const q = v('askText').trim(); if (!q) return;
-      c.question = q; S.ask = null; pushNotif('tim', `${person(c.who).first} hat eine Rückfrage zu „${c.doc}“`);
-      toast('Frage an Tim gesendet', 'send'); render(); break;
     }
   }
 });
