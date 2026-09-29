@@ -23,7 +23,7 @@ export const pendingFeedback = (appts: Appointment[], closer: PersonKey, now: Da
 export const closerPaused = (appts: Appointment[], closer: PersonKey, now: Date) =>
   pendingFeedback(appts, closer, now).some((a) => feedbackDue(a) < now);
 
-export const kindLabel = (a: Appointment) => (a.kind === "closing" ? "2. Termin" : "Ersttermin");
+export const kindLabel = (a: Pick<Appointment, "kind">) => (a.kind === "closing" ? "2. Termin" : "Ersttermin");
 
 /** Freie, noch nicht vergangene Slots eines Closers – leer, wenn er pausiert ist. */
 export function freeSlots(slots: Slot[], appts: Appointment[], closer: PersonKey, now: Date, ignorePause = false) {

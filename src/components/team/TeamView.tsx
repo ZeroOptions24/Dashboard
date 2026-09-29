@@ -8,6 +8,7 @@ import { ToneChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
 import { useDashboard } from "@/lib/useDashboard";
 import type { OnboardingRow, OnboardingStatus } from "@/server/onboarding";
+import { openDrawer } from "@/lib/ui";
 
 const ROLE_LABEL: Record<string, string> = { setter: "Setter", presetter: "Presetter", closer: "Closer", admin: "Admin" };
 
@@ -221,7 +222,7 @@ const DONE: Record<Step, string> = {
 
 /* ---------- Team (Beispieldaten aus dem Prototyp) ---------- */
 function DemoTeamTable() {
-  const { data, person, act } = useDashboard();
+  const { data, person } = useDashboard();
   const { TEAM, PROFILES, CONTRACTS, LEADS, BOARD } = data;
   const leadsOf = (k: string) => LEADS.filter((l) => l.setter === k).length;
   const cupOf = (k: string) => (BOARD.rows.find((r) => r[0] === k) || [0, 0])[1];
@@ -247,7 +248,7 @@ function DemoTeamTable() {
               const p = PROFILES[t.key],
                 openC = CONTRACTS.some((c) => c.who === t.key && c.status === "open");
               return (
-                <tr key={t.key} {...clickableRow(() => act("team-row", { key: t.key }))}>
+                <tr key={t.key} {...clickableRow(() => openDrawer({ kind: "team", key: t.key }))}>
                   <td>
                     <div className="row" style={{ gap: 10, flexWrap: "nowrap" }}>
                       <div className="ee-avatar">{person(t.key).initials}</div>

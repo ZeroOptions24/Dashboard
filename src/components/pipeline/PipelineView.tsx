@@ -9,6 +9,7 @@ import { activeLeads, isLost, leadsForUser, stageOf } from "@/lib/leads";
 import { currentUser, updateUi, useStore, type LeadFilter } from "@/lib/store";
 import { useMobile } from "@/lib/useMobile";
 import type { Lead, Person, PersonKey, StatusKey } from "@/lib/types";
+import { openLead } from "@/lib/ui";
 
 
 /* ---------- PipelineBar: die 5 Stufen als Pfeilleiste mit Anzahl (klickbar) ---------- */
@@ -115,7 +116,7 @@ export default function PipelineView() {
   const admin = role === "admin";
   const person = (k: string): Person =>
     data.PEOPLE[k] || { key: k, name: k, first: k, role: "setter", initials: "?" };
-  const ctx: Ctx = { onOpen: (id) => store.legacy?.openLead(id), person };
+  const ctx: Ctx = { onOpen: openLead, person };
 
   const mine = leadsForUser(data.LEADS, role, currentUser());
   const setters = [...new Set(data.LEADS.map((l) => l.setter))] as PersonKey[];

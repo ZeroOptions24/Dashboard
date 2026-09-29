@@ -8,6 +8,7 @@ import { kindLabel, needsFeedback } from "@/lib/appointments";
 import { WD, dkey, fmtDay, fmtHour, pad, parseKey } from "@/lib/format";
 import { useDashboard } from "@/lib/useDashboard";
 import { useMobile } from "@/lib/useMobile";
+import { openDrawer } from "@/lib/ui";
 
 const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
 
@@ -18,7 +19,7 @@ function weekDays(now: Date, offset: number) {
 }
 
 function CalCell({ k, h }: { k: string; h: number }) {
-  const { data, me, now, act, toast } = useDashboard();
+  const { data, me, now, toast } = useDashboard();
   const a = data.APPTS.find((x) => x.closer === me && x.date === k && Math.floor(x.start) === h);
   const s = data.SLOTS.find((x) => x.closer === me && x.date === k && x.start === h);
   const t = parseKey(k);
@@ -32,7 +33,7 @@ function CalCell({ k, h }: { k: string; h: number }) {
           className={`ee-slot ee-slot--appt ${past ? "ee-slot--past" : ""} ${needsFeedback(a, now) ? "is-due" : ""}`}
           style={{ height: `${a.dur * 52 - 6}px` }}
           title={`${l?.kunde} · ${kindLabel(a)}`}
-          onClick={() => act("appt", { id: a.id })}
+          onClick={() => openDrawer({ kind: "appt", id: a.id })}
         >
           <b>{fmtHour(a.start)}</b>
           <span>{l?.kunde}</span>

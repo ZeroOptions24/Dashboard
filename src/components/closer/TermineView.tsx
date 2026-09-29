@@ -6,9 +6,10 @@ import { PageHead } from "@/components/ui/Kpi";
 import { apptEnd, closerPaused, needsFeedback } from "@/lib/appointments";
 import { apptStart } from "@/lib/leads";
 import { useDashboard } from "@/lib/useDashboard";
+import { openDrawer } from "@/lib/ui";
 
 export default function TermineView() {
-  const { data, me, now, act } = useDashboard();
+  const { data, me, now } = useDashboard();
   const mine = data.APPTS.filter((a) => a.closer === me).sort((a, b) => apptStart(a).getTime() - apptStart(b).getTime());
   const due = mine.filter((a) => needsFeedback(a, now)),
     up = mine.filter((a) => apptEnd(a) > now),
@@ -51,7 +52,7 @@ export default function TermineView() {
                       </div>
                     </td>
                     <td className="r" data-span="">
-                      <button className="ee-btn ee-btn--sm" onClick={() => act("feedback", { id: `LEAD:${l.id}` })}>
+                      <button className="ee-btn ee-btn--sm" onClick={() => openDrawer({ kind: "feedback", id: `LEAD:${l.id}` })}>
                         <Icon name="check" small /> Ergebnis eintragen
                       </button>
                     </td>

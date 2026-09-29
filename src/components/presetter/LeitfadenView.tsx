@@ -14,6 +14,7 @@ import { store, updateUi } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
 import { VQ_SECTIONS, fieldVisible, heatText, vqProgress, type FormValues } from "@/lib/vq";
 import type { Slot } from "@/lib/types";
+import { changeStatus, openDrawer } from "@/lib/ui";
 
 /* Prototyp: fester Closer „Leo“ – später die Closer, denen der Presetter zuarbeitet */
 const CLOSER = "leo";
@@ -39,7 +40,7 @@ function Script({ text, anrede }: { text: string; anrede: string }) {
 }
 
 export default function LeitfadenView() {
-  const { data, ui, me, now, person, act, toast } = useDashboard();
+  const { data, ui, me, now, person, toast } = useDashboard();
   const queue = data.LEADS.filter((l) => l.presetter === me && l.status === "eingereicht").sort(urgencySort(now));
   const l = queue.find((x) => x.id === ui.guideLead) || queue[0];
   if (!l)
@@ -110,13 +111,13 @@ export default function LeitfadenView() {
           <Icon name="phone" small /> {telFull(l)}
         </a>
         <div className="ee-callbar__out">
-          <button className="ee-btn ee-btn--sm" onClick={() => act("set-status", { id: l.id, status: "nicht_erreicht" })}>
+          <button className="ee-btn ee-btn--sm" onClick={() => changeStatus(l.id, "nicht_erreicht")}>
             Nicht erreicht
           </button>
-          <button className="ee-btn ee-btn--sm" onClick={() => act("guide-callback", { id: l.id })}>
+          <button className="ee-btn ee-btn--sm" onClick={() => openDrawer({ kind: "callback", id: l.id })}>
             <Icon name="clock" small /> Rückruf vereinbaren
           </button>
-          <button className="ee-btn ee-btn--sm ee-btn--danger" onClick={() => act("set-status", { id: l.id, status: "abgesagt" })}>
+          <button className="ee-btn ee-btn--sm ee-btn--danger" onClick={() => changeStatus(l.id, "abgesagt")}>
             Abgesagt
           </button>
           {next && (

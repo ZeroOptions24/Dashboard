@@ -15,6 +15,7 @@ import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUse
 import { perfTone } from "@/lib/ranking";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Appointment, Lead } from "@/lib/types";
+import { callLead, changeStatus, openDrawer } from "@/lib/ui";
 
 
 /* ======================= Setter ======================= */
@@ -96,7 +97,7 @@ function SetterOverview() {
 
 /* ======================= Presetter ======================= */
 function CallQueue({ queue }: { queue: Lead[] }) {
-  const { now, person, act, openLead } = useDashboard();
+  const { now, person, openLead } = useDashboard();
   if (!queue.length) return <div className="ee-empty">Alle Leads sind angerufen.</div>;
   return (
     <div className="ee-calls">
@@ -114,11 +115,11 @@ function CallQueue({ queue }: { queue: Lead[] }) {
             <span className="faint">{l.attempts ? `${l.attempts}. Versuch` : "noch nicht angerufen"}</span>
           </div>
           <div className="ee-call__actions">
-            <button className="ee-btn ee-btn--sm" onClick={() => act("set-status", { id: l.id, status: "nicht_erreicht" })}>
+            <button className="ee-btn ee-btn--sm" onClick={() => changeStatus(l.id, "nicht_erreicht")}>
               Nicht erreicht
             </button>
             {/* href="tel:" wählt parallel die Nummer, der Klick öffnet den Leitfaden */}
-            <a className="ee-btn ee-btn--primary ee-btn--sm" href={telHref(l)} onClick={() => act("call", { id: l.id })}>
+            <a className="ee-btn ee-btn--primary ee-btn--sm" href={telHref(l)} onClick={() => callLead(l.id)}>
               <Icon name="phone" small /> Anrufen
             </a>
           </div>
@@ -235,7 +236,7 @@ interface Todo {
 }
 
 function CloserOverview() {
-  const { data, me, now, act, go, firstName } = useDashboard();
+  const { data, me, now, go, firstName } = useDashboard();
   const lead = (id: string) => data.LEADS.find((l) => l.id === id)!;
   const up = data.APPTS.filter((a) => a.closer === me && apptEnd(a) > now).sort((a, b) => apptStart(a).getTime() - apptStart(b).getTime());
   const due = pendingFeedback(data.APPTS, me, now).sort((a, b) => feedbackDue(a).getTime() - feedbackDue(b).getTime());
@@ -255,14 +256,14 @@ function CloserOverview() {
       title: lead(a.lead).kunde,
       sub: `Ergebnis ${kindLabel(a)} · ${fmtDay(a.date)}`,
       right: dueChip(a),
-      onClick: () => act("feedback", { id: a.id }),
+      onClick: () => openDrawer({ kind: "feedback", id: a.id }),
     })),
     ...inChecks.map((l) => ({
       tone: "info" as const,
       title: l.kunde,
       sub: "Ergebnis aus den Checks",
       right: <ToneChip label="offen" tone="info" />,
-      onClick: () => act("feedback", { id: `LEAD:${l.id}` }),
+      onClick: () => openDrawer({ kind: "feedback", id: `LEAD:${l.id}` }),
     })),
     ...(nextWeek < 4
       ? [
@@ -370,7 +371,7 @@ function QuoteCell({ v, avg }: { v: number; avg: number }) {
 }
 
 function AdminOverview() {
-  const { data, now, person, act, go, openLead } = useDashboard();
+  const { data, now, person, go, openLead } = useDashboard();
   const { CONTRACTS, WEEKLY, PAYOUTS, MB_STATS, LOSS_STATS, ADMIN_KPI: K } = data;
   const lead = (id: string) => data.LEADS.find((l) => l.id === id)!;
   const openC = CONTRACTS.filter((c) => c.status === "open").length;
@@ -389,7 +390,7 @@ function AdminOverview() {
   const avgQ = pct(team.termin, team.leads),
     avgT = pct(team.checks, team.leads),
     avgA = pct(team.verkauft, team.leads);
-  const teamRow = (key: string) => () => act("team-row", { key });
+  const teamRow = (key: string) => () => openDrawer({ kind: "team", key });
   /* Prototyp: nur Closer „Leo“ – später alle Closer */
   const todo = [
     ...["leo"]

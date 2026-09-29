@@ -9,6 +9,7 @@ import { WD, dkey, fmtDue, fmtHour, parseKey } from "@/lib/format";
 import { apptStart, provFor, telFull, telHref } from "@/lib/leads";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Appointment } from "@/lib/types";
+import { openDrawer } from "@/lib/ui";
 
 /** „in 40 Min.“ / „heute“ / „morgen“ / „in 2 Tagen“ – nur für die nächsten 72 Std. */
 export function RelWhen({ appt, now }: { appt: Appointment; now: Date }) {
@@ -21,7 +22,7 @@ export function RelWhen({ appt, now }: { appt: Appointment; now: Date }) {
 
 /** Termin kompakt, Steckbrief aufklappbar. */
 export default function AppointmentCard({ appt: a, open }: { appt: Appointment; open?: boolean }) {
-  const { data, now, person, role, act } = useDashboard();
+  const { data, now, person, role } = useDashboard();
   const l = data.LEADS.find((x) => x.id === a.lead);
   if (!l) return null;
   const d = parseKey(a.date),
@@ -56,7 +57,7 @@ export default function AppointmentCard({ appt: a, open }: { appt: Appointment; 
             <span className={overdue ? "ee-fb-due is-over" : "ee-fb-due"}>
               <Icon name="clock" small /> Rückmeldung {overdue ? "überfällig seit" : "bis"} {fmtDue(feedbackDue(a), now)}
             </span>
-            <button className="ee-btn ee-btn--primary ee-btn--sm" onClick={() => act("feedback", { id: a.id })}>
+            <button className="ee-btn ee-btn--primary ee-btn--sm" onClick={() => openDrawer({ kind: "feedback", id: a.id })}>
               <Icon name="check" small /> Rückmeldung geben
             </button>
           </div>

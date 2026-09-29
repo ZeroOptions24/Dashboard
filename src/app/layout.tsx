@@ -41,6 +41,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${bricolage.variable} ${figtree.variable} ${jetbrains.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        {/* Gespeicherte Hell/Dunkel-Wahl vor dem ersten Zeichnen anwenden (kein Aufblitzen) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("ee-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

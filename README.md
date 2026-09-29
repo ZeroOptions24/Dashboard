@@ -70,12 +70,15 @@ Das Dashboard lädt dann die Wärmepumpen-Deals der Pipeline „Empfehlung kommt
 | Pfad | Inhalt |
 | --- | --- |
 | `src/app/layout.tsx` | HTML-Grundgerüst, Schriften (lokal über `next/font`, keine Google-Anfragen aus dem Browser) |
-| `src/app/page.tsx` | App-Shell: Seitenleiste, Kopfzeile, Container für Ansichten und Overlays |
+| `src/app/page.tsx` | Einstieg: Anmeldung prüfen, dann `AppShell` |
+| `src/components/shell/` | App-Hülle: Seitenleiste, Kopfzeile, „Ansicht als“, Benachrichtigungen, Handy-Navigation, Kurzmeldungen |
+| `src/components/drawers/` | Seitenleisten: Lead-Details, Absage-Grund, Rückruf, Termin-Rückmeldung, Termin, Team-Mitglied |
+| `src/lib/ui.ts` / `nav.ts` | Oberflächen-Aktionen (Ansicht, Rolle, Overlays, Kurzmeldungen) und Navigation je Rolle |
 | `src/app/globals.css` | Design-Tokens (hell/dunkel) und alle `ee-`-Komponenten-Styles |
 | `src/lib/types.ts` | Datenmodell (Lead, Termin, Auszahlung, Vertrag, …) – Schnittstelle zur späteren Datenquelle |
 | `src/lib/domain.ts` | Geschäftsregeln: Pipeline-Status, Provisionssätze, Verlustgründe, Leitfaden |
 | `src/lib/demo-data.ts` | Beispieldaten (`createDemoData()`), wird später durch Datenbank/Pipedrive ersetzt |
-| `src/lib/store.ts` | Gemeinsamer Zustand für React-Ansichten und Übergangsschicht; `REACT_VIEWS` listet umgestellte Ansichten |
+| `src/lib/store.ts` | Zustand im Browser (Daten, Ansicht, Assistent, Overlays); Änderungen nur über Aktionen |
 | `src/components/` | React-Komponenten – **alle Ansichten** (Übersicht, Pipeline, Lead erfassen, Leitfaden, Kalender, Termine, Rangliste, Auszahlungen, Verträge, Events, Stammdaten, Team) |
 | `src/lib/vq.ts` | Fragen der Vorqualifizierung (Lead erfassen, Leitfaden), Heizlast-Schätzung |
 | `src/lib/actions.ts` | Aktionen auf den Dashboard-Daten (Zusagen, Verträge, Freigaben, Ranglisten) – hier dockt später die echte Datenquelle an |
@@ -87,13 +90,11 @@ Das Dashboard lädt dann die Wärmepumpen-Deals der Pipeline „Empfehlung kommt
 | `src/server/pipedrive/` | Pipedrive-Anbindung (nur Server): Client, Zuordnung Stufen/Felder, Deal → Lead |
 | `src/app/api/leads/route.ts` | Endpunkt `/api/leads` – nur angemeldet, Leads je Person gefiltert |
 | `src/server/profile.ts` | Eigene Stammdaten (lesen, ändern, IBAN-Änderung mit Benachrichtigung) |
-| `src/legacy/prototype.js` | **Rest der Übergangsschicht:** Kopfzeile/Navigation, Benachrichtigungen und die Seitenleisten (Lead-Details, Rückmeldung, Rückruf, Absage-Grund, Team-Details) |
 
 Vorlage: [`mb-dashboard.html`](https://zerooptions24.github.io/EnergyEngel/mb-dashboard.html) im Repo `ZeroOptions24/EnergyEngel`.
 
 ## Nächste Schritte
 
 1. Presetter/Closer-Zuordnung aus Pipedrive (sobald geklärt), Kennzahlen der Übersicht aus echten Daten berechnen.
-2. Kopfzeile, Navigation und Seitenleisten in React umbauen, danach `src/legacy/` löschen.
-3. Anbindungen: Kalender, n8n-Webhooks, Auszahlungen.
-4. Hosting auf eigenem EU-Server (geplant: Hetzner + Coolify).
+2. Anbindungen: Kalender, n8n-Webhooks, Auszahlungen.
+3. Hosting auf eigenem EU-Server (geplant: Hetzner + Coolify).

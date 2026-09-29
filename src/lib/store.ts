@@ -1,13 +1,13 @@
-/* Gemeinsamer Zustand für React-Ansichten und die Übergangsschicht (src/legacy).
-   Beide lesen und ändern dieselben Objekte; nach jeder Änderung ruft die
-   Übergangsschicht render() auf, das wiederum notify() auslöst und damit die
-   React-Ansichten neu zeichnet. Sobald die Übergangsschicht entfällt, wird das
-   hier durch echten Anwendungszustand (Login, Datenabfragen) ersetzt. */
+/* Zustand des Dashboards im Browser: Daten (Beispieldaten bzw. Live-Daten aus
+   Pipedrive), Ansicht/Filter, Assistent, offene Seitenleisten und Kurzmeldungen.
+   Geändert wird nur über Aktionen (src/lib/actions.ts, src/lib/ui.ts), die danach
+   notify() aufrufen – alle Komponenten mit useStore() zeichnen sich neu. */
 
 import { useSyncExternalStore } from "react";
 import { createDemoData } from "./demo-data";
 import type { LeadStats } from "./stats";
 import type { FormValues } from "./vq";
+import type { IconName } from "./icons";
 import type { AdminKpi, Lead, MbStats, PersonKey, Role } from "./types";
 
 /* ---------- Assistent „Lead erfassen“ ---------- */
@@ -42,23 +42,25 @@ export interface UiState {
   leadSearch: string;
   leadSetter: PersonKey | "alle";
   leadView: "board" | "list";
-  /** Telefonleitfaden: aktueller Lead und gewählter Slot (teilt die Übergangsschicht) */
+  /** Telefonleitfaden: aktueller Lead und gewählter Slot */
   guideLead: string | null;
   guideSlot: string | null;
 }
 
-/** Funktionen der Übergangsschicht, die React-Ansichten aufrufen dürfen. */
-export interface LegacyBridge {
-  /** Shell und alte Ansichten neu zeichnen (löst auch notify() aus) */
-  render: () => void;
-  /** Lead-Details im Drawer öffnen */
-  openLead: (id: string) => void;
-  /** Kurzmeldung unten einblenden */
-  toast: (msg: string, icon?: string) => void;
-  /** Lead-Status setzen (inkl. Verlauf, Benachrichtigung des Setters) */
-  setStatus: (id: string, status: string, silent?: boolean, reason?: string, note?: string) => void;
-  /** Aktion der Übergangsschicht auslösen (wie ein Klick auf data-act), z. B. act("feedback", { id }) */
-  act: (name: string, data?: Record<string, string>) => void;
+/** Seitenleiste (Drawer) rechts bzw. unten auf dem Handy */
+export type Drawer =
+  | { kind: "lead"; id: string }
+  | { kind: "reason"; id: string; status: "abgesagt" | "verloren" }
+  | { kind: "callback"; id: string }
+  /** id = Termin-ID oder „LEAD:<lead-id>“ für Leads in den Checks ohne 2. Termin */
+  | { kind: "feedback"; id: string }
+  | { kind: "appt"; id: string }
+  | { kind: "team"; key: PersonKey };
+
+export interface Toast {
+  id: number;
+  msg: string;
+  icon: IconName;
 }
 
 export const store = {
@@ -75,13 +77,13 @@ export const store = {
   } as UiState,
   /** Zwischenstand „Lead erfassen“ – bleibt beim Wechsel der Ansicht erhalten */
   wiz: newWizard(),
-  legacy: null as LegacyBridge | null,
+  /** Offene Overlays: Seitenleiste, „Mehr“-Menü (Handy), Benachrichtigungen */
+  /* drawer bleibt nach dem Schließen gesetzt, damit der Inhalt beim Herausgleiten sichtbar bleibt */
+  overlay: { drawer: null as Drawer | null, drawerOpen: false, more: false, notif: false },
+  toasts: [] as Toast[],
   /** Angemeldete Person (aus der Sitzung) */
   session: null as { name: string; role: Role } | null,
 };
-
-/** Ansichten, die bereits als React-Komponente umgesetzt sind. */
-export const REACT_VIEWS = new Set(["leads", "uebersicht", "team", "stammdaten", "events", "vertraege", "auszahlungen", "rangliste", "neu", "kalender", "termine", "leitfaden", "erfassen"]);
 
 let version = 0;
 const listeners = new Set<() => void>();
@@ -99,11 +101,8 @@ function subscribe(l: () => void) {
 /** Aktueller Benutzer (Prototyp: fester Beispielbenutzer je Rolle). */
 export const currentUser = () => store.data.ROLE_USER[store.ui.role];
 
-/** Alles neu zeichnen (Shell der Übergangsschicht und React-Ansichten). */
-export function rerender() {
-  if (store.legacy) store.legacy.render();
-  else notify();
-}
+/** Alles neu zeichnen. */
+export const rerender = notify;
 
 /** UI-Zustand ändern und alles neu zeichnen. */
 export function updateUi(patch: Partial<UiState>) {
@@ -119,7 +118,7 @@ export function setMoneyGoal(user: PersonKey, euro: number) {
   rerender();
 }
 
-/** Array-Inhalt ersetzen, ohne das Array selbst auszutauschen (Übergangsschicht hält Referenzen). */
+/** Array-Inhalt ersetzen, ohne das Array selbst auszutauschen (Komponenten halten Referenzen). */
 const replaceAll = <T,>(arr: T[], items: T[]) => arr.splice(0, arr.length, ...items);
 
 /** Live-Leads (z. B. aus Pipedrive, bereits serverseitig gefiltert) übernehmen. */

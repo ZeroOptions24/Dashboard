@@ -12,6 +12,7 @@ import { newWizard, setWizard, store, type WizardStep } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
 import { STEP1, VQ_SECTIONS, heatText, vqProgress, vqSummary, type FormValues } from "@/lib/vq";
 import type { Slot } from "@/lib/types";
+import { toast } from "@/lib/ui";
 
 /* Lead erfassen (Setter) – 1:1 nach dem bestehenden Setting-Formular
    Schritt 1 „Lead anlegen“      → später n8n-Webhook POST /webhook/wp-lead
@@ -70,7 +71,7 @@ function CustomerBar() {
 function validate(d: FormValues) {
   const e: Record<string, string> = {};
   const s = (k: string) => String(d[k] ?? "").trim();
-  for (const k of ["nachname", "telefon", "strasse", "hausnummer", "stadt"]) if (!s(k)) e[k] = "Pflichtfeld";
+  for (const k of ["vorname", "nachname", "telefon", "email", "strasse", "hausnummer", "stadt"]) if (!s(k)) e[k] = "Pflichtfeld";
   if (!/^\d{5}$/.test(s("plz"))) e.plz = "5 Ziffern";
   if (s("email") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s("email"))) e.email = "Bitte gültige E-Mail angeben";
   return e;
@@ -279,7 +280,7 @@ function Ko() {
           <button
             className="ee-btn ee-btn--danger"
             onClick={() => {
-              setLeadStatus(store.wiz.leadId!, "abgesagt", false, vq.selbst_bewohnt === "Nein" && vq.eigentuemer === "Ja" ? "Sonstiges" : "Kein Eigentümer", "An der Tür vorqualifiziert");
+              toast(setLeadStatus(store.wiz.leadId!, "abgesagt", vq.selbst_bewohnt === "Nein" && vq.eigentuemer === "Ja" ? "Sonstiges" : "Kein Eigentümer", "An der Tür vorqualifiziert"));
               go("done");
             }}
           >

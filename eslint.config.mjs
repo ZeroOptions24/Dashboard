@@ -12,8 +12,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Übergangsschicht aus dem Prototyp, wird schrittweise ersetzt:
-    "src/legacy/**",
   ]),
 ]);
 
