@@ -8,7 +8,7 @@
    ===================================================================== */
 
 import type {
-  Appointment, Board, BoardArchiveEntry, Contract, Lead, MbStats, Notification,
+  AdminKpi, Appointment, Board, BoardArchiveEntry, Contract, Lead, MbStats, Notification,
   Payout, Person, PersonKey, Profile, Role, Slot, TeamEvent, TeamMember,
 } from "./types";
 
@@ -230,6 +230,9 @@ export function createDemoData() {
   };
 
   /* Einreichungen (Leads) je Kalenderwoche – Team gesamt */
+  /* Admin-Kennzahlen September (Beispiel) */
+  const ADMIN_KPI: AdminKpi = { monat:'September', vormonat:'August', leads:146, leadsVormonat:130, termin:58, checks:39, verkauft:27, checksWoche:11 };
+
   const WEEKLY: [string, number][] = [['KW 32',24],['KW 33',31],['KW 34',27],['KW 35',35],['KW 36',38],['KW 37',33],['KW 38',41],['KW 39',19]];
 
   /* Verlustgründe im September (Admin-Auswertung) */
@@ -261,7 +264,7 @@ export function createDemoData() {
   /* Monatsziel Verdienst je Person (vom MB selbst einstellbar) */
   const MONEY_GOAL: Record<PersonKey, number> = { romy:3000, inan:2500, leo:8000 };
 
-  return { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, DAY_GOAL, SETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL };
+  return { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, DAY_GOAL, SETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL, ADMIN_KPI };
 }
 
 export type DemoData = ReturnType<typeof createDemoData>;

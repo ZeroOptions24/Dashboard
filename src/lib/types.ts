@@ -217,3 +217,18 @@ export interface MbStats {
   /** Tage seit dem letzten Lead */
   days: number;
 }
+
+/** Kennzahlen des laufenden Monats für die Admin-Übersicht */
+export interface AdminKpi {
+  monat: string;
+  vormonat: string;
+  /** eingereichte Leads im Monat */
+  leads: number;
+  leadsVormonat: number;
+  /** davon mit Termin / in den Checks oder weiter / verkauft */
+  termin: number;
+  checks: number;
+  verkauft: number;
+  /** Leads, die diese Woche in die Checks gekommen sind */
+  checksWoche: number;
+}

@@ -99,3 +99,13 @@ export const hadTermin = (s: StatusKey) => ["termin", "checks", "verkauft", "aus
  *  die volle Nummer nur an Rollen, die sie sehen dürfen (Presetter, Closer). */
 export const telFull = (l: Lead) => l.tel.replace("••••", "4418");
 export const telHref = (l: Lead) => "tel:" + telFull(l).replace(/\s/g, "");
+
+/** Eingangszeitpunkt: Datum aus „datum“ (TT.MM.JJJJ), Uhrzeit aus dem ersten Verlaufseintrag. */
+export function receivedAt(l: Lead): number {
+  const [d, m, y] = l.datum.split(".").map(Number);
+  const t = l.hist[l.hist.length - 1]?.[1].match(/(\d{1,2}):(\d{2})/);
+  return new Date(y, m - 1, d, t ? +t[1] : 0, t ? +t[2] : 0).getTime();
+}
+
+/** Sortierung „neueste zuerst“ nach Eingang (nicht nach Lead-Nummer). */
+export const newestFirst = (a: Lead, b: Lead) => receivedAt(b) - receivedAt(a) || b.id.localeCompare(a.id);

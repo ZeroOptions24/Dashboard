@@ -50,6 +50,10 @@ Außerdem: Link erneut senden, *Direkt freischalten* (bestehende MAs mit Vertrag
 
 Das Dashboard lädt dann die Wärmepumpen-Deals der Pipeline „Empfehlung kommt“ (ID 21) – **auf dem Server gefiltert**: Setter sehen nur Deals, in deren Feld „Setter“ ihr hinterlegter Pipedrive-Name steht (Team-Bereich, Standard: Vorname; Groß-/Kleinschreibung egal), Admins sehen alle. Deals werden 60 Sekunden zwischengespeichert, Telefonnummern maskiert.
 
+**Kennzahlen** (`src/lib/stats.ts`, ausgeliefert über `/api/stats`): Leads, Termin-/Checks-/Verkaufsquoten, Funnel, Leads je Kalenderwoche, Verlustgründe, Setter-Rangliste und Tagesziel werden auf dem Server aus *allen* Deals berechnet. Admins bekommen alles; Setter nur ihre eigenen Zahlen, den Teamschnitt und die Rangliste (Namen + Anzahl Termine). Zielwerte stehen in `TARGETS` (`src/lib/domain.ts`). Im Beispiel-Modus bleiben die Beispielzahlen.
+
+**Test ohne echten Token:** `PIPEDRIVE_API_BASE` kann auf einen nachgebauten Pipedrive-Server zeigen.
+
 **Zuordnung** (`src/server/pipedrive/config.ts`, bestätigt am 25.09.2026):
 - Empfehlung kommt, QUALI, Kontaktieren (2) → *Lead eingereicht* · An Mitarbeiter übergeben, Mitarbeiter in Bearbeitung → *Termin gelegt* · Checks → *In den Checks* · Verkauf / gewonnen → *Verkauf* · Später Interessant, Anderes Potential, Ablehnung → *Abgesagt*
 - Setter: Deal-Feld „Setter“ (Name, von n8n über den Setter-Link gesetzt). Fehlt der Link, bleibt das Feld leer → Lead erscheint als „unbekannt“.

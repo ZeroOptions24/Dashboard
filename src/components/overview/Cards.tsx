@@ -83,7 +83,7 @@ export function MoneyCard() {
   return (
     <section className="ee-card ee-goalcard" data-component="MoneyGoal">
       <div className="ee-card__head">
-        <span className="eyebrow">Dein Geld · September</span>
+        <span className="eyebrow">Dein Geld · {data.ADMIN_KPI.monat}</span>
         <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={() => setEditing(!editing)}>
           <Icon name="edit" small /> Ziel ändern
         </button>
@@ -148,7 +148,7 @@ export function CloserMoneyHero() {
   return (
     <section className="ee-card ee-card--forest ee-hero ee-chero" data-component="CloserMoneyHero">
       <div className="ee-card__head">
-        <span className="eyebrow">Dein Geld · September</span>
+        <span className="eyebrow">Dein Geld · {data.ADMIN_KPI.monat}</span>
         <button className="ee-btn ee-btn--sm" onClick={() => setEditing(!editing)}>
           <Icon name="edit" small /> Ziel
         </button>

@@ -3,7 +3,8 @@ import "server-only";
 /* Minimaler Pipedrive-Client (API v2). Läuft ausschließlich auf dem Server –
    der API-Token darf nie im Browser landen. */
 
-const BASE = "https://api.pipedrive.com/api/v2";
+/* PIPEDRIVE_API_BASE nur für Tests gegen einen nachgebauten Pipedrive-Server */
+const BASE = process.env.PIPEDRIVE_API_BASE || "https://api.pipedrive.com/api/v2";
 
 export class PipedriveNotConfigured extends Error {
   constructor() {

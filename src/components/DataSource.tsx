@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { notify, store } from "@/lib/store";
+import { applyLiveLeads, applyLiveStats } from "@/lib/store";
 import type { Lead } from "@/lib/types";
 
 /* Datenquelle umschalten: NEXT_PUBLIC_DATA_SOURCE=pipedrive lädt die Leads über
@@ -15,31 +15,23 @@ export default function DataSource() {
   useEffect(() => {
     if (SOURCE !== "pipedrive") return;
     let cancelled = false;
-    fetch("/api/leads")
-      .then(async (r) => {
-        const body = await r.json();
-        if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
-        return body as { leads: Lead[]; userKey: string; note?: string };
-      })
-      .then(({ leads, userKey, note }) => {
+    const get = async <T,>(url: string): Promise<T> => {
+      const r = await fetch(url);
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+      return body as T;
+    };
+    (async () => {
+      try {
+        const { leads, userKey, note } = await get<{ leads: Lead[]; userKey: string; note?: string }>("/api/leads");
         if (cancelled) return;
-        /* in place ersetzen, damit Übergangsschicht und React dasselbe Array behalten */
-        store.data.LEADS.splice(0, store.data.LEADS.length, ...leads);
-        store.data.APPTS.splice(0);
-        /* Setter aus Pipedrive als Personen bekannt machen (Anzeige „von Florian“) */
-        for (const k of new Set(leads.map((l) => l.setter))) {
-          if (!store.data.PEOPLE[k]) {
-            const first = k === "unbekannt" ? "ohne Setter" : k.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-            store.data.PEOPLE[k] = { key: k, name: first, first, role: "setter", initials: first.slice(0, 2).toUpperCase() };
-          }
-        }
-        /* Die eigene Rolle zeigt die eigenen Leads (Admins, die in eine andere Rolle schauen, weiter Beispielpersonen) */
-        if (store.session && store.session.role !== "admin") store.data.ROLE_USER[store.session.role] = userKey;
-        if (store.legacy) store.legacy.render();
-        else notify();
-        setState(note ? `Pipedrive: ${note}` : `Pipedrive · ${leads.length} Leads`);
-      })
-      .catch((e: Error) => !cancelled && setState(`Pipedrive-Fehler: ${e.message} – zeige Beispieldaten`));
+        applyLiveLeads(leads, userKey);
+        applyLiveStats(await get<Parameters<typeof applyLiveStats>[0]>("/api/stats"));
+        if (!cancelled) setState(note ? `Pipedrive: ${note}` : `Pipedrive · ${leads.length} Leads`);
+      } catch (e) {
+        if (!cancelled) setState(`Pipedrive-Fehler: ${(e as Error).message} – zeige Beispieldaten`);
+      }
+    })();
     return () => {
       cancelled = true;
     };

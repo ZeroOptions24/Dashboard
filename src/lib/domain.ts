@@ -59,3 +59,7 @@ export const WIDERRUF_TAGE: number = 14;
 
 /** Rollen, die sich im Dashboard anmelden können */
 export const ROLES: Role[] = ["setter", "presetter", "closer", "admin"];
+
+/** Zielwerte für die Admin-Übersicht (Quoten in % der jeweils vorherigen Stufe, Verkäufe pro Monat).
+ *  Beispielwerte aus dem Prototyp – fachlich festlegen. */
+export const TARGETS = { terminQuote: 42, checksQuote: 65, verkaufQuote: 70, verkaufMonat: 65, leadsProTag: 5 };

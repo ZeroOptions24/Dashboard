@@ -8,22 +8,23 @@ import Icon from "@/components/ui/Icon";
 import { StatusChip, ToneChip, TryChip } from "@/components/ui/Chips";
 import { Kpi, PageHead, VsTeam } from "@/components/ui/Kpi";
 import { apptEnd, closerPaused, feedbackDue, freeSlots, kindLabel, pendingFeedback } from "@/lib/appointments";
-import { WD, dkey, eur, fmtDay, fmtDue, fmtHour, parseKey } from "@/lib/format";
-import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, telFull, telHref, urgencySort } from "@/lib/leads";
+import { TARGETS } from "@/lib/domain";
+import { WD, dkey, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
+import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, newestFirst, telFull, telHref, urgencySort } from "@/lib/leads";
 import { perfTone } from "@/lib/ranking";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Appointment, Lead } from "@/lib/types";
 
-const newestFirst = (a: Lead, b: Lead) => b.id.localeCompare(a.id);
 
 /* ======================= Setter ======================= */
 function SetterOverview() {
   const { data, role, me, person, go, openLead, firstName } = useDashboard();
   const L = leadsForUser(data.LEADS, role, me);
-  const sep = L.filter((l) => l.datum.includes(".09."));
+  const monthKey = `.${pad(data.NOW.getMonth() + 1)}.${data.NOW.getFullYear()}`;
+  const inMonth = L.filter((l) => l.datum.endsWith(monthKey));
   const q = L.filter((l) => hadTermin(l.status)).length;
   const nextEvent = data.EVENTS.slice().sort((a, b) => a.date.localeCompare(b.date))[0];
-  const m = data.MB_STATS.find((x) => x.key === me) || { leads: sep.length, termin: q };
+  const m = data.MB_STATS.find((x) => x.key === me) || { leads: inMonth.length, termin: q };
   const qq = Math.round((m.termin / m.leads) * 100);
   const notifs = data.NOTIFS[me] || [];
   const unread = notifs.filter((n) => n.unread).length;
@@ -38,7 +39,7 @@ function SetterOverview() {
       <div className="ee-grid g-setter2">
         <div className="ee-setter-kpis">
           <Kpi
-            label="Eingereichte Leads · Sep."
+            label={`Eingereichte Leads · ${data.ADMIN_KPI.monat.slice(0, 3)}.`}
             value={m.leads}
             meta={<VsTeam v={m.leads} bench={data.BENCH.setterLeads} />}
             tone={perfTone(m.leads, data.BENCH.setterLeads)}
@@ -377,16 +378,16 @@ function QuoteCell({ v, avg }: { v: number; avg: number }) {
 
 function AdminOverview() {
   const { data, now, person, act, go, openLead } = useDashboard();
-  const { CONTRACTS, WEEKLY, PAYOUTS, MB_STATS, LOSS_STATS } = data;
+  const { CONTRACTS, WEEKLY, PAYOUTS, MB_STATS, LOSS_STATS, ADMIN_KPI: K } = data;
   const lead = (id: string) => data.LEADS.find((l) => l.id === id)!;
   const openC = CONTRACTS.filter((c) => c.status === "open").length;
-  const max = Math.max(...WEEKLY.map((w) => w[1]));
+  const max = Math.max(1, ...WEEKLY.map((w) => w[1]));
   const payOpen = Object.values(PAYOUTS)
     .flat()
     .filter((p) => p.status !== "ausgezahlt")
     .reduce((s, p) => s + p.betrag, 0);
   const inactive = MB_STATS.filter((m) => m.days >= 3);
-  const lossMax = Math.max(...LOSS_STATS.map((x) => x[1]));
+  const lossMax = Math.max(1, ...LOSS_STATS.map((x) => x[1]));
   const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
   const team = MB_STATS.reduce(
     (t, m) => ({ leads: t.leads + m.leads, termin: t.termin + m.termin, checks: t.checks + m.checks, verkauft: t.verkauft + m.verkauft }),
@@ -429,11 +430,16 @@ function AdminOverview() {
     { tone: "info", chip: "Freigeben", title: "2 Abrechnungen in Prüfung", sub: "Auszahlung am 15.10.2026", onClick: () => go("auszahlungen") },
   ];
   const flow: [string, number, number | null, string | null][] = [
-    ["Eingereicht", 146, null, null],
-    ["Termin gelegt", 58, 42, "termin"],
-    ["In den Checks", 39, 65, "checks"],
-    ["Verkauf", 27, 70, "verkauft"],
+    ["Eingereicht", K.leads, null, null],
+    ["Termin gelegt", K.termin, TARGETS.terminQuote, "termin"],
+    ["In den Checks", K.checks, TARGETS.checksQuote, "checks"],
+    ["Verkauf", K.verkauft, TARGETS.verkaufQuote, "verkauft"],
   ];
+  const terminQuote = pct(K.termin, K.leads);
+  const leadsDelta = K.leadsVormonat ? Math.round(((K.leads - K.leadsVormonat) / K.leadsVormonat) * 100) : 0;
+  /* Monatsziel anteilig bis heute */
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const sollHeute = Math.round((TARGETS.verkaufMonat * now.getDate()) / daysInMonth);
   return (
     <>
       <PageHead
@@ -450,24 +456,29 @@ function AdminOverview() {
         }
       />
       <div className="ee-grid g-kpi">
-        <Kpi label="Leads eingereicht" value={146} meta="+12 % ggü. August" tone={perfTone(146, 125)} />
-        <Kpi label="Terminquote" value="40 %" meta="Ziel 42 %" tone={perfTone(40, 42)} />
-        <Kpi label="In den Checks" value={39} meta="11 diese Woche" />
-        <Kpi label="Verkauft" value={27} meta="Soll heute: 50 von 65" tone={perfTone(27, 50)} />
+        <Kpi
+          label="Leads eingereicht"
+          value={K.leads}
+          meta={K.leadsVormonat ? `${leadsDelta >= 0 ? "+" : "−"}${Math.abs(leadsDelta)} % ggü. ${K.vormonat}` : `im ${K.monat}`}
+          tone={perfTone(K.leads, K.leadsVormonat)}
+        />
+        <Kpi label="Terminquote" value={`${terminQuote} %`} meta={`Ziel ${TARGETS.terminQuote} %`} tone={perfTone(terminQuote, TARGETS.terminQuote)} />
+        <Kpi label="In den Checks" value={K.checks} meta={`${K.checksWoche} diese Woche`} />
+        <Kpi label="Verkauft" value={K.verkauft} meta={`Soll heute: ${sollHeute} von ${TARGETS.verkaufMonat}`} tone={perfTone(K.verkauft, sollHeute)} />
         <Kpi label="Offene Verträge" value={openC} meta="DocuSign" tone={openC ? "bad" : "good"} />
         <Kpi label="Auszahlungen offen" value={eur(payOpen)} meta="zum 15.10." tone="money" />
       </div>
       <div className="ee-grid g-main" style={{ alignItems: "start" }}>
         <section className="ee-card" data-component="Funnel">
           <div className="ee-card__head">
-            <h2>Pipeline September</h2>
+            <h2>Pipeline {K.monat}</h2>
             <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={() => go("leads")}>
               Board <Icon name="right" small />
             </button>
           </div>
           <div className="ee-flow">
             {flow.map(([k, n, target, cls], i) => {
-              const conv = i ? Math.round((n / flow[i - 1][1]) * 100) : null;
+              const conv = i ? pct(n, flow[i - 1][1]) : null;
               const t = conv !== null && target ? perfTone(conv, target) : "";
               return (
                 <Fragment key={k}>
@@ -486,7 +497,10 @@ function AdminOverview() {
             })}
           </div>
           <div className="ee-flow__total">
-            Von 146 eingereichten Leads wurden <b className="is-money">27 verkauft ({Math.round((27 / 146) * 100)} %)</b>
+            Von {K.leads} eingereichten Leads wurden{" "}
+            <b className="is-money">
+              {K.verkauft} verkauft ({pct(K.verkauft, K.leads)} %)
+            </b>
           </div>
           <hr className="divider" />
           <div className="ee-card__head">
@@ -524,7 +538,7 @@ function AdminOverview() {
         <section className="ee-card ee-card--flush" data-component="QuoteTable">
           <div className="ee-card__head">
             <h2>Quoten je Setter</h2>
-            <span className="muted">September</span>
+            <span className="muted">{K.monat}</span>
           </div>
           <div className="ee-table-wrap">
             <table className="ee-table ee-table--stack">
@@ -584,7 +598,7 @@ function AdminOverview() {
         <section className="ee-card" data-component="LossReasons">
           <div className="ee-card__head">
             <h2>Verlustgründe</h2>
-            <span className="muted">September</span>
+            <span className="muted">{K.monat}</span>
           </div>
           <div className="ee-funnel">
             {LOSS_STATS.map(([k, v]) => (
