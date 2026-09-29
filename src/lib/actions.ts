@@ -2,10 +2,11 @@
    Heute ändern sie die Beispieldaten im Store; später rufen sie hier die echte
    Datenquelle auf (Datenbank, DocuSign/Yousign, n8n) – die Ansichten bleiben gleich. */
 
-import { dkey, eur, fmtDay, fmtHour, pad, parseKey } from "./format";
+import { dkey, eur, fmtDay, fmtHour, nowStamp, pad, parseKey } from "./format";
 import { ranked } from "./ranking";
-import { currentUser, rerender, store } from "./store";
-import type { Board, PersonKey, StatusKey, TeamEvent } from "./types";
+import { currentUser, notify, rerender, store } from "./store";
+import type { Board, Lead, PersonKey, Slot, StatusKey, TeamEvent } from "./types";
+import type { FormValues } from "./vq";
 
 const d = () => store.data;
 const first = (k: PersonKey) => d().PEOPLE[k]?.first ?? k;
@@ -144,4 +145,76 @@ export function addSlotRange(date: string, from: number, to: number, repeat4Week
   pushNotif("inan", `${first(currentUser())} hat ${n} neue freie Slots eingetragen`);
   rerender();
   return n;
+}
+
+/* ---------- Leads ---------- */
+
+const leadById = (id: string) => d().LEADS.find((l) => l.id === id);
+
+/** Status über die Übergangsschicht setzen (Verlauf, Benachrichtigung, Anrufzähler) */
+export const setLeadStatus = (id: string, status: StatusKey, silent = true, reason?: string, note?: string) =>
+  store.legacy?.setStatus(id, status, silent, reason, note);
+
+/** Antwort der Vorqualifizierung direkt am Lead speichern (Telefonleitfaden) */
+export function setLeadVq(id: string, name: string, value: string | string[]) {
+  const l = leadById(id);
+  if (!l) return;
+  (l.vq ??= {})[name] = Array.isArray(value) ? value.join(", ") : value;
+  notify();
+}
+
+export function setLeadPreNote(id: string, note: string) {
+  const l = leadById(id);
+  if (l) l.preNote = note;
+}
+
+/** Ersttermin in einem freien Closer-Slot buchen */
+export function bookSlot(l: Lead, s: Slot) {
+  const i = d().SLOTS.findIndex((x) => x.id === s.id);
+  if (i >= 0) d().SLOTS.splice(i, 1);
+  d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer: s.closer, kind: "erst", date: s.date, start: s.start, dur: 1.5, ort: l.ort, feedback: null });
+  l.closer = s.closer;
+  setLeadStatus(l.id, "termin", true);
+  pushNotif(s.closer, `Neuer Ersttermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, "termin");
+  rerender();
+}
+
+/** Lead aus dem Setting-Formular anlegen (Prototyp: lokal; echt: n8n-Webhook → Pipedrive) */
+export function createLead(v: FormValues): Lead {
+  const s = (k: string) => String(v[k] ?? "").trim();
+  const n = d().NOW;
+  const tel = s("telefon").replace(/\s+/g, " ");
+  const telMasked = tel.length > 8 ? `${tel.slice(0, 4)} •••• ${tel.replace(/\s/g, "").slice(-4)}` : tel;
+  const rueck = [s("rueckruf_datum"), s("rueckruf_uhrzeit") && `${s("rueckruf_uhrzeit")} Uhr`].filter(Boolean).join(" ");
+  const zf = (v.zeitfenster as string[] | undefined) ?? [];
+  const note = [s("notizen"), s("alle_entscheider"), rueck && `Rückruf: ${rueck}`, zf.length && `Erreichbar: ${zf.join(", ")}`].filter(Boolean).join(" · ");
+  const count = d().LEADS.length;
+  const l: Lead = {
+    id: `L-${2450 + count}`,
+    pd: 48400 + count,
+    kunde: `${s("vorname") ? s("vorname") + " " : ""}${s("nachname")}`,
+    anrede: `${s("anrede") || "Familie"} ${s("nachname")}`,
+    tel: telMasked,
+    ort: s("stadt"),
+    adresse: `${s("strasse")} ${s("hausnummer")}, ${s("plz")} ${s("stadt")}`,
+    produkt: "wp",
+    entscheider: s("alle_entscheider"),
+    eigenlead: true,
+    status: "eingereicht",
+    setter: currentUser(),
+    presetter: "inan" /* Prototyp: fester Presetter */,
+    datum: `${pad(n.getDate())}.${pad(n.getMonth() + 1)}.${n.getFullYear()}`,
+    setNote: note,
+    preNote: "",
+    hist: [["Lead eingereicht (an der Tür erfasst)", nowStamp(n)]],
+    attempts: 0,
+    nextTry: rueck || null,
+    reason: null,
+    reasonNote: "",
+    themen: ((v.thema as string[] | undefined) ?? []).slice(),
+  };
+  d().LEADS.unshift(l);
+  pushNotif("inan", `Neuer Lead von ${first(currentUser())}: ${l.kunde}${rueck ? " – Rückruf " + rueck : ""}`, "eingereicht");
+  rerender();
+  return l;
 }

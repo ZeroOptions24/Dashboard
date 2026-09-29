@@ -7,7 +7,31 @@
 import { useSyncExternalStore } from "react";
 import { createDemoData } from "./demo-data";
 import type { LeadStats } from "./stats";
+import type { FormValues } from "./vq";
 import type { AdminKpi, Lead, MbStats, PersonKey, Role } from "./types";
+
+/* ---------- Assistent „Lead erfassen“ ---------- */
+export type WizardStep = 1 | "created" | 2 | "ko" | 3 | "done";
+export interface WizardState {
+  step: WizardStep;
+  leadId: string | null;
+  data: FormValues;
+  vq: FormValues;
+  errors: Record<string, string>;
+  slot: string | null;
+  vqSent: boolean;
+  phone: boolean;
+}
+export const newWizard = (): WizardState => ({
+  step: 1,
+  leadId: null,
+  data: { thema: ["Wärmepumpe"], zeitfenster: [] },
+  vq: {},
+  errors: {},
+  slot: null,
+  vqSent: false,
+  phone: false,
+});
 
 export type LeadFilter = "alle" | "eingereicht" | "termin" | "checks" | "verkauft" | "ausgezahlt" | "verloren";
 
@@ -18,6 +42,9 @@ export interface UiState {
   leadSearch: string;
   leadSetter: PersonKey | "alle";
   leadView: "board" | "list";
+  /** Telefonleitfaden: aktueller Lead und gewählter Slot (teilt die Übergangsschicht) */
+  guideLead: string | null;
+  guideSlot: string | null;
 }
 
 /** Funktionen der Übergangsschicht, die React-Ansichten aufrufen dürfen. */
@@ -28,6 +55,8 @@ export interface LegacyBridge {
   openLead: (id: string) => void;
   /** Kurzmeldung unten einblenden */
   toast: (msg: string, icon?: string) => void;
+  /** Lead-Status setzen (inkl. Verlauf, Benachrichtigung des Setters) */
+  setStatus: (id: string, status: string, silent?: boolean, reason?: string, note?: string) => void;
   /** Aktion der Übergangsschicht auslösen (wie ein Klick auf data-act), z. B. act("feedback", { id }) */
   act: (name: string, data?: Record<string, string>) => void;
 }
@@ -41,14 +70,18 @@ export const store = {
     leadSearch: "",
     leadSetter: "alle",
     leadView: "board",
+    guideLead: null,
+    guideSlot: null,
   } as UiState,
+  /** Zwischenstand „Lead erfassen“ – bleibt beim Wechsel der Ansicht erhalten */
+  wiz: newWizard(),
   legacy: null as LegacyBridge | null,
   /** Angemeldete Person (aus der Sitzung) */
   session: null as { name: string; role: Role } | null,
 };
 
 /** Ansichten, die bereits als React-Komponente umgesetzt sind. */
-export const REACT_VIEWS = new Set(["leads", "uebersicht", "team", "stammdaten", "events", "vertraege", "auszahlungen", "rangliste", "neu", "kalender", "termine"]);
+export const REACT_VIEWS = new Set(["leads", "uebersicht", "team", "stammdaten", "events", "vertraege", "auszahlungen", "rangliste", "neu", "kalender", "termine", "leitfaden", "erfassen"]);
 
 let version = 0;
 const listeners = new Set<() => void>();
@@ -141,4 +174,10 @@ export function applyLiveStats(s: {
 export function useStore() {
   useSyncExternalStore(subscribe, () => version, () => 0);
   return store;
+}
+
+/** Assistent „Lead erfassen“ ändern (nur React-Ansicht neu zeichnen – Fokus in Feldern bleibt). */
+export function setWizard(patch: Partial<WizardState> | ((w: WizardState) => Partial<WizardState>)) {
+  Object.assign(store.wiz, typeof patch === "function" ? patch(store.wiz) : patch);
+  notify();
 }

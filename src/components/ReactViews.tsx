@@ -8,6 +8,8 @@ import NeuView from "@/components/misc/NeuView";
 import OverviewView from "@/components/overview/OverviewView";
 import AuszahlungenView from "@/components/payouts/AuszahlungenView";
 import RanglisteView from "@/components/ranking/RanglisteView";
+import LeitfadenView from "@/components/presetter/LeitfadenView";
+import ErfassenView from "@/components/setter/ErfassenView";
 import PipelineView from "@/components/pipeline/PipelineView";
 import StammdatenView from "@/components/profile/StammdatenView";
 import TeamView from "@/components/team/TeamView";
@@ -25,6 +27,8 @@ const VIEWS: Record<string, () => React.ReactNode> = {
   neu: () => <NeuView />,
   kalender: () => <KalenderView />,
   termine: () => <TermineView />,
+  leitfaden: () => <LeitfadenView />,
+  erfassen: () => <ErfassenView />,
 };
 
 /* Zeigt die bereits auf React umgestellten Ansichten; alle anderen rendert

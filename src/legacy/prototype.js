@@ -2,6 +2,7 @@
 import * as DOMAIN from '@/lib/domain';
 import { store, notify, REACT_VIEWS } from '@/lib/store';
 import { ICONS } from '@/lib/icons';
+import { heatEstimate } from '@/lib/vq';
 /* =====================================================================
    Übergangsschicht: Logik des UI-Prototyps (EnergyEngel/mb-dashboard.html)
    unverändert übernommen, damit das Dashboard 1:1 gleich aussieht und sich
@@ -25,7 +26,6 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const eur = n => n.toLocaleString('de-DE', { style:'currency', currency:'EUR', maximumFractionDigits: n % 1 ? 2 : 0 });
 const $ = s => document.querySelector(s);
 const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'];
-const MON = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
 const pad = n => String(n).padStart(2,'0');
 const dkey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const parseKey = k => { const [y,m,d] = k.split('-').map(Number); return new Date(y, m-1, d); };
@@ -120,26 +120,10 @@ function steps(status){
   };
   return `<div data-component="PipelineSteps" title="${STATUS[status].label}"><div class="ee-steps">${MAP[status].map(c => `<i class="${c}"></i>`).join('')}</div></div>`; /* Segmente: Eingereicht · Termin · Checks · Verkauf · Ausgezahlt */
 }
-/* Einfärbung: Geld immer grün ('money'); Quoten/Zahlen je nach Vergleich grün ('good') oder rot ('bad') */
-function perfTone(value, bench, higherIsBetter = true){
-  if (!bench) return '';
-  const r = higherIsBetter ? value / bench : bench / value;
-  return r >= 1.15 ? 'good' : r <= 0.85 ? 'bad' : '';
-}
-/* Vergleich mit dem Teamschnitt als Klartext: ▲ 6 über Teamschnitt (23) */
-function vsTeam(v, bench, unit='', higherIsBetter=true){
-  const diff = Math.round((v - bench) * 10) / 10, better = higherIsBetter ? diff >= 0 : diff <= 0;
-  if (!diff) return `genau im Teamschnitt (${bench}${unit})`;
-  return `<span class="${better ? 'is-good' : 'is-bad'}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff).toLocaleString('de-DE')}${unit} ${diff > 0 ? 'über' : 'unter'}</span> Teamschnitt (${bench}${unit})`;
-}
 function kpi(label, value, meta='', tone=''){
   if (tone === true) tone = 'money';
   return `<div class="ee-kpi ${tone ? 'ee-kpi--'+tone : ''}" data-component="KpiTile"><div class="ee-kpi__label">${label}</div><div class="ee-kpi__value">${value}</div>${meta?`<div class="ee-kpi__meta">${meta}</div>`:''}</div>`;
 }
-function pageHead(title, actions=''){
-  return `<div class="ee-pagehead"><h1>${title}</h1>${actions?`<div class="row">${actions}</div>`:''}</div>`;
-}
-function mascot(label='Maskottchen<br>(Platzhalter)'){ return `<div class="ee-mascot" data-component="MascotSlot">${label}</div>`; }
 
 /* ---------- Drawer ---------- */
 function openDrawer(html){
@@ -201,14 +185,6 @@ function go(view){ S.view = view; S.editProfile = false; S.showIban = false; clo
 /* =====================================================================
    VIEWS – eine Funktion je Ansicht, rollenabhängig
    ===================================================================== */
-const myLeads = () => {
-  const k = me();
-  if (S.role === 'setter') return LEADS.filter(l => l.setter === k);
-  if (S.role === 'presetter') return LEADS.filter(l => l.presetter === k);
-  if (S.role === 'closer') return LEADS.filter(l => l.closer === k);
-  return LEADS;
-};
-const hadTermin = s => ['termin','checks','verkauft','ausgezahlt','verloren'].includes(s);
 
 /* ---------- Helfer Runde 2: Telefon, Eingangsalter, Provision ---------- */
 const telFull = l => l.tel.replace('••••','4418');
@@ -217,7 +193,6 @@ function parseStamp(t){ const m = String(t).match(/(\d{2})\.(\d{2})\.\s+(\d{2}):
 const eingang = l => parseStamp(l.hist[l.hist.length-1][1]);
 const ageH = l => (NOW - eingang(l)) / 36e5;
 /* Überfällig: eingereicht, noch nie angerufen und älter als 24 Std. */
-const isOverdue = l => l.status === 'eingereicht' && !l.attempts && !l.nextTry && ageH(l) >= 24;
 function ageBadge(l){
   const h = ageH(l);
   const txt = h < 1 ? `seit ${Math.max(1,Math.round(h*60))} Min.` : h < 48 ? `seit ${Math.round(h)} Std.` : `seit ${Math.round(h/24)} Tagen`;
@@ -232,13 +207,6 @@ function dueAt(l){
 }
 const isCallback = l => /^Rückruf/.test(l.nextTry || '');
 const callbackLate = l => isCallback(l) && dueAt(l) < NOW;
-/* Status-Chip für offene Anrufe – überall gleich */
-function tryChip(l, short){
-  if (!l.nextTry) return ageBadge(l);
-  if (callbackLate(l)) return toneChip(`Rückruf überfällig (${l.nextTry.replace(/^Rückruf /,'')})`, 'bad');
-  if (isCallback(l)) return toneChip(short ? l.nextTry.replace(/^Rückruf /,'') : l.nextTry.replace(/^Rückruf /,'Rückruf: '), 'info');
-  return toneChip(`${short ? '' : 'Nächster Versuch: '}${l.nextTry}`, 'warn');
-}
 /* Anrufliste: überfällige Rückrufe und neue Leads zuerst (älteste oben), dann nach Fälligkeit */
 function urgencySort(a, b){
   const grp = l => callbackLate(l) ? 0 : !l.attempts && !l.nextTry ? 1 : 2;
@@ -259,26 +227,9 @@ function provFor(l){
   if (l.status === 'ausgezahlt') return { txt:`${eur(a)} ausgezahlt`, amount:0, done:true };
   return { txt:`+${eur(a)} bei Verkauf`, amount:a };
 }
-const pipelineSum = leads => leads.reduce((s,l) => s + provFor(l).amount, 0);
 function provCell(l){ const p = provFor(l); return `<span class="ee-prov ${p.amount ? '' : 'is-muted'}">${p.txt}</span>`; }
 
-/* ---------- LeadTable ---------- */
-function leadTable(leads, opts={}){
-  if (!leads.length) return `<div class="ee-empty">Keine Leads für diesen Filter.</div>`;
-  const prov = S.role !== 'admin';
-  return `<div class="ee-table-wrap"><table class="ee-table ee-table--stack" data-component="LeadTable">
-    <thead><tr><th>Kunde</th><th>Status</th><th>Pipeline</th>${opts.setter?'<th>Setter</th>':''}${prov?'<th>Deine Provision</th>':''}<th>Eingereicht</th></tr></thead>
-    <tbody>${leads.map(l => `<tr class="is-click" data-act="lead" data-id="${l.id}" tabindex="0">
-      <td><div class="who">${esc(l.kunde)}</div><div class="sub">${esc(l.ort)}</div></td>
-      <td class="r-sm">${chip(l.status)}${l.reason ? `<div class="sub" style="margin-top:3px">${esc(l.reason)}</div>` : ''}</td>
-      <td data-hide-sm>${steps(l.status)}</td>
-      ${opts.setter?`<td data-hide-sm>${esc(person(l.setter).first)}</td>`:''}
-      ${prov?`<td>${provCell(l)}</td>`:''}
-      <td class="sub num">${l.datum.slice(0,6)}</td>
-    </tr>`).join('')}</tbody></table></div>`;
-}
 const isLost = l => !!STATUS[l.status].fail;
-const activeLeads = leads => leads.filter(l => !isLost(l));
 
 /* ---------- Lead-Details (Drawer) ---------- */
 function openLead(id){
@@ -343,63 +294,8 @@ function setStatus(id, status, silent, reason, note){
   if (!silent) toast(attempt ? `${l.kunde}: Versuch ${l.attempts} – nächster ${l.nextTry}` : `${l.kunde}: ${STATUS[status].label} · ${person(l.setter).first} wurde benachrichtigt`);
 }
 /* =================== LEITFADEN (Presetter) =================== */
-function freeSlots(closer, ignorePause){ if (!ignorePause && closerPaused(closer)) return []; return SLOTS.filter(s => s.closer===closer && (s.date > dkey(NOW) || (s.date===dkey(NOW) && s.start > NOW.getHours()))).sort((a,b) => (a.date+pad(a.start)).localeCompare(b.date+pad(b.start))); }
 /* ---------- Telefonleitfaden (Presetter) ---------- */
 const guideQueue = () => LEADS.filter(l => l.presetter === me() && l.status === 'eingereicht').sort(urgencySort);
-/* zwei Terminvorschläge an unterschiedlichen Tagen */
-function twoSlots(slots){ const a = slots[0], b = slots.find(s => a && s.date !== a.date) || slots[1]; return [a, b]; }
-function viewLeitfaden(){
-  const queue = guideQueue();
-  const l = queue.find(x => x.id === S.guideLead) || queue[0];
-  if (!l) return pageHead('Telefonleitfaden') + `<div class="ee-empty" data-component="EmptyState">${ico('check')}<h2>Alle Anrufe erledigt</h2><p>Neue Leads erscheinen hier automatisch.</p></div>`;
-  S.guideLead = l.id;
-  const g = GUIDES.wp, slots = freeSlots('leo'), [s1, s2] = twoSlots(slots);
-  const fill = t => t.replace('{anrede}', l.anrede).replace('{me}', person(me()).first).replace('{setter}', person(l.setter).first)
-    .replace('{closer}', 'Leo').replace('{slot1}', s1 ? `${fmtDay(s1.date)} um ${fmtHour(s1.start)} Uhr` : '…').replace('{slot2}', s2 ? `${fmtDay(s2.date)} um ${fmtHour(s2.start)} Uhr` : '…');
-  const hi = t => esc(fill(t)).replace(esc(l.anrede), `<em>${esc(l.anrede)}</em>`);
-  const vq = l.vq || {}, p = vqProgress(vq);
-  const byDay = {}; slots.forEach(s => (byDay[s.date] = byDay[s.date] || []).push(s));
-  const sel = SLOTS.find(s => s.id === S.guideSlot);
-  const idx = queue.indexOf(l), next = queue[idx + 1];
-  const secCount = s => { const fs = s.fields.filter(f => !f.showIf || vq[f.showIf[0]] === f.showIf[1]); return `${fs.filter(f => vq[f.n] !== undefined && vq[f.n] !== '').length}/${fs.length}`; };
-  return pageHead('Telefonleitfaden', `<span class="ee-chip ee-chip--info">${idx + 1} von ${queue.length} in der Anrufliste</span>`)
-  + `<section class="ee-callbar" data-component="CallBar">
-      <div class="ee-callbar__who"><b>${esc(l.kunde)}</b><span>${esc(l.ort)} · ${l.attempts ? l.attempts + '. Versuch' : 'Erstanruf'}</span></div>
-      <a class="ee-btn ee-btn--primary" href="${telHref(l)}">${ico('phone','sm')} ${telFull(l)}</a>
-      <div class="ee-callbar__out">
-        <button class="ee-btn ee-btn--sm" data-act="set-status" data-id="${l.id}" data-status="nicht_erreicht">Nicht erreicht</button>
-        <button class="ee-btn ee-btn--sm" data-act="guide-callback" data-id="${l.id}">${ico('clock','sm')} Rückruf vereinbaren</button>
-        <button class="ee-btn ee-btn--sm ee-btn--danger" data-act="set-status" data-id="${l.id}" data-status="abgesagt">Abgesagt</button>
-        ${next ? `<button class="ee-btn ee-btn--ghost ee-btn--sm" data-act="guide-pick" data-id="${next.id}">Nächster ${ico('right','sm')}</button>` : ''}
-      </div>
-    </section>
-    <div class="ee-guide" data-component="CallGuide">
-    <aside class="stack ee-guide__side" style="gap:14px">
-      <section class="ee-card" data-component="CustomerInfo">
-        <div class="row">${tryChip(l)}</div>
-        <dl class="ee-facts" style="grid-template-columns:1fr 1fr"><div><dt>Erfasst von</dt><dd>${esc(person(l.setter).first)} · ${l.datum.slice(0,6)}</dd></div><div><dt>Versuche</dt><dd>${l.attempts || 'noch keiner'}</dd></div>${l.adresse ? `<div style="grid-column:1/-1"><dt>Adresse</dt><dd>${esc(l.adresse)}</dd></div>` : ''}</dl>
-        ${l.setNote ? `<div class="ee-note"><b>Von der Tür:</b> ${esc(l.setNote)}</div>` : ''}
-        ${customerBrief(l)}
-      </section>
-      <details class="ee-card ee-queue" ${S.guideQueueOpen ? 'open' : ''} data-component="QueueList"><summary><h3>Anrufliste</h3><span class="ee-chip">${queue.length}</span></summary>
-        <div class="ee-queue__list">${queue.map(x => `<button class="ee-queue__row ${x.id === l.id ? 'is-current' : ''}" data-act="guide-pick" data-id="${x.id}"><span><b>${esc(x.kunde)}</b><small>${esc(x.ort)}</small></span>${tryChip(x, true)}</button>`).join('')}</div>
-      </details>
-    </aside>
-    <section class="ee-card ee-guide__main">
-      <div class="stack" style="gap:26px;padding:4px 0 0 14px">
-        <div class="ee-phase" data-step="1"><h3>Begrüßung</h3><p class="ee-script">${hi(g.intro)}</p></div>
-        <div class="ee-phase" data-step="2"><div class="row row--between"><h3>Vorqualifizierung</h3><div class="ee-vq__stats ee-vq__stats--sm"><div><b class="num" id="pqProgress">${p.done}/${p.total}</b><span>beantwortet</span></div><div><b class="num" id="pqHeat">${heatText(vq)}</b><span>Heizlast (Schätzung)</span></div></div></div>
-          ${p.done ? `<div class="ee-alert ee-alert--ok">${ico('check','sm')} ${p.done} Antworten kommen schon von der Tür – nur Offenes fragen</div>` : ''}
-          <form id="pqForm" class="stack" style="gap:8px" novalidate data-component="VqForm">${VQ_SECTIONS.map((s,i) => `<details class="ee-vqsec" ${i === 0 && !p.done ? 'open' : ''}><summary><span>${s.title}</span><span class="ee-vqsec__count num">${secCount(s)}</span></summary><div class="ee-form">${s.fields.map(f => wizField(f, 'pq')).join('')}</div></details>`).join('')}</form>
-          <div class="ee-field"><label for="guideNote">Notiz für den Closer</label><textarea class="ee-textarea" id="guideNote" placeholder="z. B. Ehefrau entscheidet mit, Heizung tropft, will vor dem Winter umsteigen">${esc(l.preNote || '')}</textarea></div></div>
-        <div class="ee-phase" data-step="3"><h3>Einwände</h3>${g.objections.map(([o,a]) => `<details class="ee-objection"><summary>${esc(o)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
-        <div class="ee-phase" data-step="4"><h3>Termin legen</h3><p class="ee-script">${hi(g.close)}</p>
-          ${closerPaused('leo') ? `<div class="ee-alert ee-alert--bad">${ico('lock','sm')} Leo ist pausiert – offene Rückmeldungen</div>` : ''}
-          <div data-component="SlotPicker">${Object.entries(byDay).slice(0,5).map(([k, ss]) => `<div class="ee-slotpick__day"><b>${fmtDay(k)}</b><div class="ee-slotpick">${ss.map(s => `<button class="ee-slotpick__btn" data-act="guide-slot" data-slot="${s.id}" aria-pressed="${S.guideSlot === s.id}">${fmtHour(s.start)}</button>`).join('')}</div></div>`).join('') || '<p class="muted">Keine freien Termine.</p>'}</div>
-          <button class="ee-btn ee-btn--primary" data-act="book-slot" data-slot="${sel ? sel.id : ''}" data-id="${l.id}" ${sel ? '' : 'disabled'}>${ico('cal','sm')} ${sel ? `Termin ${fmtDay(sel.date)} ${fmtHour(sel.start)} eintragen` : 'Termin auswählen'}</button></div>
-      </div>
-    </section></div>`;
-}
 /* Nach einer Aktion im Leitfaden automatisch zum nächsten Kunden */
 function guideAdvance(fromId){
   const nxt = guideQueue().find(x => x.id !== fromId); /* immer der dringendste offene Lead */
@@ -423,15 +319,13 @@ const apptEnd = a => { const d = parseKey(a.date); d.setMinutes(Math.round((a.st
 const needsFeedback = a => !a.feedback && apptEnd(a) <= NOW;
 const feedbackDue = a => new Date(apptEnd(a).getTime() + FEEDBACK_FRIST_H * 36e5);
 const pendingFeedback = k => APPTS.filter(a => a.closer === k && needsFeedback(a));
-const closerPaused = k => pendingFeedback(k).some(a => feedbackDue(a) < NOW);
 const kindLabel = a => a.kind === 'closing' ? '2. Termin' : 'Ersttermin';
 function fmtDue(d){ const same = dkey(d) === dkey(NOW); return `${same ? 'heute' : WD[d.getDay()] + ' ' + pad(d.getDate()) + '.' + pad(d.getMonth()+1) + '.'} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-const pausedBanner = () => `<div class="ee-alert ee-alert--bad">${ico('lock','sm')} Deine Slots sind für neue Leads pausiert, bis alle Rückmeldungen erledigt sind.</div>`;
 
 /* ---------- CustomerBrief: Kundeninfos aus Setting + Presetting für den Closer ---------- */
 function customerBrief(l){
   const q = l.vq || {};
-  const h = typeof heatEstimate === 'function' ? heatEstimate(q) : null;
+  const h = heatEstimate(q);
   const f = [
     ['Wohnfläche', q.wohnflaeche && `${q.wohnflaeche} m²`], ['Baujahr', q.baujahr_haus],
     ['Heizung', q.heizungsart && `${q.heizungsart}${q.heizung_baujahr ? ' · Bj. ' + q.heizung_baujahr : ''}${q.heizungsart_2 && q.heizungsart_2 !== 'Keine' ? ' + ' + q.heizungsart_2 : ''}`],
@@ -532,341 +426,10 @@ function openTeamMember(key){
 }
 
 
-const VIEWS = { leitfaden:viewLeitfaden };
-/* =====================================================================
-   LEAD ERFASSEN (Setter) – 1:1 nach dem bestehenden Setting-Formular
-   Schritt 1 „Lead anlegen“      → n8n-Webhook  POST /webhook/wp-lead
-   Schritt 2 „Vorqualifizieren“  → n8n-Webhook  POST /webhook/wp-vorqual (optional)
-   Schritt 3 „Termin legen“      → NEU: bucht einen freien Closer-Slot (optional)
-   Feldnamen (name="…") entsprechen den Payload-Feldern der bestehenden Formulare.
-   ===================================================================== */
-const WIZ_NEW = () => ({ step:1, leadId:null, data:{ thema:['Wärmepumpe'], zeitfenster:[] }, vq:{}, errors:{}, slot:null, vqSent:false, phone:false });
-S.wiz = WIZ_NEW();
-
-const ZEITFENSTER = ['Vormittag (8–12 Uhr)','Mittag (12–15 Uhr)','Nachmittag (15–18 Uhr)','Abend (18–20 Uhr)'];
-const J_N = ['Ja','Nein'];
-const N15 = ['1','2','3','4','5+'];
-
-/* Vorqualifizierung Wärmepumpe – Abschnitte und Fragen wie in waermepumpe-vorqualifizierung.html */
-const VQ_SECTIONS = [
-  { key:'gebaeude', title:'Gebäude', fields:[
-    { n:'haustyp', l:'Ist Ihr Haus ein Ein- oder Mehrfamilienhaus?', t:'radio', o:['EFH','MFH'], cols:true },
-    { n:'gebaeudeart', l:'Um welche Gebäudeart handelt es sich?', t:'select', o:['Freistehend','Doppelhaushälfte','Reihenendhaus','Reihenmittelhaus'] },
-    { n:'geschosse', l:'Bewohnbare Geschosse', t:'select', o:N15 },
-    { n:'wohneinheiten', l:'Anzahl der Wohneinheiten', t:'select', o:N15 },
-    { n:'personen_haus', l:'Personen im Haus', t:'number', ph:'z. B. 3' },
-    { n:'personen_u18', l:'Davon unter 18 Jahren', t:'select', o:['0','1','2','3','4+'] },
-    { n:'baumassnahmen', l:'Baumaßnahmen geplant/laufend?', t:'radio', o:J_N, cols:true },
-    { n:'wohnflaeche', l:'Beheizbare Wohnfläche (m²)', t:'number', ph:'z. B. 140', heat:true },
-    { n:'baujahr_haus', l:'Baujahr des Hauses', t:'number', ph:'z. B. 1994', heat:true },
-  ]},
-  { key:'daemmung', title:'Dämmung', fields:[
-    { n:'fassade_gedaemmt', l:'Ist die Fassade nachträglich gedämmt worden?', t:'radio', o:J_N, cols:true, heat:true },
-    { n:'fassade_daemmung_art', l:'Art und Dicke der Dämmung', t:'text', ph:'z. B. 4cm Styropor', showIf:['fassade_gedaemmt','Ja'] },
-    { n:'fassade_daemmung_jahr', l:'Wann aufgebracht (Jahr)', t:'number', ph:'z. B. 1979', showIf:['fassade_gedaemmt','Ja'] },
-    { n:'dach_gedaemmt', l:'Ist das Dach oder der Dachboden nachträglich gedämmt?', t:'radio', o:J_N, cols:true, heat:true },
-    { n:'dach_daemmung_ort', l:'Wo ist die Dämmung am Dach aufgebracht?', t:'select', o:['Auf der obersten Geschossdecke','Zwischen den Sparren','Unter den Sparren','Aufsparrendämmung'], showIf:['dach_gedaemmt','Ja'] },
-    { n:'dach_daemmung_art', l:'Art und Dicke der Dämmung', t:'text', ph:'z. B. 4cm Styropor', showIf:['dach_gedaemmt','Ja'] },
-    { n:'dach_daemmung_jahr', l:'Wann aufgebracht (Jahr)', t:'number', ph:'z. B. 1979', showIf:['dach_gedaemmt','Ja'] },
-    { n:'fenster', l:'Sind die Fenster isolierverglast?', t:'radio', o:['Einfachverglasung','2 Scheibenglas','2 Scheiben Wärmeschutzglas','3 Scheibenglas oder 3 Scheiben Wärmeschutzglas'], heat:true },
-  ]},
-  { key:'heizung', title:'Heizung', fields:[
-    { n:'heizungsart', l:'Art der Heizung', t:'select', o:['Öl','Gas','Fernwärme','Strom (Nachtspeicher)','Holz/Pellets','Wärmepumpe','Sonstige'] },
-    { n:'heizungsart_2', l:'Art der 2. Heizung', t:'select', o:['Keine','Öl','Gas','Fernwärme','Strom (Nachtspeicher)','Holz/Pellets','Sonstige'], hint:'nur Wärmequellen, die die WP ersetzen soll' },
-    { n:'oelverbrauch', l:'Ölverbrauch (Liter/Jahr)', t:'number', ph:'z. B. 1800', hint:'1 l = 10 kWh', showIf:['heizungsart','Öl'] },
-    { n:'heizung_baujahr', l:'Baujahr der Heizung', t:'number', ph:'z. B. 2020' },
-    { n:'heizung_funktionstuechtig', l:'Heizung noch funktionstüchtig?', t:'radio', o:J_N, cols:true },
-    { n:'heizraum', l:'Wo befindet sich der Heizraum?', t:'select', o:['Keller','Erdgeschoss','Dachboden','Sonstige'] },
-    { n:'heizverteilung', l:'Womit heizen Sie (Verteilung)?', t:'radio', o:['Heizkörper','Fußbodenheizung','Beides','Weder Noch'], cols:true },
-    { n:'warmwasser', l:'Wird das Warmwasser auch über die Heizung erwärmt?', t:'radio', o:['Ja','Nein','Nein, aber künftig über die Wärmepumpe'] },
-    { n:'solarthermie', l:'Solarthermieanlage vorhanden?', t:'radio', o:J_N, cols:true },
-    { n:'wasserg_kamin', l:'Wassergeführter Kamin vorhanden?', t:'radio', o:J_N, cols:true },
-    { n:'energiekosten_heizung', l:'Energiekosten für die Heizung (ct/kWh)', t:'number', ph:'z. B. 10', step:'0.1' },
-  ]},
-  { key:'strom_pv', title:'Strom & PV', fields:[
-    { n:'stromkosten', l:'Stromkosten (ct/kWh)', t:'number', ph:'z. B. 25', step:'0.1' },
-    { n:'pv_anlage', l:'PV-Anlage auf dem Dach?', t:'radio', o:['Ja, von Enpal','Ja, von einem Drittanbieter','Nein'] },
-  ]},
-  { key:'eigentum', title:'Eigentum & Haushalt', fields:[
-    { n:'eigentuemer', l:'Sind Sie als Privatperson (oder GbR) im Grundbuch eingetragener Eigentümer?', t:'radio', o:['Ja','Nein','Nein, aber verwandt'], hint:'Wichtig: Eigentümer muss im SC1 sein', ko:true },
-    { n:'zweiter_eigentuemer', l:'Zweiter Eigentümer vorhanden?', t:'radio', o:J_N, cols:true },
-    { n:'selbst_bewohnt', l:'Selbst bewohnt oder Einzug geplant?', t:'radio', o:J_N, cols:true, ko:true },
-    { n:'haushaltseinkommen', l:'Jährliches Brutto-Haushaltseinkommen', t:'radio', o:['Unter 30.000 €','30.000–40.000 €','40.000–50.000 €','50.000–60.000 €','Über 60.000 €'], sensitive:true },
-    { n:'smartphone', l:'Besitzt Kunde ein Smartphone?', t:'radio', o:J_N, cols:true },
-  ]},
-];
-
-/* ---------- Grobe Heizlast-Schätzung (ersetzt keine Heizlastberechnung) ---------- */
-function heatEstimate(vq){
-  const a = +vq.wohnflaeche, bj = +vq.baujahr_haus;
-  if (!a || !bj) return null;
-  let wpm2 = bj < 1978 ? 120 : bj < 1995 ? 90 : bj < 2002 ? 70 : bj < 2016 ? 50 : 35;
-  if (vq.fassade_gedaemmt === 'Ja') wpm2 *= 0.85;
-  if (vq.dach_gedaemmt === 'Ja') wpm2 *= 0.9;
-  if (String(vq.fenster || '').startsWith('3')) wpm2 *= 0.9;
-  if (vq.fenster === 'Einfachverglasung') wpm2 *= 1.15;
-  return Math.round(a * wpm2 / 100) / 10;
-}
-const heatText = vq => { const h = heatEstimate(vq); return h ? `≈ ${h.toLocaleString('de-DE')} kW` : '–'; };
-function vqProgress(vq = S.wiz.vq){
-  let total = 0, done = 0;
-  VQ_SECTIONS.forEach(s => s.fields.forEach(f => {
-    if (f.showIf && vq[f.showIf[0]] !== f.showIf[1]) return;
-    total++; if (vq[f.n] !== undefined && vq[f.n] !== '') done++;
-  }));
-  return { total, done };
-}
-
-/* ---------- Feld-Bausteine ---------- */
-/* Speicherort je Formular: 'd' = Lead-Erfassung, 'vq' = Vorqualifizierung an der Tür, 'pq' = Vorqualifizierung im Telefonleitfaden (direkt am Lead) */
-const pqStore = () => { const l = lead(S.guideLead); return l ? (l.vq = l.vq || {}) : {}; };
-const storeFor = scope => scope === 'vq' ? S.wiz.vq : scope === 'pq' ? pqStore() : S.wiz.data;
-function wizField(f, scope){
-  const store = storeFor(scope);
-  const v = store[f.n], err = scope === 'pq' ? null : S.wiz.errors[f.n];
-  const id = `${scope}-${f.n}`;
-  const tags = (f.req ? '<span class="ee-ftag ee-ftag--req">Pflicht</span>' : '')
-    + (f.heat ? '<span class="ee-ftag ee-ftag--heat">Heizlast</span>' : '')
-    + (f.ko ? '<span class="ee-ftag ee-ftag--ko">K.-o.-Kriterium</span>' : '');
-  const hint = (f.hint ? `<span class="ee-hint">${esc(f.hint)}</span>` : '')
-    + (f.sensitive ? `<span class="ee-secure">${ico('lock')} vertraulich</span>` : '')
-    + (err ? `<span class="ee-hint ee-hint--err">${esc(err)}</span>` : '');
-  const cond = f.showIf ? `data-show-if="${f.showIf[0]}=${esc(f.showIf[1])}" ${store[f.showIf[0]] === f.showIf[1] ? '' : 'hidden'}` : '';
-  const full = f.half ? '' : 'ee-field--full';
-  if (f.t === 'radio' || f.t === 'check') {
-    const type = f.t === 'radio' ? 'radio' : 'checkbox';
-    const on = o => type === 'radio' ? v === o : (v || []).includes(o);
-    return `<fieldset class="ee-field ${full} ${f.showIf ? 'ee-cond' : ''} ${err ? 'is-invalid' : ''}" ${cond} data-field="${f.n}"><legend class="lbl">${esc(f.l)} ${tags}</legend>
-      <div class="ee-opts ${f.cols ? 'ee-opts--cols' : ''}">${f.o.map(o => `<label class="ee-opt"><input type="${type}" name="${f.n}" value="${esc(o)}" data-scope="${scope}" ${on(o) ? 'checked' : ''}><span>${esc(o)}</span></label>`).join('')}</div>${hint}</fieldset>`;
-  }
-  let ctrl;
-  if (f.t === 'select') ctrl = `<select class="ee-select" id="${id}" name="${f.n}" data-scope="${scope}"><option value="">Bitte wählen</option>${f.o.map(o => `<option ${v === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
-  else if (f.t === 'textarea') ctrl = `<textarea class="ee-textarea" id="${id}" name="${f.n}" data-scope="${scope}" placeholder="${esc(f.ph || '')}">${esc(v || '')}</textarea>`;
-  else ctrl = `<input class="ee-input ${err ? 'is-invalid' : ''}" id="${id}" name="${f.n}" data-scope="${scope}" type="${f.t === 'number' ? 'number' : f.t}" ${f.step ? `step="${f.step}"` : ''} ${f.im ? `inputmode="${f.im}"` : ''} ${f.max ? `maxlength="${f.max}"` : ''} ${f.ac ? `autocomplete="${f.ac}"` : ''} placeholder="${esc(f.ph || '')}" value="${esc(v || '')}">`;
-  return `<div class="ee-field ${full} ${f.showIf ? 'ee-cond' : ''}" ${cond} data-field="${f.n}"><label for="${id}">${esc(f.l)} ${tags}</label>${ctrl}${hint}</div>`;
-}
-
-/* ---------- Stepper ---------- */
-function wizStepper(){
-  const idx = { 1:0, created:1, 2:1, ko:1, 3:2, done:3 }[S.wiz.step];
-  const steps = ['Lead anlegen','Vorqualifizieren','Termin legen'];
-  return `<ol class="ee-stepper" data-component="Stepper">${steps.map((s,i) => `<li class="${i < idx ? 'is-done' : i === idx ? 'is-current' : ''}"><span>${i < idx ? ico('check','sm') : i+1}</span><b>${s}</b>${i ? '<small>optional</small>' : ''}</li>`).join('')}</ol>`;
-}
-const wizLead = () => lead(S.wiz.leadId);
-function wizCustomerBar(){
-  const l = wizLead(); if (!l) return '';
-  return `<div class="ee-wiz__who"><div class="ee-avatar">${esc(l.kunde.split(' ').map(x => x[0]).join('').slice(0,2))}</div><div><b>${esc(l.kunde)}</b><div class="faint" style="font-size:.82rem">${esc(l.adresse || l.ort)} · <span class="mono">${esc(l.id)}</span></div></div>${chip(l.status)}</div>`;
-}
-
-/* ---------- Schritt 1: Lead anlegen ---------- */
-const STEP1 = {
-  notizen:{ n:'notizen', l:'Alles, was der Innendienst zum Termin wissen sollte', t:'textarea', ph:'z. B. Gastherme 20 Jahre alt, Ehefrau entscheidet mit, Hund im Garten' },
-  alle_entscheider:{ n:'alle_entscheider', l:'Sind alle Entscheider beim Termin dabei?', t:'radio', o:['Ja, alle Entscheider sind dabei','Nein, nicht alle dabei'] },
-  rueckruf_datum:{ n:'rueckruf_datum', l:'Wann soll der Kunde angerufen werden?', t:'radio', o:['Heute','Morgen','wann anders'], cols:true },
-  rueckruf_uhrzeit:{ n:'rueckruf_uhrzeit', l:'Genaue Uhrzeit falls vereinbart', t:'time', half:true },
-  zeitfenster:{ n:'zeitfenster', l:'Erreichbarkeit', t:'check', o:ZEITFENSTER, cols:true },
-  anrede:{ n:'anrede', l:'Anrede', t:'radio', o:['Frau','Herr'], cols:true },
-  vorname:{ n:'vorname', l:'Vorname', t:'text', half:true, ac:'off' },
-  nachname:{ n:'nachname', l:'Nachname', t:'text', req:true, half:true, ac:'off' },
-  telefon:{ n:'telefon', l:'Telefon', t:'tel', req:true, half:true, im:'tel', ph:'0170 1234567' },
-  email:{ n:'email', l:'E-Mail', t:'email', half:true, ph:'name@beispiel.de' },
-  strasse:{ n:'strasse', l:'Straße', t:'text', req:true, half:true },
-  hausnummer:{ n:'hausnummer', l:'Hausnummer', t:'text', req:true, half:true },
-  plz:{ n:'plz', l:'Postleitzahl', t:'text', req:true, half:true, im:'numeric', max:5, ph:'5 Ziffern' },
-  stadt:{ n:'stadt', l:'Stadt', t:'text', req:true, half:true },
-};
-function wizStep1(){
-  const F = k => wizField(STEP1[k], 'd');
-  return `<form id="wizForm" class="stack" style="gap:18px" novalidate data-component="LeadForm">
-    <section class="ee-card"><div class="ee-card__head"><h2>Notizen aus dem Gespräch</h2><span class="muted">optional</span></div>${F('notizen')}</section>
-    <section class="ee-card"><div class="ee-card__head"><h2>Terminabsprache</h2><span class="muted">optional</span></div><div class="ee-form">${F('alle_entscheider')}${F('rueckruf_datum')}${F('rueckruf_uhrzeit')}${F('zeitfenster')}</div></section>
-    <section class="ee-card"><div class="ee-card__head"><h2>Kontaktdaten</h2><button type="button" class="ee-btn ee-btn--sm" data-act="wiz-geo">${ico('pin','sm')} Adresse per Standort ausfüllen</button></div>
-      <div class="ee-form">${F('anrede')}${F('vorname')}${F('nachname')}${F('telefon')}${F('email')}${F('strasse')}${F('hausnummer')}${F('plz')}${F('stadt')}</div></section>
-    <div class="ee-wiz__bar" data-component="ActionBar">
-      <button type="button" class="ee-btn" data-act="wiz-create" data-next="vq">${ico('check','sm')} Direkt an der Tür vorqualifizieren</button>
-      <button type="button" class="ee-btn ee-btn--primary" data-act="wiz-create" data-next="created">${ico('plus','sm')} Lead erstellen</button>
-    </div>
-  </form>`;
-}
-function wizValidate(){
-  const d = S.wiz.data, e = {};
-  ['nachname','telefon','strasse','hausnummer','stadt'].forEach(k => { if (!String(d[k] || '').trim()) e[k] = 'Pflichtfeld'; });
-  if (!/^\d{5}$/.test(String(d.plz || '').trim())) e.plz = '5 Ziffern';
-  if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) e.email = 'Bitte gültige E-Mail angeben';
-  S.wiz.errors = e;
-  return !Object.keys(e).length;
-}
-function wizCreateLead(){
-  const d = S.wiz.data;
-  const num = 2450 + LEADS.length;
-  const tel = String(d.telefon).replace(/\s+/g,' ').trim();
-  const telMasked = tel.length > 8 ? tel.slice(0,4) + ' •••• ' + tel.replace(/\s/g,'').slice(-4) : tel;
-  const produkt = 'wp';
-  const rueck = [d.rueckruf_datum, d.rueckruf_uhrzeit && `${d.rueckruf_uhrzeit} Uhr`].filter(Boolean).join(' ');
-  const note = [d.notizen, d.alle_entscheider, rueck && `Rückruf: ${rueck}`, (d.zeitfenster||[]).length && `Erreichbar: ${d.zeitfenster.join(', ')}`].filter(Boolean).join(' · ');
-  const l = { id:`L-${num}`, pd:48400 + LEADS.length, kunde:`${d.vorname ? d.vorname.trim() + ' ' : ''}${d.nachname.trim()}`, anrede:`${d.anrede || 'Familie'} ${d.nachname.trim()}`,
-    tel:telMasked, ort:d.stadt.trim(), adresse:`${d.strasse.trim()} ${d.hausnummer.trim()}, ${d.plz} ${d.stadt.trim()}`, produkt, entscheider:d.alle_entscheider || '', eigenlead:true, status:'eingereicht', setter:me(), presetter:'inan', datum:'23.09.2026',
-    setNote:note, preNote:'', hist:[['Lead eingereicht (an der Tür erfasst)', nowStamp()]], attempts:0, nextTry: rueck || null, reason:null, reasonNote:'', themen:d.thema.slice() };
-  LEADS.unshift(l);
-  S.wiz.leadId = l.id;
-  pushNotif('inan', `Neuer Lead von ${person(me()).first}: ${l.kunde}${rueck ? ' – Rückruf ' + rueck : ''}`, 'eingereicht');
-  return l;
-}
-
-/* ---------- Zwischenstand nach „Lead erstellen“ ---------- */
-function wizCreated(){
-  const l = wizLead();
-  return `<section class="ee-card ee-wiz__success">
-    <div class="ee-wiz__check">${ico('check')}</div>
-    <h2>Der neue Kunde wurde erfolgreich in Pipedrive angelegt</h2>
-    <p class="muted">${esc(l.kunde)} · ${esc(l.adresse)}</p>
-    <div class="row" style="justify-content:center">
-      <button class="ee-btn ee-btn--primary" data-act="wiz-goto" data-step="2">${ico('check','sm')} Jetzt vorqualifizieren</button>
-      <button class="ee-btn" data-act="wiz-goto" data-step="3">${ico('cal','sm')} Direkt Termin legen</button>
-      <button class="ee-btn ee-btn--ghost" data-act="wiz-reset">${ico('plus','sm')} Weiteren Kunden anlegen</button>
-    </div></section>`;
-}
-
-/* ---------- Schritt 2: Vorqualifizierung ---------- */
-function wizStep2(){
-  const p = vqProgress();
-  return `${wizCustomerBar()}
-  <section class="ee-card ee-vq__head" data-component="VqSummary">
-    <div><span class="eyebrow">Vorqualifizierung</span></div>
-    <div class="ee-vq__stats"><div><b class="num" id="vqProgress">${p.done}/${p.total}</b><span>beantwortet</span></div><div><b class="num" id="vqHeat">${heatText(S.wiz.vq)}</b><span>Heizlast (Schätzung)</span></div></div>
-  </section>
-  <form id="vqForm" class="stack" style="gap:18px" novalidate data-component="VqForm">
-    ${VQ_SECTIONS.map((s,i) => `<section class="ee-card"><div class="ee-card__head"><h2><span class="ee-vq__no">${i+1}</span>${s.title}</h2></div><div class="ee-form">${s.fields.map(f => wizField(f, 'vq')).join('')}</div></section>`).join('')}
-    <div class="ee-wiz__bar">
-      <button type="button" class="ee-btn" data-act="wiz-phone">${ico('phone','sm')} Rest telefonisch klären</button>
-      <button type="button" class="ee-btn ee-btn--primary" data-act="wiz-vq-submit">${ico('send','sm')} Vorqualifizierung abschicken</button>
-    </div>
-  </form>`;
-}
-function vqSummary(vq){
-  const h = heatEstimate(vq);
-  return [vq.wohnflaeche && `${vq.wohnflaeche} m²`, vq.baujahr_haus && `Bj. ${vq.baujahr_haus}`, vq.gebaeudeart, vq.heizungsart && `${vq.heizungsart}${vq.heizung_baujahr ? ' (Bj. ' + vq.heizung_baujahr + ')' : ''}`, vq.oelverbrauch && `${vq.oelverbrauch} l Öl/Jahr`, vq.heizverteilung, vq.pv_anlage && `PV: ${vq.pv_anlage}`, vq.eigentuemer && `Eigentümer: ${vq.eigentuemer}`, h && `Heizlast ≈ ${h.toLocaleString('de-DE')} kW`].filter(Boolean).join(' · ');
-}
-function wizKo(){
-  const vq = S.wiz.vq;
-  const why = [vq.eigentuemer && vq.eigentuemer !== 'Ja' && `Eigentümer: „${vq.eigentuemer}“`, vq.selbst_bewohnt === 'Nein' && 'nicht selbst bewohnt'].filter(Boolean).join(', ');
-  return `${wizCustomerBar()}<section class="ee-card ee-wiz__ko">
-    <h2>K.-o.-Kriterium: ${esc(why)}</h2>
-    <div class="row"><button class="ee-btn ee-btn--danger" data-act="wiz-ko-abgesagt">Als „Abgesagt“ markieren</button>
-    <button class="ee-btn" data-act="wiz-goto" data-step="3">Trotzdem Termin legen (Eigentümer kommt zum Termin)</button></div></section>`;
-}
-
-/* ---------- Schritt 3: Termin legen (neu) ---------- */
-function wizStep3(){
-  const l = wizLead(), d = S.wiz.data;
-  const slots = freeSlots('leo');
-  const byDay = {}; slots.forEach(s => (byDay[s.date] = byDay[s.date] || []).push(s));
-  return `${wizCustomerBar()}
-  ${d.alle_entscheider === 'Nein, nicht alle dabei' ? `<div class="ee-demo-strip" style="border-style:solid;border-color:var(--warn)">${ico('info','sm')}<span><b>Nicht alle Entscheider dabei.</b></span></div>` : ''}
-  <section class="ee-card" data-component="SlotPicker"><div class="ee-card__head"><h2>Freie Termine</h2><span class="muted">Closer: Leo · 90 Min. vor Ort</span></div>
-    ${Object.keys(byDay).length ? Object.entries(byDay).map(([k, ss]) => `<div class="ee-slotpick__day"><b>${fmtDay(k)}</b><div class="ee-slotpick">${ss.map(s => `<button class="ee-slotpick__btn" data-act="wiz-slot" data-slot="${s.id}" aria-pressed="${S.wiz.slot === s.id}">${fmtHour(s.start)}</button>`).join('')}</div></div>`).join('') : (closerPaused('leo') ? `<div class="ee-alert ee-alert--bad">${ico('lock','sm')} Leo ist pausiert – offene Rückmeldungen</div>` : '<p class="muted">Keine freien Termine.</p>')}
-  </section>
-  <div class="ee-wiz__bar">
-    <button class="ee-btn" data-act="wiz-skip">Ohne Termin abschließen – Presetting ruft an</button>
-    <button class="ee-btn ee-btn--primary" data-act="wiz-book" ${S.wiz.slot ? '' : 'disabled'}>${ico('cal','sm')} ${S.wiz.slot ? (() => { const s = SLOTS.find(x => x.id === S.wiz.slot); return s ? `Termin ${fmtDay(s.date)} ${fmtHour(s.start)} eintragen` : 'Termin eintragen'; })() : 'Termin auswählen'}</button>
-  </div>`;
-}
-
-/* ---------- Abschluss ---------- */
-function wizDone(){
-  const l = wizLead(), a = APPTS.find(x => x.lead === l.id);
-  const today = myLeads().filter(x => x.datum === '23.09.2026').length;
-  const row = (ok, t) => `<li class="${ok ? 'is-ok' : ''}">${ok ? ico('check','sm') : '<span class="ee-dash">–</span>'}<span>${t}</span></li>`;
-  return `<section class="ee-card ee-wiz__success">
-    <div class="ee-wiz__check">${ico('check')}</div>
-    <h2>${esc(l.kunde)} ist erfasst</h2>
-    <ul class="ee-donelist">
-      ${row(true, `Lead in Pipedrive angelegt (<span class="mono">${l.id}</span>)`)}
-      ${row(S.wiz.vqSent, S.wiz.vqSent ? `Vorqualifizierung übertragen${S.wiz.phone ? ' – Rest klärt Inan telefonisch' : ''}` : 'Vorqualifizierung übersprungen – macht das Presetting')}
-      ${row(!!a, a ? `Termin: ${fmtDay(a.date)} ${fmtHour(a.start)} mit Leo` : 'Kein Termin – Inan ruft den Kunden an')}
-    </ul>
-    <p class="muted">Heute: <b class="${today >= DAY_GOAL.goal ? 'is-good' : ''}">${today} von ${DAY_GOAL.goal}</b> Leads${today >= DAY_GOAL.goal ? ' – Tagesziel erreicht!' : ''}</p>
-    <div class="row" style="justify-content:center"><button class="ee-btn ee-btn--primary" data-act="wiz-reset">${ico('plus','sm')} Weiteren Kunden anlegen</button><button class="ee-btn" data-act="lead" data-id="${l.id}">Lead ansehen</button><button class="ee-btn ee-btn--ghost" data-act="nav" data-view="uebersicht">Zur Übersicht</button></div>
-  </section>`;
-}
-
-function viewErfassen(){
-  const w = S.wiz;
-  const body = w.step === 1 ? wizStep1() : w.step === 'created' ? wizCreated() : w.step === 2 ? wizStep2() : w.step === 'ko' ? wizKo() : w.step === 3 ? wizStep3() : wizDone();
-  return pageHead('Lead erfassen')
-    + wizStepper() + body;
-}
-VIEWS.erfassen = viewErfassen;
-
-/* ---------- Termin buchen (auch vom Leitfaden genutzt) ---------- */
-function bookSlot(l, s, quiet){
-  keepWhere(SLOTS, x => x.id !== s.id);
-  APPTS.push({ id:'T-'+Math.random().toString(36).slice(2,6), lead:l.id, closer:s.closer, kind:'erst', date:s.date, start:s.start, dur:1.5, ort:l.ort, feedback:null });
-  l.closer = s.closer;
-  setStatus(l.id, 'termin', true);
-  pushNotif(s.closer, `Neuer Ersttermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, 'termin');
-  if (!quiet) toast(`Termin gebucht: ${fmtDay(s.date)} ${fmtHour(s.start)} · ${person(s.closer).first} informiert`);
-}
-
-/* ---------- Interaktion ---------- */
-const wizGo = step => { S.wiz.step = step; render(); window.scrollTo({ top:0 }); };
-document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act^="wiz-"]'); if (!t) return;
-  const d = t.dataset, w = S.wiz;
-  switch (d.act) {
-    case 'wiz-geo':
-      Object.assign(w.data, { strasse:'Lützner Straße', hausnummer:'120', plz:'04179', stadt:'Leipzig' });
-      render(); toast('Demo: Adresse per Standort gefüllt (im Live-Formular per GPS)', 'pin'); break;
-    case 'wiz-create': {
-      if (!wizValidate()) { render(); const el = document.querySelector('.is-invalid'); if (el) el.scrollIntoView({ block:'center', behavior:'smooth' }); toast('Bitte die markierten Pflichtfelder ausfüllen', 'info'); return; }
-      const l = wizCreateLead();
-      toast(`${l.kunde} in Pipedrive angelegt`);
-      wizGo(d.next === 'vq' ? 2 : 'created'); break;
-    }
-    case 'wiz-goto': wizGo(+d.step); break;
-    case 'wiz-reset': S.wiz = WIZ_NEW(); wizGo(1); break;
-    case 'wiz-vq-submit': case 'wiz-phone': {
-      const l = wizLead(), vq = w.vq;
-      l.vq = { ...vq }; w.vqSent = true;
-      const sum = vqSummary(vq), p = vqProgress();
-      if (d.act === 'wiz-phone') {
-        w.phone = true;
-        l.preNote = `An der Tür vorqualifiziert (${p.done}/${p.total} Fragen): ${sum || '–'}. Rest telefonisch klären.`;
-        pushNotif('inan', `${l.kunde}: Vorqualifizierung an der Tür begonnen (${p.done}/${p.total}) – bitte Rest telefonisch klären`, 'eingereicht');
-        toast('Teilantworten übertragen – Inan klärt den Rest'); wizGo('done'); break;
-      }
-      l.preNote = `An der Tür vorqualifiziert: ${sum || '–'}`;
-      if ((vq.eigentuemer && vq.eigentuemer !== 'Ja') || vq.selbst_bewohnt === 'Nein') { wizGo('ko'); break; }
-      l.hist.unshift(['Vorqualifizierung an der Tür übertragen', nowStamp()]);
-      toast('Vorqualifizierung übertragen'); wizGo(3); break;
-    }
-    case 'wiz-ko-abgesagt': {
-      const l = wizLead(), vq = w.vq;
-      setStatus(l.id, 'abgesagt', false, vq.selbst_bewohnt === 'Nein' && vq.eigentuemer === 'Ja' ? 'Sonstiges' : 'Kein Eigentümer', 'An der Tür vorqualifiziert');
-      wizGo('done'); break;
-    }
-    case 'wiz-slot': w.slot = d.slot; render(); break;
-    case 'wiz-book': { const s = SLOTS.find(x => x.id === w.slot); if (!s) return; bookSlot(wizLead(), s); w.slot = null; wizGo('done'); break; }
-    case 'wiz-skip': toast('Lead liegt beim Presetting'); wizGo('done'); break;
-  }
-});
-/* Eingaben im Formular in den Zustand schreiben – ohne Neurendern (Fokus bleibt) */
-function wizStore(el){
-  const store = storeFor(el.dataset.scope);
-  if (el.type === 'checkbox') store[el.name] = [...document.querySelectorAll(`input[name="${el.name}"][data-scope="${el.dataset.scope}"]:checked`)].map(x => x.value);
-  else store[el.name] = el.value;
-  if (S.wiz.errors[el.name]) { delete S.wiz.errors[el.name]; el.classList.remove('is-invalid'); const box = el.closest('[data-field]'); box && box.classList.remove('is-invalid'); box && box.querySelector('.ee-hint--err')?.remove(); }
-  (el.closest('form') || document).querySelectorAll('[data-show-if]').forEach(c => { const [k, v] = c.dataset.showIf.split('='); c.hidden = store[k] !== v; });
-  if (el.dataset.scope === 'vq') { const p = vqProgress(); const a = $('#vqProgress'), b = $('#vqHeat'); if (a) a.textContent = `${p.done}/${p.total}`; if (b) b.textContent = heatText(S.wiz.vq); }
-  if (el.dataset.scope === 'pq') { const p = vqProgress(store); const a = $('#pqProgress'), b = $('#pqHeat'); if (a) a.textContent = `${p.done}/${p.total}`; if (b) b.textContent = heatText(store); }
-}
-document.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.scope) wizStore(e.target); });
-document.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.scope) wizStore(e.target); });
+const VIEWS = {}; /* alle Ansichten sind nach React umgezogen (src/components) */
 /* =====================================================================
    AKTIONEN – Event-Delegation (Klicks, Formulare, Eingaben)
    ===================================================================== */
-const slug = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/ß/g,'ss').replace(/[^a-z]/g,'');
-const rnd = () => Math.random().toString(36).slice(2,6);
 
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]');
@@ -897,17 +460,7 @@ function handleAct(d, t){
     case 'call': { const l = lead(d.id); S.guideLead = d.id; S.guideProduct = l.produkt; go('leitfaden'); break; } /* href="tel:" wählt parallel die Nummer */
     case 'nav-guide': { const l = lead(d.id); S.guideLead = d.id; S.guideProduct = l.produkt; go('leitfaden'); break; }
     case 'feedback': openFeedback(d.id); break;
-    case 'guide-pick': S.guideLead = d.id; S.guideSlot = null; render(); window.scrollTo({ top:0 }); break;
-    case 'guide-slot': S.guideSlot = d.slot; render(); break;
     case 'guide-callback': openCallback(d.id); break;
-    case 'book-slot': {
-      const s = SLOTS.find(x => x.id === d.slot), l = lead(d.id); if (!s || !l) return;
-      const note = $('#guideNote'); if (note && note.value.trim()) l.preNote = note.value.trim();
-      bookSlot(l, s, true);
-      toast(`Termin gebucht: ${fmtDay(s.date)} ${fmtHour(s.start)} · ${person(s.closer).first} und ${person(l.setter).first} informiert`);
-      if (S.view === 'leitfaden') guideAdvance(l.id);
-      render(); break;
-    }
     case 'appt': { const a = APPTS.find(x => x.id === d.id); openDrawer(drawerHead('Termin', `${fmtDay(a.date)} · ${fmtHour(a.start)}–${fmtHour(a.start + a.dur)}`) + `<div class="ee-drawer__body">${apptCard(a)}</div>`); break; }
     case 'drawer-iban': { const el = $('#drawerIban'); el.textContent = fmtIban(PROFILES[d.key].iban); t.disabled = true; toast('IBAN angezeigt – Zugriff protokolliert', 'shield'); break; }
     case 'team-row': openTeamMember(d.key); break;
@@ -945,7 +498,6 @@ document.addEventListener('keydown', e => {
 
 /* Eingaben ohne Neurendern der ganzen Seite (Fokus bleibt) */
 document.addEventListener('input', e => {
-  if (e.target.id === 'guideNote') { const l = lead(S.guideLead); if (l) l.preNote = e.target.value; }
 });
 document.addEventListener('change', e => {
   if (e.target.name === 'fb') document.querySelectorAll('[data-fb-show]').forEach(el => { el.hidden = el.dataset.fbShow !== e.target.value; });
@@ -986,7 +538,7 @@ document.addEventListener('submit', e => {
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
 /* Schnittstelle für die React-Ansichten */
-store.legacy = { render, openLead, toast, act: (name, data = {}) => handleAct({ act:name, ...data }, null) };
+store.legacy = { render, openLead, toast, setStatus, act: (name, data = {}) => handleAct({ act:name, ...data }, null) };
 
 /* Start */
 applyTheme();

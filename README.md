@@ -74,7 +74,8 @@ Das Dashboard lädt dann die Wärmepumpen-Deals der Pipeline „Empfehlung kommt
 | `src/lib/domain.ts` | Geschäftsregeln: Pipeline-Status, Provisionssätze, Verlustgründe, Leitfaden |
 | `src/lib/demo-data.ts` | Beispieldaten (`createDemoData()`), wird später durch Datenbank/Pipedrive ersetzt |
 | `src/lib/store.ts` | Gemeinsamer Zustand für React-Ansichten und Übergangsschicht; `REACT_VIEWS` listet umgestellte Ansichten |
-| `src/components/` | React-Komponenten (umgestellt: Übersicht, Pipeline, Team & Onboarding, Stammdaten, Events, Verträge, Auszahlungen, Rangliste, Kalender, Termine) |
+| `src/components/` | React-Komponenten – **alle Ansichten** (Übersicht, Pipeline, Lead erfassen, Leitfaden, Kalender, Termine, Rangliste, Auszahlungen, Verträge, Events, Stammdaten, Team) |
+| `src/lib/vq.ts` | Fragen der Vorqualifizierung (Lead erfassen, Leitfaden), Heizlast-Schätzung |
 | `src/lib/actions.ts` | Aktionen auf den Dashboard-Daten (Zusagen, Verträge, Freigaben, Ranglisten) – hier dockt später die echte Datenquelle an |
 | `src/server/db/` | Datenbankschema (Drizzle) und Verbindung; Migrationen in `drizzle/` (`npm run db:generate`) |
 | `src/server/auth.ts` | Login (Better Auth): Rollen, Passwort-Links, `requireAdmin()` |
@@ -84,13 +85,13 @@ Das Dashboard lädt dann die Wärmepumpen-Deals der Pipeline „Empfehlung kommt
 | `src/server/pipedrive/` | Pipedrive-Anbindung (nur Server): Client, Zuordnung Stufen/Felder, Deal → Lead |
 | `src/app/api/leads/route.ts` | Endpunkt `/api/leads` – nur angemeldet, Leads je Person gefiltert |
 | `src/server/profile.ts` | Eigene Stammdaten (lesen, ändern, IBAN-Änderung mit Benachrichtigung) |
-| `src/legacy/prototype.js` | **Übergangsschicht:** Ansichten und Logik des Prototyps, unverändert übernommen |
+| `src/legacy/prototype.js` | **Rest der Übergangsschicht:** Kopfzeile/Navigation, Benachrichtigungen und die Seitenleisten (Lead-Details, Rückmeldung, Rückruf, Absage-Grund, Team-Details) |
 
 Vorlage: [`mb-dashboard.html`](https://zerooptions24.github.io/EnergyEngel/mb-dashboard.html) im Repo `ZeroOptions24/EnergyEngel`.
 
 ## Nächste Schritte
 
 1. Presetter/Closer-Zuordnung aus Pipedrive (sobald geklärt), Kennzahlen der Übersicht aus echten Daten berechnen.
-2. Restliche Ansichten in React umbauen, danach `src/legacy/` löschen.
+2. Kopfzeile, Navigation und Seitenleisten in React umbauen, danach `src/legacy/` löschen.
 3. Anbindungen: Kalender, n8n-Webhooks, Auszahlungen.
 4. Hosting auf eigenem EU-Server (geplant: Hetzner + Coolify).

@@ -1,5 +1,8 @@
 /* Formatierung von Datum, Uhrzeit und Beträgen (deutsch). */
 
+/** „TT.MM. hh:mm“ für Verlaufseinträge */
+export const nowStamp = (n: Date) => `${pad(n.getDate())}.${pad(n.getMonth() + 1)}. ${pad(n.getHours())}:${pad(n.getMinutes())}`;
+
 export const WD = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 export const MON = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
