@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { parseRoles } from "@/lib/roles";
 import { getSession } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { PipedriveNotConfigured } from "@/server/pipedrive/client";
@@ -16,7 +17,7 @@ export async function GET() {
       .select({ pipedriveSetterName: schema.profile.pipedriveSetterName })
       .from(schema.profile)
       .where(eq(schema.profile.userId, session.user.id));
-    const stats = await statsForUser({ role: session.user.role || "setter", name: session.user.name, pipedriveSetterName: p?.pipedriveSetterName ?? null });
+    const stats = await statsForUser({ roles: parseRoles(session.user.role), name: session.user.name, pipedriveSetterName: p?.pipedriveSetterName ?? null });
     return Response.json(stats, { headers: { "cache-control": "private, no-store" } });
   } catch (e) {
     if (e instanceof PipedriveNotConfigured) return Response.json({ error: e.message }, { status: 503 });

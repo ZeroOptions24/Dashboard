@@ -2,15 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { inviteMemberAction, listOnboardingAction, onboardingStepAction, runRemindersAction, setPipedriveNameAction } from "@/app/actions/onboarding";
-import { clickableRow } from "@/components/pipeline/LeadTable";
+import {
+  deleteMemberAction,
+  importMembersAction,
+  memberDetailsAction,
+  previewImportAction,
+  revealIbanAction,
+  setBannedAction,
+  updateMemberAction,
+} from "@/app/actions/team";
 import Icon from "@/components/ui/Icon";
 import { ToneChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
+import { ALL_ROLES, ROLE_NAMES } from "@/lib/roles";
 import { useDashboard } from "@/lib/useDashboard";
+import type { Role } from "@/lib/types";
 import type { OnboardingRow, OnboardingStatus } from "@/server/onboarding";
-import { openDrawer } from "@/lib/ui";
-
-const ROLE_LABEL: Record<string, string> = { setter: "Setter", presetter: "Presetter", closer: "Closer", admin: "Admin" };
+import type { ImportLine, MemberDetails } from "@/server/team";
 
 const STATUS: Record<OnboardingStatus, { label: string; tone: string; next: string }> = {
   eingeladen: { label: "Eingeladen", tone: "info", next: "wartet auf Daten" },
@@ -23,10 +31,42 @@ const STATUS: Record<OnboardingStatus, { label: string; tone: string; next: stri
 
 type Step = "resend" | "contract" | "access" | "direct" | "withdraw";
 
+/* ---------- Rollen-Auswahl (mehrere möglich) ---------- */
+function RolePicker({ value, onChange, idPrefix }: { value: Role[]; onChange: (r: Role[]) => void; idPrefix: string }) {
+  return (
+    <fieldset className="ee-field">
+      <legend className="lbl">Rollen</legend>
+      <div className="ee-opts ee-opts--cols">
+        {ALL_ROLES.map((r) => (
+          <label key={r} className="ee-opt">
+            <input
+              type="checkbox"
+              id={`${idPrefix}-${r}`}
+              checked={value.includes(r)}
+              onChange={(e) => onChange(e.target.checked ? [...value, r] : value.filter((x) => x !== r))}
+            />
+            <span>{ROLE_NAMES[r]}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+const RoleChips = ({ roles }: { roles: Role[] }) => (
+  <span className="row" style={{ gap: 4, display: "inline-flex" }}>
+    {roles.map((r) => (
+      <span key={r} className={r === "admin" ? "ee-chip ee-chip--closing" : "ee-chip"}>
+        {ROLE_NAMES[r]}
+      </span>
+    ))}
+  </span>
+);
+
 /* ---------- Neuen MA einladen ---------- */
 function InviteForm({ onDone }: { onDone: () => void }) {
   const { toast } = useDashboard();
-  const [f, setF] = useState({ name: "", email: "", telefon: "", role: "setter" as "setter" | "presetter" | "closer" });
+  const [f, setF] = useState({ name: "", email: "", telefon: "", roles: ["setter"] as Role[], skipContract: false });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
@@ -43,7 +83,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
           setBusy(false);
           if (!res.ok) return setError(res.error);
           toast(`${f.name.split(" ")[0]} eingeladen – Formular-Link ist per E-Mail raus`, "send");
-          setF({ name: "", email: "", telefon: "", role: f.role });
+          setF({ name: "", email: "", telefon: "", roles: f.roles, skipContract: false });
           onDone();
         }}
       >
@@ -59,20 +99,110 @@ function InviteForm({ onDone }: { onDone: () => void }) {
           <label htmlFor="invTel">Telefon (WhatsApp, optional)</label>
           <input className="ee-input" id="invTel" type="tel" value={f.telefon} onChange={(e) => setF({ ...f, telefon: e.target.value })} placeholder="0170 1234567" />
         </div>
-        <div className="ee-field">
-          <label htmlFor="invRole">Rolle</label>
-          <select className="ee-select" id="invRole" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as typeof f.role })}>
-            <option value="setter">Setter</option>
-            <option value="presetter">Presetter</option>
-            <option value="closer">Closer</option>
-          </select>
-        </div>
-        <p className="ee-hint">Ablauf: Formular für die Stammdaten → Vertrag zur Unterschrift → Zugang mit eigenem Passwort.</p>
+        <RolePicker value={f.roles} onChange={(roles) => setF({ ...f, roles })} idPrefix="inv" />
+        <label className="ee-check">
+          <input type="checkbox" checked={f.skipContract} onChange={(e) => setF({ ...f, skipContract: e.target.checked })} />
+          <span>Hat schon einen Vertrag – nach der Datenerfassung direkt Zugang</span>
+        </label>
+        <p className="ee-hint">Ablauf: Formular für die Stammdaten → {f.skipContract ? "" : "Vertrag zur Unterschrift → "}Zugang mit eigenem Passwort.</p>
         {error && <div className="ee-alert ee-alert--bad">{error}</div>}
         <button className="ee-btn ee-btn--primary" type="submit" disabled={busy}>
           <Icon name="send" small /> Einladung senden
         </button>
       </form>
+    </section>
+  );
+}
+
+/* ---------- Bestehende MAs übernehmen (Liste einfügen) ---------- */
+function ImportCard({ onDone }: { onDone: () => void }) {
+  const { toast } = useDashboard();
+  const [text, setText] = useState("");
+  const [skip, setSkip] = useState(true);
+  const [preview, setPreview] = useState<ImportLine[] | null>(null);
+  const [result, setResult] = useState<{ name: string; ok: boolean; message: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const valid = preview?.filter((l) => !l.error).length ?? 0;
+  return (
+    <section className="ee-card" data-component="ImportCard">
+      <h2>Bestehende MAs übernehmen</h2>
+      <p className="muted" style={{ fontSize: ".88rem", margin: "6px 0 12px" }}>
+        Eine Zeile je Person: <span className="mono">Name – E-Mail – Rollen</span> (z. B. „Setter, Presetter, Closer“ oder „admin, alle Rollen“). Jede Person bekommt das
+        Formular für ihre Stammdaten und danach ihren Zugang.
+      </p>
+      <div className="stack" style={{ gap: 10 }}>
+        <textarea
+          className="ee-textarea"
+          aria-label="Liste der MAs"
+          rows={6}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setPreview(null);
+            setResult(null);
+          }}
+          placeholder={"Vorname Nachname – name@beispiel.de – Setter, Presetter\n…"}
+        />
+        <label className="ee-check">
+          <input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
+          <span>Haben schon einen Vertrag – Vertragsschritt überspringen</span>
+        </label>
+        {preview && (
+          <div className="ee-list">
+            {preview.map((l, i) => (
+              <div key={i} className="ee-list__row">
+                <div className="ee-list__main">
+                  <div className="ee-list__title">{l.name || l.line}</div>
+                  <div className="ee-list__sub">{l.email || "–"}</div>
+                </div>
+                {l.error ? <ToneChip label={l.error} tone="bad" /> : <RoleChips roles={l.roles} />}
+              </div>
+            ))}
+          </div>
+        )}
+        {result && (
+          <div className="ee-list">
+            {result.map((r, i) => (
+              <div key={i} className="ee-list__row">
+                <div className="ee-list__main">
+                  <div className="ee-list__title">{r.name}</div>
+                </div>
+                <ToneChip label={r.message} tone={r.ok ? "ok" : "bad"} />
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="row">
+          <button
+            className="ee-btn"
+            disabled={!text.trim() || busy}
+            onClick={async () => {
+              const res = await previewImportAction(text);
+              if (res.ok) setPreview(res.data);
+              else toast(res.error, "info");
+            }}
+          >
+            Vorschau
+          </button>
+          <button
+            className="ee-btn ee-btn--primary"
+            disabled={!preview || !valid || busy}
+            onClick={async () => {
+              if (!window.confirm(`${valid} Person(en) einladen? Jede bekommt eine E-Mail mit dem Formular-Link.`)) return;
+              setBusy(true);
+              const res = await importMembersAction(text, skip);
+              setBusy(false);
+              if (!res.ok) return toast(res.error, "info");
+              setResult(res.data);
+              setPreview(null);
+              toast(`${res.data.filter((r) => r.ok).length} von ${res.data.length} eingeladen`, "send");
+              onDone();
+            }}
+          >
+            <Icon name="send" small /> {valid ? `${valid} einladen` : "Einladen"}
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
@@ -118,96 +248,122 @@ function PipedriveName({ row, onSaved }: { row: OnboardingRow; onSaved: () => vo
   );
 }
 
-/* ---------- Onboarding-Übersicht (echte Daten aus der Datenbank) ---------- */
-function OnboardingList({
-  rows,
-  onStep,
-  busy,
-  onReload,
-}: {
-  rows: OnboardingRow[] | null;
-  onStep: (id: string, s: Step) => void;
-  busy: string | null;
-  onReload: () => void;
-}) {
-  const [open, setOpen] = useState<string | null>(null);
-  if (!rows) return <div className="ee-empty">Lade …</div>;
-  const visible = rows.filter((r) => r.role !== "admin");
-  if (!visible.length) return <div className="ee-empty">Noch niemand eingeladen.</div>;
-  const btn = (r: OnboardingRow, step: Step, label: string, primary = false) => (
-    <button className={primary ? "ee-btn ee-btn--primary ee-btn--sm" : "ee-btn ee-btn--sm"} disabled={busy === r.userId} onClick={() => onStep(r.userId, step)}>
-      {label}
-    </button>
-  );
+/* ---------- Details (Stammdaten, IBAN mit Protokoll) ---------- */
+function MemberDetailsBox({ userId }: { userId: string }) {
+  const { toast } = useDashboard();
+  const [d, setD] = useState<MemberDetails | null>(null);
+  const [iban, setIban] = useState<string | null>(null);
+  useEffect(() => {
+    let off = false;
+    memberDetailsAction(userId).then((res) => !off && res.ok && setD(res.data));
+    return () => {
+      off = true;
+    };
+  }, [userId]);
+  if (!d) return <div className="ee-empty">Lade …</div>;
   return (
-    <div className="ee-list">
-      {visible.map((r) => {
-        const s = STATUS[r.status];
-        const expanded = open === r.userId;
-        return (
-          <div key={r.userId} className="ee-list__row" style={{ flexWrap: "wrap", alignItems: "flex-start" }}>
-            <div className="ee-list__main" style={{ minWidth: 200 }}>
-              <div className="ee-list__title">
-                {r.name} <span className="faint">· {ROLE_LABEL[r.role] || r.role}</span>
-              </div>
-              <div className="ee-list__sub">
-                {r.email}
-                {s.next ? ` · ${s.next}` : ""}
-                {r.formLinkExpired ? " · Link abgelaufen" : ""}
-                {r.remindersSent ? ` · ${r.remindersSent}× erinnert` : ""}
-              </div>
-              {r.role === "setter" && r.status !== "zurueckgezogen" && <PipedriveName row={r} onSaved={onReload} />}
-            </div>
-            <ToneChip label={s.label} tone={r.formLinkExpired ? "bad" : s.tone} />
-            <div className="row" style={{ width: "100%", justifyContent: "flex-end", gap: 6 }}>
-              {r.status === "eingeladen" && btn(r, "resend", "Link erneut senden")}
-              {r.status === "daten_erfasst" && (
-                <button className="ee-btn ee-btn--sm" onClick={() => setOpen(expanded ? null : r.userId)}>
-                  {expanded ? "Daten ausblenden" : "Daten prüfen"}
-                </button>
-              )}
-              {r.status === "daten_erfasst" && btn(r, "contract", "Vertrag senden", true)}
-              {r.status === "unterschrieben" && btn(r, "access", "Zugangs-Link erneut senden")}
-              {["eingeladen", "daten_erfasst", "vertrag_versendet"].includes(r.status) && btn(r, "direct", "Direkt freischalten")}
-              {!["aktiv", "zurueckgezogen"].includes(r.status) && btn(r, "withdraw", "Zurückziehen")}
-            </div>
-            {expanded && r.status === "daten_erfasst" && r.data && (
-              <dl className="ee-facts" style={{ width: "100%" }}>
-                <div>
-                  <dt>Adresse</dt>
-                  <dd>{r.data.adresse}</dd>
-                </div>
-                <div>
-                  <dt>Geburtsdatum</dt>
-                  <dd>{r.data.geburtsdatum}</dd>
-                </div>
-                <div>
-                  <dt>IBAN</dt>
-                  <dd className="mono">{r.data.iban}</dd>
-                </div>
-                <div>
-                  <dt>Kontoinhaber</dt>
-                  <dd>{r.data.kontoinhaber}</dd>
-                </div>
-                <div>
-                  <dt>Steuernummer</dt>
-                  <dd>{r.data.steuernummer || "–"}</dd>
-                </div>
-                <div>
-                  <dt>Gewerbe · Kleinunternehmer</dt>
-                  <dd>
-                    {r.data.gewerbe ? "ja" : "nein"} · {r.data.kleinunternehmer ? "ja" : "nein"}
-                  </dd>
-                </div>
-              </dl>
-            )}
-          </div>
-        );
-      })}
+    <div className="stack" style={{ gap: 8, width: "100%" }}>
+      <dl className="ee-facts">
+        <div>
+          <dt>Telefon</dt>
+          <dd className="mono">{d.telefon || "–"}</dd>
+        </div>
+        <div>
+          <dt>Geburtsdatum</dt>
+          <dd>{d.geburtsdatum || "–"}</dd>
+        </div>
+        <div>
+          <dt>Adresse</dt>
+          <dd>{d.adresse || "–"}</dd>
+        </div>
+        <div>
+          <dt>IBAN</dt>
+          <dd className="mono">{iban ?? (d.ibanMasked || "–")}</dd>
+        </div>
+        <div>
+          <dt>Kontoinhaber</dt>
+          <dd>{d.kontoinhaber || "–"}</dd>
+        </div>
+        <div>
+          <dt>Steuernummer</dt>
+          <dd>{d.steuernummer || "–"}</dd>
+        </div>
+        <div>
+          <dt>Gewerbe · Kleinunternehmer</dt>
+          <dd>
+            {d.gewerbe ? "ja" : "nein"} · {d.kleinunternehmer ? "ja" : "nein"}
+          </dd>
+        </div>
+        <div>
+          <dt>Zwei-Faktor</dt>
+          <dd>{d.twoFactor ? "eingerichtet" : "nicht eingerichtet"}</dd>
+        </div>
+      </dl>
+      {d.ibanMasked && (
+        <div className="row">
+          <button
+            className="ee-btn ee-btn--sm"
+            disabled={!!iban}
+            onClick={async () => {
+              const res = await revealIbanAction(userId);
+              if (!res.ok) return toast(res.error, "info");
+              setIban(res.data);
+              toast("IBAN angezeigt – Zugriff protokolliert", "shield");
+            }}
+          >
+            <Icon name="eye" small /> IBAN anzeigen
+          </button>
+          <span className="ee-secure">
+            <Icon name="shield" /> Zugriff wird protokolliert
+          </span>
+        </div>
+      )}
     </div>
   );
 }
 
+/* ---------- Bearbeiten ---------- */
+function EditForm({ row, onDone, onCancel }: { row: OnboardingRow; onDone: () => void; onCancel: () => void }) {
+  const { toast } = useDashboard();
+  const [f, setF] = useState({ name: row.name, email: row.email, roles: row.roles });
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="stack"
+      style={{ gap: 10, width: "100%" }}
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const res = await updateMemberAction(row.userId, f);
+        if (!res.ok) return setError(res.error);
+        toast("Gespeichert");
+        onDone();
+      }}
+    >
+      <div className="ee-form" style={{ padding: 0 }}>
+        <div className="ee-field">
+          <label htmlFor={`en-${row.userId}`}>Name</label>
+          <input className="ee-input" id={`en-${row.userId}`} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        </div>
+        <div className="ee-field">
+          <label htmlFor={`ee-${row.userId}`}>E-Mail</label>
+          <input className="ee-input" id={`ee-${row.userId}`} type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+        </div>
+      </div>
+      <RolePicker value={f.roles} onChange={(roles) => setF({ ...f, roles })} idPrefix={`er-${row.userId}`} />
+      {error && <div className="ee-alert ee-alert--bad">{error}</div>}
+      <div className="row">
+        <button className="ee-btn ee-btn--primary ee-btn--sm" type="submit">
+          Speichern
+        </button>
+        <button className="ee-btn ee-btn--ghost ee-btn--sm" type="button" onClick={onCancel}>
+          Abbrechen
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/* ---------- Team-Liste (echte Nutzer) ---------- */
 const CONFIRM: Partial<Record<Step, string>> = {
   direct: "Formular und Vertrag überspringen und direkt den Zugang senden? Nur für MAs mit bereits unterschriebenem Vertrag.",
   withdraw: "Einladung zurückziehen? Alle Links werden ungültig und der Zugang gesperrt.",
@@ -220,67 +376,110 @@ const DONE: Record<Step, string> = {
   withdraw: "Einladung zurückgezogen",
 };
 
-/* ---------- Team (Beispieldaten aus dem Prototyp) ---------- */
-function DemoTeamTable() {
-  const { data, person } = useDashboard();
-  const { TEAM, PROFILES, CONTRACTS, LEADS, BOARD } = data;
-  const leadsOf = (k: string) => LEADS.filter((l) => l.setter === k).length;
-  const cupOf = (k: string) => (BOARD.rows.find((r) => r[0] === k) || [0, 0])[1];
+function MemberRow({ r, onReload }: { r: OnboardingRow; onReload: () => void }) {
+  const { toast } = useDashboard();
+  const [open, setOpen] = useState<null | "details" | "edit" | "check">(null);
+  const [busy, setBusy] = useState(false);
+  const s = STATUS[r.status];
+  const run = async (fn: () => Promise<{ ok: boolean; error?: string }>, done: string, icon: "send" | "close" | "check" = "send") => {
+    setBusy(true);
+    const res = await fn();
+    setBusy(false);
+    if (!res.ok) return toast(res.error ?? "Fehler", "info");
+    toast(done, icon);
+    onReload();
+  };
+  const step = (st: Step) => {
+    if (CONFIRM[st] && !window.confirm(CONFIRM[st])) return;
+    run(() => onboardingStepAction(r.userId, st), DONE[st], st === "withdraw" ? "close" : "send");
+  };
+  const btn = (label: string, onClick: () => void, cls = "ee-btn ee-btn--sm") => (
+    <button className={cls} disabled={busy} onClick={onClick}>
+      {label}
+    </button>
+  );
+  const active = r.status === "aktiv";
   return (
-    <section className="ee-card ee-card--flush" data-component="TeamTable">
-      <div className="ee-card__head">
-        <h2>Team ({TEAM.length})</h2>
-        <span className="ee-chip">Beispieldaten</span>
+    <div className="ee-list__row" style={{ flexWrap: "wrap", alignItems: "flex-start" }} data-member={r.email}>
+      <div className="ee-list__main" style={{ minWidth: 220 }}>
+        <div className="ee-list__title">{r.name}</div>
+        <div className="ee-list__sub">
+          {r.email}
+          {s.next && !r.banned ? ` · ${r.status === "daten_erfasst" && r.skipContract ? "bekommt Zugang" : s.next}` : ""}
+          {r.formLinkExpired ? " · Link abgelaufen" : ""}
+          {r.remindersSent ? ` · ${r.remindersSent}× erinnert` : ""}
+        </div>
+        <div style={{ marginTop: 6 }}>
+          <RoleChips roles={r.roles} />
+        </div>
+        {r.roles.includes("setter") && r.status !== "zurueckgezogen" && <PipedriveName row={r} onSaved={onReload} />}
       </div>
-      <div className="ee-table-wrap">
-        <table className="ee-table ee-table--stack">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Rolle</th>
-              <th className="r">Leads</th>
-              <th className="r">Cup</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {TEAM.map((t) => {
-              const p = PROFILES[t.key],
-                openC = CONTRACTS.some((c) => c.who === t.key && c.status === "open");
-              return (
-                <tr key={t.key} {...clickableRow(() => openDrawer({ kind: "team", key: t.key }))}>
-                  <td>
-                    <div className="row" style={{ gap: 10, flexWrap: "nowrap" }}>
-                      <div className="ee-avatar">{person(t.key).initials}</div>
-                      <div>
-                        <div className="who">{person(t.key).name}</div>
-                        <div className="sub">seit {p.start}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td data-hide-sm="">{ROLE_LABEL[person(t.key).role]}</td>
-                  <td className="r num" data-hide-sm="">
-                    {leadsOf(t.key)}
-                  </td>
-                  <td className="r num" data-hide-sm="">
-                    {cupOf(t.key)}
-                  </td>
-                  <td className="r-sm">
-                    {t.status === "onboarding" ? (
-                      <ToneChip label="Onboarding" tone="info" />
-                    ) : openC ? (
-                      <ToneChip label="Vertrag offen" tone="warn" />
-                    ) : (
-                      <ToneChip label="Aktiv" tone="ok" />
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {r.banned ? <ToneChip label="Gesperrt" tone="bad" /> : <ToneChip label={s.label} tone={r.formLinkExpired ? "bad" : s.tone} />}
+      <div className="row" style={{ width: "100%", justifyContent: "flex-end", gap: 6 }}>
+        {!r.banned && r.status === "eingeladen" && btn("Link erneut senden", () => step("resend"))}
+        {!r.banned && r.status === "daten_erfasst" && btn(open === "check" ? "Daten ausblenden" : "Daten prüfen", () => setOpen(open === "check" ? null : "check"))}
+        {!r.banned && r.status === "daten_erfasst" && btn("Vertrag senden", () => step("contract"), "ee-btn ee-btn--primary ee-btn--sm")}
+        {!r.banned && r.status === "unterschrieben" && btn("Zugangs-Link erneut senden", () => step("access"))}
+        {!r.banned && ["eingeladen", "daten_erfasst", "vertrag_versendet"].includes(r.status) && btn("Direkt freischalten", () => step("direct"))}
+        {!r.banned && !["aktiv", "zurueckgezogen"].includes(r.status) && btn("Zurückziehen", () => step("withdraw"))}
+        {active && btn(open === "details" ? "Details zu" : "Details", () => setOpen(open === "details" ? null : "details"))}
+        {btn("Bearbeiten", () => setOpen(open === "edit" ? null : "edit"))}
+        {active &&
+          btn(r.banned ? "Entsperren" : "Sperren", () => {
+            if (!r.banned && !window.confirm(`${r.name} sperren? Alle Sitzungen enden sofort.`)) return;
+            run(() => setBannedAction(r.userId, !r.banned), r.banned ? "Entsperrt" : "Gesperrt", r.banned ? "check" : "close");
+          })}
+        {btn(
+          "Löschen",
+          () => {
+            if (!window.confirm(`${r.name} und alle Daten (Stammdaten, Bankverbindung, Zugang) endgültig löschen? Das kann nicht rückgängig gemacht werden.`)) return;
+            run(() => deleteMemberAction(r.userId), "Gelöscht", "close");
+          },
+          "ee-btn ee-btn--ghost ee-btn--sm",
+        )}
       </div>
-    </section>
+      {open === "details" && <MemberDetailsBox userId={r.userId} />}
+      {open === "edit" && (
+        <EditForm
+          row={r}
+          onCancel={() => setOpen(null)}
+          onDone={() => {
+            setOpen(null);
+            onReload();
+          }}
+        />
+      )}
+      {open === "check" && r.data && (
+        <dl className="ee-facts" style={{ width: "100%" }}>
+          <div>
+            <dt>Adresse</dt>
+            <dd>{r.data.adresse}</dd>
+          </div>
+          <div>
+            <dt>Geburtsdatum</dt>
+            <dd>{r.data.geburtsdatum}</dd>
+          </div>
+          <div>
+            <dt>IBAN</dt>
+            <dd className="mono">{r.data.iban}</dd>
+          </div>
+          <div>
+            <dt>Kontoinhaber</dt>
+            <dd>{r.data.kontoinhaber}</dd>
+          </div>
+          <div>
+            <dt>Steuernummer</dt>
+            <dd>{r.data.steuernummer || "–"}</dd>
+          </div>
+          <div>
+            <dt>Gewerbe · Kleinunternehmer</dt>
+            <dd>
+              {r.data.gewerbe ? "ja" : "nein"} · {r.data.kleinunternehmer ? "ja" : "nein"}
+            </dd>
+          </div>
+        </dl>
+      )}
+    </div>
   );
 }
 
@@ -288,7 +487,7 @@ export default function TeamView() {
   const { toast } = useDashboard();
   const [rows, setRows] = useState<OnboardingRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"alle" | "offen" | "aktiv">("alle");
 
   const load = useCallback(async () => {
     const res = await listOnboardingAction();
@@ -300,16 +499,6 @@ export default function TeamView() {
     void load();
   }, [load]);
 
-  async function step(userId: string, s: Step) {
-    if (CONFIRM[s] && !window.confirm(CONFIRM[s])) return;
-    setBusy(userId);
-    const res = await onboardingStepAction(userId, s);
-    setBusy(null);
-    if (!res.ok) return toast(res.error, "info");
-    toast(DONE[s], s === "withdraw" ? "close" : "send");
-    void load();
-  }
-
   async function reminders() {
     const res = await runRemindersAction();
     if (!res.ok) return toast(res.error, "info");
@@ -319,25 +508,54 @@ export default function TeamView() {
     void load();
   }
 
+  const isOpen = (r: OnboardingRow) => !["aktiv", "zurueckgezogen"].includes(r.status);
+  const list = (rows ?? []).filter((r) => filter === "alle" || (filter === "offen" ? isOpen(r) : r.status === "aktiv"));
+  const count = (k: typeof filter) => (rows ?? []).filter((r) => k === "alle" || (k === "offen" ? isOpen(r) : r.status === "aktiv")).length;
+
   return (
     <>
       <PageHead title="Team & Setter" />
       <div className="ee-grid g-main" style={{ alignItems: "start" }}>
-        <section className="ee-card" data-component="OnboardingList">
+        <section className="ee-card" data-component="TeamList">
           <div className="ee-card__head">
-            <h2>Neue MAs · Onboarding</h2>
-            <div className="row" style={{ gap: 6 }}>
-              {rows && <span className="ee-chip">{rows.filter((r) => r.role !== "admin" && !["aktiv", "zurueckgezogen"].includes(r.status)).length} offen</span>}
-              <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={reminders} title="Läuft sonst täglich automatisch">
-                <Icon name="bell" small /> Erinnerungen prüfen
-              </button>
-            </div>
+            <h2>Team{rows ? ` (${rows.length})` : ""}</h2>
+            <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={reminders} title="Läuft sonst täglich automatisch">
+              <Icon name="bell" small /> Erinnerungen prüfen
+            </button>
           </div>
-          {error ? <div className="ee-alert ee-alert--bad">{error}</div> : <OnboardingList rows={rows} onStep={step} busy={busy} onReload={load} />}
+          <div className="ee-filters">
+            {(
+              [
+                ["alle", "Alle"],
+                ["offen", "Onboarding offen"],
+                ["aktiv", "Aktiv"],
+              ] as [typeof filter, string][]
+            ).map(([k, l]) => (
+              <button key={k} className="ee-filter" aria-pressed={filter === k} onClick={() => setFilter(k)}>
+                {l}
+                <span className="c">{count(k)}</span>
+              </button>
+            ))}
+          </div>
+          {error ? (
+            <div className="ee-alert ee-alert--bad">{error}</div>
+          ) : !rows ? (
+            <div className="ee-empty">Lade …</div>
+          ) : list.length ? (
+            <div className="ee-list">
+              {list.map((r) => (
+                <MemberRow key={r.userId} r={r} onReload={load} />
+              ))}
+            </div>
+          ) : (
+            <div className="ee-empty">Niemand in dieser Auswahl.</div>
+          )}
         </section>
-        <InviteForm onDone={load} />
+        <div className="stack" style={{ gap: 18 }}>
+          <InviteForm onDone={load} />
+          <ImportCard onDone={load} />
+        </div>
       </div>
-      <DemoTeamTable />
     </>
   );
 }

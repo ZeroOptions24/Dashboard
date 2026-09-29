@@ -82,7 +82,7 @@ export const store = {
   overlay: { drawer: null as Drawer | null, drawerOpen: false, more: false, notif: false },
   toasts: [] as Toast[],
   /** Angemeldete Person (aus der Sitzung) */
-  session: null as { name: string; role: Role } | null,
+  session: null as { name: string; roles: Role[] } | null,
 };
 
 let version = 0;
@@ -122,7 +122,7 @@ export function setMoneyGoal(user: PersonKey, euro: number) {
 const replaceAll = <T,>(arr: T[], items: T[]) => arr.splice(0, arr.length, ...items);
 
 /** Live-Leads (z. B. aus Pipedrive, bereits serverseitig gefiltert) übernehmen. */
-export function applyLiveLeads(leads: Lead[], userKey: string) {
+export function applyLiveLeads(leads: Lead[], keys: Partial<Record<Role, string>>) {
   const d = store.data;
   replaceAll(d.LEADS, leads);
   d.APPTS.splice(0);
@@ -135,8 +135,8 @@ export function applyLiveLeads(leads: Lead[], userKey: string) {
       d.PEOPLE[k] = { key: k, name: first, first, role: "setter", initials: first.slice(0, 2).toUpperCase() };
     }
   }
-  /* Die eigene Rolle zeigt die eigenen Leads (Admins, die in eine andere Rolle schauen, weiter Beispielpersonen) */
-  if (store.session && store.session.role !== "admin") d.ROLE_USER[store.session.role] = userKey;
+  /* Eigene Rollen zeigen die eigenen Leads (fremde Rollen bei Admins weiter die Beispielperson) */
+  for (const r of store.session?.roles ?? []) if (keys[r]) d.ROLE_USER[r] = keys[r]!;
   rerender();
 }
 

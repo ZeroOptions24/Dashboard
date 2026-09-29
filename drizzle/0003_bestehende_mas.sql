@@ -1,0 +1,1 @@
+ALTER TABLE "onboarding" ADD COLUMN "skip_contract" boolean DEFAULT false NOT NULL;

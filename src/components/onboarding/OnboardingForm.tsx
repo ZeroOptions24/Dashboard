@@ -7,7 +7,8 @@ import type { OnboardingFormData } from "@/server/onboarding";
 
 type Errors = Partial<Record<keyof OnboardingFormData, string>>;
 
-export default function OnboardingForm({ token, name, email }: { token: string; name: string; email: string }) {
+/** direct: bestehende MAs mit Vertrag – nach dem Absenden gibt es direkt den Zugang */
+export default function OnboardingForm({ token, name, email, direct }: { token: string; name: string; email: string; direct?: boolean }) {
   const [d, setD] = useState<OnboardingFormData>({
     telefon: "",
     geburtsdatum: "",
@@ -45,11 +46,15 @@ export default function OnboardingForm({ token, name, email }: { token: string; 
     return (
       <section className="ee-card stack">
         <h1>Danke, {name.split(" ")[0]}!</h1>
-        <p className="muted">Deine Daten sind angekommen. Als Nächstes bekommst du deinen Vertrag per E-Mail zur elektronischen Unterschrift.</p>
+        <p className="muted">
+          {direct
+            ? `Deine Daten sind angekommen. Du bekommst gleich eine E-Mail an ${email}, mit der du dein Passwort festlegst.`
+            : "Deine Daten sind angekommen. Als Nächstes bekommst du deinen Vertrag per E-Mail zur elektronischen Unterschrift."}
+        </p>
         <ol className="ee-steps-list">
           <li className="is-done">✓ Daten ergänzt</li>
-          <li className="is-current">→ Vertrag unterschreiben (kommt per E-Mail an {email})</li>
-          <li>Passwort festlegen und loslegen</li>
+          {!direct && <li className="is-current">→ Vertrag unterschreiben (kommt per E-Mail an {email})</li>}
+          <li className={direct ? "is-current" : undefined}>{direct ? "→ " : ""}Passwort festlegen und loslegen</li>
         </ol>
       </section>
     );
@@ -70,10 +75,11 @@ export default function OnboardingForm({ token, name, email }: { token: string; 
     <section className="ee-card">
       <form className="stack" onSubmit={submit} noValidate>
         <div>
-          <h1>Deine Daten für den Vertrag</h1>
+          <h1>{direct ? "Deine Daten fürs MB-Dashboard" : "Deine Daten für den Vertrag"}</h1>
           <p className="muted" style={{ marginTop: 6 }}>
-            Hallo {name.split(" ")[0]}, mit diesen Angaben erstellen wir deinen Vertrag und zahlen deine Provision aus. Deine Bankdaten werden
-            verschlüsselt gespeichert.
+            Hallo {name.split(" ")[0]},{" "}
+            {direct ? "mit diesen Angaben zahlen wir deine Provision aus." : "mit diesen Angaben erstellen wir deinen Vertrag und zahlen deine Provision aus."} Deine
+            Bankdaten werden verschlüsselt gespeichert.
           </p>
         </div>
         <div className="ee-form" style={{ padding: 0 }}>

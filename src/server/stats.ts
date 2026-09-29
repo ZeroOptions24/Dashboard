@@ -1,7 +1,8 @@
 import "server-only";
 import { computeStats, type LeadStats } from "@/lib/stats";
 import type { AdminKpi, MbStats, PersonKey } from "@/lib/types";
-import { loadLeadsFromPipedrive, setterKey } from "./pipedrive/leads";
+import { isAdmin } from "@/lib/roles";
+import { loadLeadsFromPipedrive, setterKeyOf, type LeadUser } from "./pipedrive/leads";
 
 /* Kennzahlen je Rolle: berechnet über ALLE Leads, ausgeliefert nur das Erlaubte.
    - Admin: alles
@@ -20,20 +21,13 @@ export interface StatsForUser {
   dayGoal?: LeadStats["dayGoal"][string];
 }
 
-export async function statsForUser(user: { role: string; pipedriveSetterName: string | null; name: string }): Promise<StatsForUser> {
+export async function statsForUser(user: LeadUser): Promise<StatsForUser> {
   const s = computeStats(await loadLeadsFromPipedrive(), new Date());
   const base = { monat: s.adminKpi.monat, monatsende: s.monatsende };
-  if (user.role === "admin")
-    return { ...base, adminKpi: s.adminKpi, mbStats: s.perSetter, weekly: s.weekly, lossStats: s.lossStats, bench: s.bench, setterBoardRows: s.setterBoardRows };
-  if (user.role === "setter") {
-    const key = setterKey(user.pipedriveSetterName || user.name.split(" ")[0]);
-    return {
-      ...base,
-      mbStats: s.perSetter.filter((x) => x.key === key),
-      bench: s.bench,
-      setterBoardRows: s.setterBoardRows,
-      dayGoal: s.dayGoal[key] ?? { week: [], streak: 0 },
-    };
-  }
+  const key = user.roles.includes("setter") ? setterKeyOf(user) : null;
+  const setterPart = key ? { bench: s.bench, setterBoardRows: s.setterBoardRows, dayGoal: s.dayGoal[key] ?? { week: [], streak: 0 } } : {};
+  if (isAdmin(user.roles))
+    return { ...base, ...setterPart, adminKpi: s.adminKpi, mbStats: s.perSetter, weekly: s.weekly, lossStats: s.lossStats, bench: s.bench, setterBoardRows: s.setterBoardRows };
+  if (key) return { ...base, ...setterPart, mbStats: s.perSetter.filter((x) => x.key === key) };
   return base;
 }

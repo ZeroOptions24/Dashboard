@@ -20,6 +20,7 @@ import Toasts from "@/components/shell/Toasts";
 import TopBar, { NotifPanel } from "@/components/shell/TopBar";
 import TeamView from "@/components/team/TeamView";
 import { allowedView } from "@/lib/nav";
+import { viewableRoles } from "@/lib/roles";
 import { notify, store, useStore } from "@/lib/store";
 import { closeOverlays } from "@/lib/ui";
 import type { Role } from "@/lib/types";
@@ -43,15 +44,30 @@ const VIEWS: Record<string, () => React.ReactNode> = {
 /** Das ganze Dashboard nach dem Login: Seitenleiste, Kopfzeile, Ansicht, Overlays.
  *  Der Store lebt nur im Browser – deshalb wird er erst nach dem Laden mit der
  *  Sitzung befüllt und vorher nur das leere Gerüst gezeigt (kein Datenmix auf dem Server). */
-export default function AppShell({ role, name, view, isAdmin, banner }: { role: Role; name: string; view?: string; isAdmin: boolean; banner?: React.ReactNode }) {
+export default function AppShell({
+  roles,
+  startRole,
+  name,
+  view,
+  isAdmin,
+  banner,
+}: {
+  roles: Role[];
+  startRole: Role;
+  name: string;
+  view?: string;
+  isAdmin: boolean;
+  banner?: React.ReactNode;
+}) {
   const { session, ui, overlay } = useStore();
 
+  const rolesKey = roles.join(",");
   useEffect(() => {
-    store.session = { name, role };
-    store.ui.role = role;
-    store.ui.view = allowedView(role, view ?? store.ui.view);
+    store.session = { name, roles: rolesKey.split(",") as Role[] };
+    store.ui.role = startRole;
+    store.ui.view = allowedView(startRole, view ?? store.ui.view);
     notify();
-  }, [name, role, view]);
+  }, [name, rolesKey, startRole, view]);
 
   /* Escape schließt Seitenleisten und Menüs */
   useEffect(() => {
@@ -91,7 +107,7 @@ export default function AppShell({ role, name, view, isAdmin, banner }: { role: 
           </div>
         </aside>
         <div className="ee-main">
-          {ready && <TopBar isAdmin={isAdmin} name={name} />}
+          {ready && <TopBar switchable={viewableRoles(roles)} name={name} demo={isAdmin} />}
           {banner}
           <main className="ee-content" id="view" tabIndex={-1}>
             {ready ? VIEWS[ui.view]?.() : null}

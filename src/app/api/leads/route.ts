@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { parseRoles } from "@/lib/roles";
 import { getSession } from "@/server/auth";
 import { db, schema } from "@/server/db";
 import { PipedriveNotConfigured } from "@/server/pipedrive/client";
@@ -18,7 +19,7 @@ export async function GET() {
       .from(schema.profile)
       .where(eq(schema.profile.userId, session.user.id));
     const result = await loadLeadsForUser({
-      role: session.user.role || "setter",
+      roles: parseRoles(session.user.role),
       name: session.user.name,
       pipedriveSetterName: p?.pipedriveSetterName ?? null,
     });

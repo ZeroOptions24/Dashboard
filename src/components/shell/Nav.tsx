@@ -45,7 +45,7 @@ export function SideNav() {
 export function SideMe() {
   const { session } = useStore();
   const { role, person, me } = useDashboard();
-  const own = session?.role === role;
+  const own = !!session?.roles.includes(role);
   const name = own ? session!.name : person(me).name;
   const initials = own
     ? name

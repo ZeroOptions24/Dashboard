@@ -1,6 +1,8 @@
 "use server";
 
 import { headers } from "next/headers";
+import { ALL_ROLES } from "@/lib/roles";
+import type { Role } from "@/lib/types";
 import { requireAdmin } from "@/server/auth";
 import * as ob from "@/server/onboarding";
 
@@ -22,8 +24,8 @@ export async function listOnboardingAction() {
   return asAdmin(() => ob.listOnboarding());
 }
 
-export async function inviteMemberAction(input: { name: string; email: string; role: "setter" | "presetter" | "closer"; telefon?: string }) {
-  if (!["setter", "presetter", "closer"].includes(input.role)) return { ok: false as const, error: "Ungültige Rolle" };
+export async function inviteMemberAction(input: { name: string; email: string; roles: Role[]; telefon?: string }) {
+  if (!input.roles.length || input.roles.some((r) => !ALL_ROLES.includes(r))) return { ok: false as const, error: "Bitte gültige Rollen wählen" };
   return asAdmin(async (adminId, h) => {
     await ob.inviteMember(input, adminId, h);
     return null;

@@ -8,6 +8,7 @@ import { adminAc, defaultStatements, userAc } from "better-auth/plugins/admin/ac
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { db, schema } from "./db";
+import { isAdmin, parseRoles } from "@/lib/roles";
 import { mailLayout, sendMail } from "./mail";
 
 /* Login mit E-Mail und Passwort.
@@ -100,6 +101,12 @@ export const auth = betterAuth({
 
 export type Session = typeof auth.$Infer.Session;
 
+/** E-Mail-Adressen aller (nicht gesperrten) Admins – für Benachrichtigungen */
+export async function adminEmails(): Promise<string[]> {
+  const users = await db.select({ email: schema.user.email, role: schema.user.role, banned: schema.user.banned }).from(schema.user);
+  return users.filter((u) => !u.banned && isAdmin(parseRoles(u.role))).map((u) => u.email);
+}
+
 /** Aktuelle Sitzung (Server Components, Server Actions, Route Handler). */
 export async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -116,12 +123,12 @@ export const ADMIN_2FA_PFLICHT = false;
 
 /** Muss dieser Nutzer die Zwei-Faktor-Anmeldung noch einrichten, bevor er Admin-Aktionen darf? */
 export const needsTwoFactorSetup = (user: { role?: string | null; twoFactorEnabled?: boolean | null }) =>
-  ADMIN_2FA_PFLICHT && user.role === "admin" && !user.twoFactorEnabled;
+  ADMIN_2FA_PFLICHT && isAdmin(parseRoles(user.role)) && !user.twoFactorEnabled;
 
 /** Wirft, wenn nicht angemeldet oder kein Admin. In JEDER Admin-Server-Action aufrufen. */
 export async function requireAdmin() {
   const s = await getSession();
-  if (!s || s.user.role !== "admin") throw new Error("Nicht berechtigt");
+  if (!s || !isAdmin(parseRoles(s.user.role)) || s.user.banned) throw new Error("Nicht berechtigt");
   if (needsTwoFactorSetup(s.user)) throw new Error("Bitte zuerst die Zwei-Faktor-Anmeldung einrichten (Mein Konto → Sicherheit).");
   return s;
 }

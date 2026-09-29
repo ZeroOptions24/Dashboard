@@ -1,6 +1,6 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import type { AuthRole } from "./auth";
+import type { Role } from "@/lib/types";
 
 /* Vertragserzeugung aus Vorlage + Stammdaten.
 
@@ -10,7 +10,7 @@ import type { AuthRole } from "./auth";
    Ablauf Einladung → Daten → Vertrag → Unterschrift → Zugang testbar ist. */
 
 export interface ContractInput {
-  role: AuthRole;
+  roles: Role[];
   name: string;
   email: string;
   strasse: string;
@@ -28,14 +28,15 @@ export interface ContractDocument {
 }
 
 /** Welche Verträge je Rolle unterschrieben werden. */
-export const CONTRACTS_BY_ROLE: Record<Exclude<AuthRole, "admin">, string[]> = {
+export const CONTRACTS_BY_ROLE: Record<Exclude<Role, "admin">, string[]> = {
   setter: ["Handelsvertretervertrag (§ 84 HGB)", "Provisionsvereinbarung Setting"],
   presetter: ["Handelsvertretervertrag (§ 84 HGB)", "Provisionsvereinbarung Presetting"],
   closer: ["Handelsvertretervertrag (§ 84 HGB)", "Provisionsvereinbarung Closing"],
 };
 
 export async function generateContract(input: ContractInput): Promise<ContractDocument> {
-  const titles = input.role === "admin" ? [] : CONTRACTS_BY_ROLE[input.role];
+  /* alle Unterlagen der Rollen dieser Person, ohne Doppelte (HV-Vertrag nur einmal) */
+  const titles = [...new Set(input.roles.flatMap((r) => (r === "admin" ? [] : CONTRACTS_BY_ROLE[r])))];
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);

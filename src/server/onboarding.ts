@@ -1,7 +1,9 @@
 import "server-only";
 import { and, desc, eq, gt } from "drizzle-orm";
 import { isValidIban, normalizeIban } from "@/lib/iban";
-import { auth, type AuthRole } from "./auth";
+import { parseRoles, serializeRoles } from "@/lib/roles";
+import type { Role } from "@/lib/types";
+import { adminEmails, auth } from "./auth";
 import { generateContract } from "./contracts";
 import { encrypt, hashToken, newToken } from "./crypto";
 import { db, schema } from "./db";
@@ -59,45 +61,53 @@ async function getRow(userId: string) {
 
 async function sendFormLink(userId: string, name: string, email: string, reminder = false) {
   const token = newToken();
-  await db
+  const [ob] = await db
     .update(schema.onboarding)
     .set({ formTokenHash: hashToken(token), formTokenExpiresAt: new Date(Date.now() + FORM_LINK_DAYS * 864e5), updatedAt: new Date() })
-    .where(eq(schema.onboarding.userId, userId));
+    .where(eq(schema.onboarding.userId, userId))
+    .returning({ skipContract: schema.onboarding.skipContract });
+  const direct = !!ob?.skipContract; /* bestehende MAs: kein Vertrag, direkt Zugang */
   await sendMail(
     email,
     reminder ? "Erinnerung: Bitte ergänze deine Daten für EnergyEngel" : "Willkommen bei EnergyEngel – bitte deine Daten ergänzen",
     mailLayout({
       title: reminder ? `Hallo ${name.split(" ")[0]}, es fehlt nur noch ein Schritt` : `Hallo ${name.split(" ")[0]}, schön dass du dabei bist!`,
-      intro:
-        "Für deinen Vertrag brauchen wir ein paar Angaben: Adresse, Geburtsdatum, Bankverbindung für deine Provision und Steuerdaten. Das dauert etwa 3 Minuten.",
+      intro: direct
+        ? "Unser neues MB-Dashboard ist da! Damit wir deine Provision sauber abrechnen, brauchen wir einmal deine Angaben: Adresse, Geburtsdatum, Bankverbindung und Steuerdaten. Das dauert etwa 3 Minuten."
+        : "Für deinen Vertrag brauchen wir ein paar Angaben: Adresse, Geburtsdatum, Bankverbindung für deine Provision und Steuerdaten. Das dauert etwa 3 Minuten.",
       button: "Daten ergänzen",
       url: `${appUrl()}/onboarding/${token}`,
-      outro: `Der Link ist ${FORM_LINK_DAYS} Tage gültig. Danach schicken wir dir den Vertrag zur elektronischen Unterschrift.`,
+      outro: direct
+        ? `Der Link ist ${FORM_LINK_DAYS} Tage gültig. Danach bekommst du direkt deinen Zugang und legst dein Passwort fest.`
+        : `Der Link ist ${FORM_LINK_DAYS} Tage gültig. Danach schicken wir dir den Vertrag zur elektronischen Unterschrift.`,
     }),
   );
 }
 
 export async function inviteMember(
-  input: { name: string; email: string; role: Exclude<AuthRole, "admin">; telefon?: string },
+  input: { name: string; email: string; roles: Role[]; telefon?: string; skipContract?: boolean },
   adminId: string,
   requestHeaders: Headers,
 ) {
   const name = input.name.trim(),
     email = input.email.trim().toLowerCase();
   if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Name und gültige E-Mail angeben");
+  if (!input.roles.length) throw new Error("Mindestens eine Rolle wählen");
+  const role = serializeRoles(input.roles);
   const [exists] = await db.select({ id: schema.user.id }).from(schema.user).where(eq(schema.user.email, email));
   if (exists) throw new Error("Zu dieser E-Mail gibt es schon einen Zugang");
   /* Konto ohne Passwort – das setzt der MA erst nach der Unterschrift selbst */
-  const { user } = await auth.api.createUser({ body: { email, name, role: input.role }, headers: requestHeaders });
-  await db.insert(schema.onboarding).values({ userId: user.id, invitedBy: adminId });
+  /* Better Auth prüft jede Rolle einzeln und speichert sie kommagetrennt */
+  const { user } = await auth.api.createUser({ body: { email, name, role: input.roles as "admin"[] }, headers: requestHeaders });
+  await db.insert(schema.onboarding).values({ userId: user.id, invitedBy: adminId, skipContract: !!input.skipContract });
   await db.insert(schema.profile).values({
     userId: user.id,
     telefon: input.telefon?.trim() || null,
     /* Standard: Vorname – so trägt ihn n8n ins Pipedrive-Feld „Setter“ ein; im Team-Bereich änderbar */
-    pipedriveSetterName: input.role === "setter" ? name.split(" ")[0] : null,
+    pipedriveSetterName: input.roles.includes("setter") ? name.split(" ")[0] : null,
   });
   await sendFormLink(user.id, name, email);
-  await audit(adminId, "onboarding.invite", user.id, input.role);
+  await audit(adminId, "onboarding.invite", user.id, role);
   return user.id;
 }
 
@@ -129,7 +139,7 @@ async function findByFormToken(token: string) {
 /** Für die Formularseite: nur Name und Rolle, keine weiteren Daten. */
 export async function checkFormToken(token: string) {
   const row = await findByFormToken(token);
-  return row ? { name: row.user.name, email: row.user.email, role: row.user.role as AuthRole } : null;
+  return row ? { name: row.user.name, email: row.user.email, roles: parseRoles(row.user.role), skipContract: row.ob.skipContract } : null;
 }
 
 export interface OnboardingFormData {
@@ -194,7 +204,14 @@ export async function submitFormData(token: string, d: OnboardingFormData) {
   /* Link sofort entwerten */
   await setStatus(row.user.id, "daten_erfasst", { dataSubmittedAt: new Date(), formTokenHash: null, formTokenExpiresAt: null, ...RESET_REMINDERS });
   await audit(row.user.id, "onboarding.data_submitted", row.user.id);
-  const admins = await db.select({ email: schema.user.email }).from(schema.user).where(eq(schema.user.role, "admin"));
+  /* Bestehende MAs mit Vertrag: kein Vertragsschritt, direkt Zugang */
+  if (row.ob.skipContract) {
+    await setStatus(row.user.id, "unterschrieben", { signedAt: new Date(), ...RESET_REMINDERS });
+    await audit(null, "onboarding.skip_contract", row.user.id);
+    await sendAccess(row.user.id, row.user.email);
+    return { ok: true as const, direct: true };
+  }
+  const admins = (await adminEmails()).map((email) => ({ email }));
   for (const a of admins)
     await sendMail(
       a.email,
@@ -216,7 +233,7 @@ export async function sendContract(userId: string, adminId: string) {
   if (ob.status !== "daten_erfasst") throw new Error("Vertrag kann erst nach der Datenerfassung gesendet werden");
   const [p] = await db.select().from(schema.profile).where(eq(schema.profile.userId, userId));
   const doc = await generateContract({
-    role: user.role as AuthRole,
+    roles: parseRoles(user.role),
     name: user.name,
     email: user.email,
     strasse: p.strasse ?? "",
@@ -284,8 +301,10 @@ export interface OnboardingRow {
   userId: string;
   name: string;
   email: string;
-  role: string;
+  roles: Role[];
   status: OnboardingStatus;
+  banned: boolean;
+  skipContract: boolean;
   invitedAt: string;
   updatedAt: string;
   formLinkExpired: boolean;
@@ -307,8 +326,10 @@ export async function listOnboarding(): Promise<OnboardingRow[]> {
     userId: user.id,
     name: user.name,
     email: user.email,
-    role: user.role ?? "setter",
+    roles: parseRoles(user.role),
     status: ob.status as OnboardingStatus,
+    banned: !!user.banned,
+    skipContract: ob.skipContract,
     invitedAt: ob.invitedAt.toISOString(),
     updatedAt: ob.updatedAt.toISOString(),
     formLinkExpired: ob.status === "eingeladen" && !!ob.formTokenExpiresAt && ob.formTokenExpiresAt < new Date(),
@@ -382,7 +403,7 @@ export async function sendReminders(now = new Date()): Promise<ReminderReport> {
   }
 
   if (report.stuck.length) {
-    const admins = await db.select({ email: schema.user.email }).from(schema.user).where(eq(schema.user.role, "admin"));
+    const admins = (await adminEmails()).map((email) => ({ email }));
     for (const a of admins)
       await sendMail(
         a.email,

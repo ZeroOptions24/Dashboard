@@ -11,8 +11,6 @@ import { setRole, toast, toggleNotif } from "@/lib/ui";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Role } from "@/lib/types";
 
-const ROLES = Object.keys(ROLE_LABEL) as Role[];
-
 /* ---------- Hell/Dunkel: Wahl im Browser gespeichert, sonst Systemeinstellung ---------- */
 const themeListeners = new Set<() => void>();
 const storedTheme = () => {
@@ -141,7 +139,8 @@ export function NotifPanel() {
 }
 
 /** Kopfzeile: Titel, Prototyp-Hinweis, „Ansicht als“ (nur Admins), Hell/Dunkel, Glocke, Benutzer */
-export default function TopBar({ isAdmin, name }: { isAdmin: boolean; name: string }) {
+/** switchable: Rollen, zwischen denen die Person wechseln darf (Admins: alle, sonst die eigenen) */
+export default function TopBar({ switchable, name, demo }: { switchable: Role[]; name: string; demo: boolean }) {
   const { role, ui } = useDashboard();
   const cur = NAV[role].find((i) => i[0] === ui.view);
   return (
@@ -156,10 +155,10 @@ export default function TopBar({ isAdmin, name }: { isAdmin: boolean; name: stri
       </div>
       <div className="ee-top__spacer" />
       <span className="ee-proto">Prototyp · Beispieldaten</span>
-      <div className="ee-role" data-component="RoleSwitch" hidden={!isAdmin}>
-        <span className="ee-role__label">Ansicht als</span>
+      <div className="ee-role" data-component="RoleSwitch" hidden={switchable.length < 2}>
+        <span className="ee-role__label">{demo ? "Ansicht als" : "Rolle"}</span>
         <div className="ee-seg" role="group" aria-label="Rolle wechseln" id="roleSeg">
-          {ROLES.map((r) => (
+          {switchable.map((r) => (
             <button key={r} aria-pressed={role === r} onClick={() => setRole(r)}>
               {ROLE_LABEL[r]}
             </button>
@@ -169,7 +168,7 @@ export default function TopBar({ isAdmin, name }: { isAdmin: boolean; name: stri
           Rolle wechseln
         </label>
         <select id="roleSelect" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-          {ROLES.map((r) => (
+          {switchable.map((r) => (
             <option key={r} value={r}>
               {ROLE_LABEL[r]}
             </option>

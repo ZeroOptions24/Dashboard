@@ -54,8 +54,9 @@ export function go(view: string) {
 export function setRole(role: Role) {
   Object.assign(store.ui, { role, leadFilter: "alle", leadSearch: "", leadSetter: "alle" });
   go(store.ui.view);
+  const own = store.session?.roles.includes(role);
   const k = store.data.ROLE_USER[role];
-  toast(`Ansicht: ${ROLE_LABEL[role]} (${store.data.PEOPLE[k]?.first ?? k})`, "user");
+  toast(own ? `Rolle: ${ROLE_LABEL[role]}` : `Ansicht: ${ROLE_LABEL[role]} (${store.data.PEOPLE[k]?.first ?? k})`, "user");
 }
 
 /** Anrufen: Telefonleitfaden mit diesem Lead öffnen (href="tel:" wählt parallel) */

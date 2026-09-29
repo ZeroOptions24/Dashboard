@@ -1,22 +1,23 @@
 import { redirect } from "next/navigation";
 import AppShell from "@/components/shell/AppShell";
 import { getSession, needsTwoFactorSetup } from "@/server/auth";
-import type { Role } from "@/lib/types";
+import { defaultRole, isAdmin, parseRoles } from "@/lib/roles";
 
 /* Dashboard – nur mit Anmeldung. Den Rollenwechsel „Ansicht als“ sehen nur Admins.
    ?view=<ansicht> öffnet direkt eine Ansicht (z. B. aus E-Mails: ?view=team). */
 export default async function Home({ searchParams }: PageProps<"/">) {
   const session = await getSession();
   if (!session) redirect("/login");
-  const role = (session.user.role || "setter") as Role;
+  const roles = parseRoles(session.user.role);
   const sp = await searchParams;
   const view = typeof sp.view === "string" ? sp.view : undefined;
   return (
     <AppShell
-      role={role}
+      roles={roles}
+      startRole={defaultRole(roles)}
       name={session.user.name}
       view={view}
-      isAdmin={role === "admin"}
+      isAdmin={isAdmin(roles)}
       banner={
         /* Nur wenn ADMIN_2FA_PFLICHT (src/server/auth.ts) eingeschaltet ist */
         needsTwoFactorSetup(session.user) && (

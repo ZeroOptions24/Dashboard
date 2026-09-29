@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { applyLiveLeads, applyLiveStats } from "@/lib/store";
-import type { Lead } from "@/lib/types";
+import type { Lead, Role } from "@/lib/types";
 
 /* Datenquelle umschalten: NEXT_PUBLIC_DATA_SOURCE=pipedrive lädt die Leads über
    /api/leads aus Pipedrive – bereits auf dem Server nach angemeldeter Person gefiltert –,
@@ -23,9 +23,9 @@ export default function DataSource() {
     };
     (async () => {
       try {
-        const { leads, userKey, note } = await get<{ leads: Lead[]; userKey: string; note?: string }>("/api/leads");
+        const { leads, keys, note } = await get<{ leads: Lead[]; keys: Partial<Record<Role, string>>; note?: string }>("/api/leads");
         if (cancelled) return;
-        applyLiveLeads(leads, userKey);
+        applyLiveLeads(leads, keys);
         applyLiveStats(await get<Parameters<typeof applyLiveStats>[0]>("/api/stats"));
         if (!cancelled) setState(note ? `Pipedrive: ${note}` : `Pipedrive · ${leads.length} Leads`);
       } catch (e) {

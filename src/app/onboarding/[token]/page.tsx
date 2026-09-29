@@ -13,7 +13,7 @@ export default async function OnboardingPage({ params }: PageProps<"/onboarding/
   return (
     <AuthShell wide={!!invite}>
       {invite ? (
-        <OnboardingForm token={token} name={invite.name} email={invite.email} />
+        <OnboardingForm token={token} name={invite.name} email={invite.email} direct={invite.skipContract} />
       ) : (
         <section className="ee-card stack">
           <h1>Link nicht mehr gültig</h1>

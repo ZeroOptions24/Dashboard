@@ -1,6 +1,7 @@
 import "server-only";
 import { STATUS } from "@/lib/domain";
-import type { HistoryEntry, Lead, StatusKey } from "@/lib/types";
+import { isAdmin } from "@/lib/roles";
+import type { HistoryEntry, Lead, Role, StatusKey } from "@/lib/types";
 import { getDeals, getPersons, type PdDeal, type PdPerson } from "./client";
 import { DEAL_FIELDS, PIPEDRIVE_PIPELINE_ID, PRODUCT_TITLE_PREFIX, STAGE_ATTEMPTS, STAGE_TO_STATUS } from "./config";
 
@@ -107,20 +108,29 @@ export function loadLeadsFromPipedrive(): Promise<Lead[]> {
 
 export interface LeadsForUser {
   leads: Lead[];
-  /** Schlüssel der angemeldeten Person in lead.setter (für die Anzeige „Meine Leads“) */
-  userKey: string;
-  /** Hinweis, wenn für die Rolle noch keine Zuordnung existiert */
+  /** Schlüssel der angemeldeten Person je Rolle (z. B. setter → „florian“) für „Meine Leads“ */
+  keys: Partial<Record<Role, string>>;
+  /** Hinweis, wenn für eine Rolle noch keine Zuordnung existiert */
   note?: string;
 }
 
-/** Nur die Leads, die diese Person sehen darf – die Filterung passiert hier auf dem Server. */
-export async function loadLeadsForUser(user: { role: string; pipedriveSetterName: string | null; name: string }): Promise<LeadsForUser> {
+export interface LeadUser {
+  roles: Role[];
+  pipedriveSetterName: string | null;
+  name: string;
+}
+
+export const setterKeyOf = (user: LeadUser) => setterKey(user.pipedriveSetterName || user.name.split(" ")[0]);
+
+/** Nur die Leads, die diese Person sehen darf – die Filterung passiert hier auf dem Server.
+ *  Admins: alle. Setter: Deals mit ihrem Pipedrive-Setter-Namen. */
+export async function loadLeadsForUser(user: LeadUser): Promise<LeadsForUser> {
   const all = await loadLeadsFromPipedrive();
-  if (user.role === "admin") return { leads: all, userKey: "admin" };
-  if (user.role === "setter") {
-    const key = setterKey(user.pipedriveSetterName || user.name.split(" ")[0]);
-    return { leads: all.filter((l) => l.setter === key), userKey: key };
-  }
+  const keys: Partial<Record<Role, string>> = {};
+  if (user.roles.includes("setter")) keys.setter = setterKeyOf(user);
   /* TODO: Zuordnung für Presetter/Closer in Pipedrive klären (Deal-Owner? Feld „VQ Berater“?) */
-  return { leads: [], userKey: user.role, note: "Die Zuordnung von Presetter- und Closer-Leads aus Pipedrive ist noch offen." };
+  const note =
+    user.roles.includes("presetter") || user.roles.includes("closer") ? "Die Zuordnung von Presetter- und Closer-Leads aus Pipedrive ist noch offen." : undefined;
+  if (isAdmin(user.roles)) return { leads: all, keys };
+  return { leads: keys.setter ? all.filter((l) => l.setter === keys.setter) : [], keys, note };
 }

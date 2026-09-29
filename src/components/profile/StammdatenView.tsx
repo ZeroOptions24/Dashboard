@@ -6,10 +6,10 @@ import Icon from "@/components/ui/Icon";
 import { PageHead } from "@/components/ui/Kpi";
 import TwoFactorCard from "@/components/profile/TwoFactorCard";
 import { formatIban } from "@/lib/iban";
+import { rolesLabel } from "@/lib/roles";
 import { useDashboard } from "@/lib/useDashboard";
 import type { MyProfile, ProfileErrors, ProfileUpdate } from "@/server/profile";
 
-const ROLE_LABEL: Record<string, string> = { setter: "Setter", presetter: "Presetter", closer: "Closer", admin: "Admin" };
 
 const toUpdate = (p: MyProfile): ProfileUpdate => ({
   telefon: p.telefon,
@@ -205,8 +205,8 @@ export default function StammdatenView() {
             <h2>Konto</h2>
             <dl className="ee-facts" style={{ gridTemplateColumns: "1fr" }}>
               <div>
-                <dt>Rolle</dt>
-                <dd>{ROLE_LABEL[p.role] || p.role}</dd>
+                <dt>Rollen</dt>
+                <dd>{rolesLabel(p.roles)}</dd>
               </div>
               <div>
                 <dt>MB seit</dt>
@@ -214,7 +214,7 @@ export default function StammdatenView() {
               </div>
             </dl>
           </section>
-          <TwoFactorCard enabled={p.twoFactorEnabled} recommended={p.role === "admin"} onChange={load} />
+          <TwoFactorCard enabled={p.twoFactorEnabled} recommended={p.roles.includes("admin")} onChange={load} />
         </div>
       </div>
     </>

@@ -99,6 +99,8 @@ export const onboarding = pgTable("onboarding", {
   signedAt: timestamp("signed_at"),
   accessSentAt: timestamp("access_sent_at"),
   activatedAt: timestamp("activated_at"),
+  /** Bestehende MAs mit Vertrag: nach der Datenerfassung direkt Zugang, ohne Vertragsschritt */
+  skipContract: boolean("skip_contract").notNull().default(false),
   remindersSent: integer("reminders_sent").notNull().default(0),
   lastReminderAt: timestamp("last_reminder_at"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

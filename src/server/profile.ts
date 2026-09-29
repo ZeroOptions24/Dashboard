@@ -1,8 +1,11 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { formatIban, isValidIban, normalizeIban } from "@/lib/iban";
+import { parseRoles } from "@/lib/roles";
+import type { Role } from "@/lib/types";
 import { decrypt, encrypt } from "./crypto";
 import { db, schema } from "./db";
+import { adminEmails } from "./auth";
 import { appUrl, mailLayout, sendMail } from "./mail";
 
 /* Eigene Stammdaten eines MA. Alle Funktionen arbeiten nur mit der ID der
@@ -12,7 +15,7 @@ import { appUrl, mailLayout, sendMail } from "./mail";
 export interface MyProfile {
   name: string;
   email: string;
-  role: string;
+  roles: Role[];
   memberSince: string | null;
   telefon: string;
   geburtsdatum: string;
@@ -42,7 +45,7 @@ export async function getMyProfile(userId: string): Promise<MyProfile> {
   return {
     name: user.name,
     email: user.email,
-    role: user.role ?? "setter",
+    roles: parseRoles(user.role),
     memberSince: since ? since.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : null,
     telefon: p?.telefon ?? "",
     geburtsdatum: fmtDate(p?.geburtsdatum ?? null),
@@ -121,7 +124,7 @@ export async function updateMyProfile(userId: string, d: ProfileUpdate): Promise
         outro: "Warst du das nicht? Melde dich bitte sofort bei EnergyEngel.",
       }),
     );
-    const admins = await db.select({ email: schema.user.email }).from(schema.user).where(eq(schema.user.role, "admin"));
+    const admins = (await adminEmails()).map((email) => ({ email }));
     for (const a of admins)
       await sendMail(
         a.email,
