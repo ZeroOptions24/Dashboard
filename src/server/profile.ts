@@ -24,6 +24,7 @@ export interface MyProfile {
   steuernummer: string;
   kleinunternehmer: boolean;
   gewerbeAngemeldet: boolean;
+  twoFactorEnabled: boolean;
 }
 
 const fmtDate = (iso: string | null) => (iso ? iso.split("-").reverse().join(".") : "");
@@ -53,6 +54,7 @@ export async function getMyProfile(userId: string): Promise<MyProfile> {
     steuernummer: p?.steuernummer ?? "",
     kleinunternehmer: p?.kleinunternehmer ?? false,
     gewerbeAngemeldet: p?.gewerbeAngemeldet ?? false,
+    twoFactorEnabled: !!user.twoFactorEnabled,
   };
 }
 

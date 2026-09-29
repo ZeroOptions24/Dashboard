@@ -3,7 +3,7 @@ import ReactViews from "@/components/ReactViews";
 import DataSource from "@/components/DataSource";
 import UserMenu from "@/components/auth/UserMenu";
 import { redirect } from "next/navigation";
-import { getSession } from "@/server/auth";
+import { getSession, needsTwoFactorSetup } from "@/server/auth";
 import type { Role } from "@/lib/types";
 
 /* Grundgerüst (AppShell) aus dem UI-Prototyp. Die Inhalte der leeren Container
@@ -70,6 +70,16 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             <button className="ee-iconbtn" id="bellBtn" aria-label="Benachrichtigungen" aria-expanded="false"></button>
             <UserMenu name={session.user.name} />
           </header>
+          {/* Nur wenn ADMIN_2FA_PFLICHT (src/server/auth.ts) eingeschaltet ist */}
+          {needsTwoFactorSetup(session.user) && (
+            <div className="ee-alert ee-alert--bad" role="alert" style={{ margin: "18px 28px 0" }}>
+              Bitte richte die Zwei-Faktor-Anmeldung ein – bis dahin sind Admin-Aktionen gesperrt.{" "}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Startansicht wird beim Laden gelesen, daher voller Seitenaufruf */}
+              <a className="ee-link" href="/?view=stammdaten">
+                Jetzt einrichten
+              </a>
+            </div>
+          )}
           <main className="ee-content" id="view" tabIndex={-1}></main>
           <ReactViews />
         </div>

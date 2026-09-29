@@ -2,7 +2,7 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { admin } from "better-auth/plugins";
+import { admin, twoFactor } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { adminAc, defaultStatements, userAc } from "better-auth/plugins/admin/access";
 import { eq } from "drizzle-orm";
@@ -36,7 +36,7 @@ export const auth = betterAuth({
   appName: "EnergyEngel MB-Dashboard",
   database: drizzleAdapter(db, {
     provider: "pg",
-    schema: { user: schema.user, session: schema.session, account: schema.account, verification: schema.verification },
+    schema: { user: schema.user, session: schema.session, account: schema.account, verification: schema.verification, twoFactor: schema.twoFactor },
   }),
   emailAndPassword: {
     enabled: true,
@@ -88,6 +88,12 @@ export const auth = betterAuth({
       defaultRole: "setter",
       adminRoles: ["admin"],
     }),
+    /* Zwei-Faktor-Anmeldung per Authenticator-App (TOTP) + Ersatz-Codes; ein Gerät kann sich 30 Tage merken */
+    twoFactor({
+      issuer: "EnergyEngel",
+      trustDeviceMaxAge: 30 * 24 * 60 * 60,
+      backupCodeOptions: { amount: 10 },
+    }),
     nextCookies(), // muss das letzte Plugin sein
   ],
 });
@@ -99,9 +105,23 @@ export async function getSession() {
   return auth.api.getSession({ headers: await headers() });
 }
 
+/* ---------------------------------------------------------------------
+   PFLICHT-REGEL ZWEI-FAKTOR (noch ausgeschaltet – auf Wunsch von EnergyEngel)
+   Ist sie an, dürfen Admins ohne eingerichtete Zwei-Faktor-Anmeldung keine
+   Admin-Aktionen ausführen (einladen, Verträge senden, IBANs sehen …) und
+   sehen im Dashboard einen Hinweis zum Einrichten.
+   Einschalten: hier auf true setzen.
+   --------------------------------------------------------------------- */
+export const ADMIN_2FA_PFLICHT = false;
+
+/** Muss dieser Nutzer die Zwei-Faktor-Anmeldung noch einrichten, bevor er Admin-Aktionen darf? */
+export const needsTwoFactorSetup = (user: { role?: string | null; twoFactorEnabled?: boolean | null }) =>
+  ADMIN_2FA_PFLICHT && user.role === "admin" && !user.twoFactorEnabled;
+
 /** Wirft, wenn nicht angemeldet oder kein Admin. In JEDER Admin-Server-Action aufrufen. */
 export async function requireAdmin() {
   const s = await getSession();
   if (!s || s.user.role !== "admin") throw new Error("Nicht berechtigt");
+  if (needsTwoFactorSetup(s.user)) throw new Error("Bitte zuerst die Zwei-Faktor-Anmeldung einrichten (Mein Konto → Sicherheit).");
   return s;
 }

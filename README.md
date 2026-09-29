@@ -40,6 +40,8 @@ Außerdem: Link erneut senden, *Direkt freischalten* (bestehende MAs mit Vertrag
 
 **Stammdaten:** Jeder MA sieht und ändert seine eigenen Daten (Name, Geburtsdatum, E-Mail nur durch Admins). Bei einer IBAN-Änderung bekommen MA und Admins eine E-Mail.
 
+**Zwei-Faktor-Anmeldung:** Unter *Mein Konto / Stammdaten → Sicherheit* richtet jede Person optional einen zweiten Faktor ein (Authenticator-App, 10 Ersatz-Codes, Gerät 30 Tage merken). Die **Pflicht für Admins** ist gebaut, aber ausgeschaltet: `ADMIN_2FA_PFLICHT` in `src/server/auth.ts` auf `true` setzen – dann sind Admin-Aktionen ohne eingerichteten zweiten Faktor gesperrt und ein Hinweis erscheint.
+
 **Sicherheit:** keine Selbstregistrierung; IBAN nur AES-256-GCM-verschlüsselt, Admins sehen sie maskiert; Einmal-Links nur als Hash gespeichert; jede Admin-Server-Action prüft die Rolle selbst.
 
 ## Pipedrive anbinden

@@ -29,7 +29,7 @@ Stand: 25.09.2026. Die Technik für Login, Einladung, Datenerfassung, Vertrag, U
 
 ## Später / nice to have
 
-- [ ] Zweiter Faktor (App-Code) für Admin-Konten.
+- [ ] **Zwei-Faktor-Pflicht für Admins einschalten** (gebaut, aber aus): Alle Admins richten unter *Mein Konto → Sicherheit* den zweiten Faktor ein, danach `ADMIN_2FA_PFLICHT = true` in `src/server/auth.ts`.
 - [ ] Bestehende MAs (Tim, Florian, Max …) einladen und mit „Direkt freischalten“ ohne neuen Vertrag aktivieren.
 - [ ] **Offene Frage (blockiert Presetter-/Closer-Ansicht mit echten Daten):** Woran erkennt man Presetter und Closer in Pipedrive (Deal-Owner, Feld „VQ Berater“)?
 - [ ] Zwei Setter mit gleichem Vornamen: dann im n8n-Setter-Verzeichnis und im Dashboard eindeutige Namen verwenden (z. B. „Max M.“).

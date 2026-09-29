@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getMyProfileAction, revealMyIbanAction, updateMyProfileAction } from "@/app/actions/profile";
 import Icon from "@/components/ui/Icon";
 import { PageHead } from "@/components/ui/Kpi";
+import TwoFactorCard from "@/components/profile/TwoFactorCard";
 import { formatIban } from "@/lib/iban";
 import { useDashboard } from "@/lib/useDashboard";
 import type { MyProfile, ProfileErrors, ProfileUpdate } from "@/server/profile";
@@ -213,6 +214,7 @@ export default function StammdatenView() {
               </div>
             </dl>
           </section>
+          <TwoFactorCard enabled={p.twoFactorEnabled} recommended={p.role === "admin"} onChange={load} />
         </div>
       </div>
     </>
