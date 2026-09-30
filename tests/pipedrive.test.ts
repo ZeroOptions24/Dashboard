@@ -66,11 +66,11 @@ describe("Pipedrive-Leads", () => {
     expect(r.leads).toHaveLength(3);
   });
 
-  it("ohne Rolle mit Zuordnung: keine Leads", async () => {
+  it("Presetter: gemeinsamer Pool aller offenen Leads mit voller Nummer", async () => {
     const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
     const r = await loadLeadsForUser({ id: "p", roles: ["presetter"] }, new Map());
-    expect(r.leads).toEqual([]);
-    expect(r.note).toMatch(/Presetter/);
+    expect(r.keys.presetter).toBe("p");
+    expect(r.leads.map((l) => [l.id, l.telFull])).toEqual([["PD-1", "0170 1234501"]]); /* nur „eingereicht“ */
   });
 });
 

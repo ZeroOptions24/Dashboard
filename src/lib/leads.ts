@@ -10,10 +10,14 @@ import type { Appointment, Lead, PersonKey, Role, StatusKey } from "./types";
 /** Leads, die eine Person in ihrer Rolle sehen darf. */
 export function leadsForUser(leads: Lead[], role: Role, user: PersonKey): Lead[] {
   if (role === "setter") return leads.filter((l) => l.setter === user);
-  if (role === "presetter") return leads.filter((l) => l.presetter === user);
+  if (role === "presetter") return leads.filter((l) => inCallPool(l, user));
   if (role === "closer") return leads.filter((l) => l.closer === user);
   return leads;
 }
+
+/** Anrufliste eines Presetters: echte Daten = gemeinsamer Pool aller offenen Leads + selbst bearbeitete;
+ *  Beispieldaten = fest zugeordnete Leads. */
+export const inCallPool = (l: Lead, user: PersonKey) => l.presetter === user || (LIVE && l.status === "eingereicht");
 
 export const isLost = (l: Lead) => !!STATUS[l.status].fail;
 export const activeLeads = (leads: Lead[]) => leads.filter((l) => !isLost(l));

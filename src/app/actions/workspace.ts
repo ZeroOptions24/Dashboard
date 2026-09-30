@@ -2,6 +2,8 @@
 
 import { parseRoles } from "@/lib/roles";
 import { getSession } from "@/server/auth";
+import type { Role } from "@/lib/types";
+import { recordLeadAction, type LeadAction } from "@/server/lead-activity";
 import * as ws from "@/server/workspace";
 
 /* Team-Alltag (Events, Kalender, Wettbewerb, Auszahlungen, Benachrichtigungen).
@@ -9,11 +11,11 @@ import * as ws from "@/server/workspace";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
-async function run<T>(fn: (v: ws.Viewer) => Promise<T>): Promise<Result<T>> {
+async function run<T>(fn: (v: ws.Viewer & { name: string }) => Promise<T>): Promise<Result<T>> {
   try {
     const s = await getSession();
     if (!s || s.user.banned) throw new Error("Nicht angemeldet");
-    return { ok: true, data: await fn({ id: s.user.id, roles: parseRoles(s.user.role) }) };
+    return { ok: true, data: await fn({ id: s.user.id, roles: parseRoles(s.user.role), name: s.user.name }) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Unbekannter Fehler" };
   }
@@ -30,3 +32,6 @@ export const saveFeedbackAction = async (apptId: string, input: Parameters<typeo
 export const publishBoardAction = async (input: Parameters<typeof ws.publishBoard>[1]) => run((v) => ws.publishBoard(v, input));
 export const releasePayoutAction = async (payoutId: string) => run((v) => ws.releasePayout(v, payoutId));
 export const setMoneyGoalAction = async (euro: number) => run((v) => ws.setMoneyGoal(v, euro));
+
+/** Aktion an einem Pipedrive-Lead (Anrufversuch, Status, Rückruf, Notiz, Vorqualifizierung) */
+export const leadAction = async (role: Role, leadId: string, action: LeadAction) => run((v) => recordLeadAction(v, role, leadId, action));

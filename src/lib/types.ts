@@ -97,6 +97,9 @@ export interface Lead {
   reasonNote: string;
   eigenlead: boolean;
   entscheider?: string;
+  /** Pipedrive: angelegt / letzte Stufen- bzw. Statusänderung (ISO, UTC) – für den Abgleich mit Dashboard-Aktionen */
+  pdAddTime?: string;
+  pdChangedAt?: string;
   /** Antworten aus der Vorqualifizierung (Feldnamen wie im Formular wp-vorqual) */
   vq?: Record<string, string>;
   themen?: string[];

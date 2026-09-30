@@ -277,6 +277,28 @@ export const payout = pgTable(
   (t) => [index("payout_user_idx").on(t.userId)],
 );
 
+/** Was im Dashboard an einem Pipedrive-Lead passiert ist (Anrufversuch, Rückruf, Status, Notiz, Vorqualifizierung).
+ *  Grundlage für Presetter-Pool, Verlauf und Kennzahlen. kind: attempt | callback | status | note | vq */
+export const leadActivity = pgTable(
+  "lead_activity",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    leadId: text("lead_id").notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    /** Rolle, in der gehandelt wurde */
+    role: text("role").notNull(),
+    kind: text("kind").notNull(),
+    /** Anzeige im Verlauf */
+    text: text("text").notNull(),
+    /** JSON mit Details (Status, Grund, Rückruf-Zeit, VQ-Antworten …) */
+    data: text("data").notNull().default("{}"),
+    /** Ergebnis des Zurückschreibens nach Pipedrive: null = nicht nötig/aus, „ok“ oder Fehlertext */
+    pipedrive: text("pipedrive"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("lead_activity_lead_idx").on(t.leadId, t.createdAt), index("lead_activity_user_idx").on(t.userId, t.createdAt)],
+);
+
 /** Protokoll sensibler Zugriffe und Aktionen (z. B. IBAN angezeigt, Vertrag gesendet). */
 export const auditLog = pgTable("audit_log", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

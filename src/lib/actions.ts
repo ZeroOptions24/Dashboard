@@ -14,11 +14,14 @@ import {
   saveFeedbackAction,
   toggleRsvpAction,
 } from "@/app/actions/workspace";
+import { leadAction } from "@/app/actions/workspace";
+import type { LeadAction } from "@/server/lead-activity";
+import { nextTryText as sharedNextTry } from "./lead-activity";
 import { persist } from "./live";
 import { dkey, eur, fmtDay, fmtHour, nowStamp, pad, parseKey } from "./format";
 import { apptEnd } from "./appointments";
 import { STATUS } from "./domain";
-import { urgencySort } from "./leads";
+import { inCallPool, urgencySort } from "./leads";
 import { ranked } from "./ranking";
 import { currentUser, LIVE, notify, rerender, store } from "./store";
 import type { Board, Lead, PersonKey, Slot, StatusKey, TeamEvent } from "./types";
@@ -138,13 +141,41 @@ export function addSlotRange(date: string, from: number, to: number, repeat4Week
 
 const leadById = (id: string) => d().LEADS.find((l) => l.id === id);
 
-/** Text für den nächsten Anrufversuch (Prototyp: feste Beispieltermine) */
-const nextTryText = (n: number) => (n === 1 ? "heute ab 17:00" : n === 2 ? "Do 24.09. ab 18:00" : n < 5 ? "Fr 25.09. vormittags" : "letzter Versuch, danach absagen");
+/** Text für den nächsten Anrufversuch (echte Daten: gemeinsame Regel mit dem Server; Prototyp: feste Beispieltermine) */
+const nextTryText = (n: number) => (LIVE ? sharedNextTry(n) : demoNextTry(n));
+const demoNextTry = (n: number) => (n === 1 ? "heute ab 17:00" : n === 2 ? "Do 24.09. ab 18:00" : n < 5 ? "Fr 25.09. vormittags" : "letzter Versuch, danach absagen");
 
 /** Lead-Status setzen – mit Verlauf, Benachrichtigung des Setters und Anrufzähler.
  *  „nicht_erreicht“ = Anrufversuch ohne Erfolg, der Lead bleibt „Lead eingereicht“.
  *  Liefert den Text für die Kurzmeldung. */
-export function setLeadStatus(id: string, status: StatusKey | "nicht_erreicht", reason?: string, note?: string): string {
+/** Im Live-Modus: Aktion an einem Pipedrive-Lead speichern (und ggf. nach Pipedrive schreiben) */
+function persistLead(id: string, action: LeadAction) {
+  const role = store.ui.role;
+  if (!/^PD-\d+$/.test(id) || role === "setter") return;
+  persist(() => leadAction(role, id, action));
+}
+
+/** Eingaben im Leitfaden gebündelt speichern (nicht bei jedem Tastendruck) */
+const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => void }>();
+function persistLater(key: string, id: string, action: () => LeadAction) {
+  if (!LIVE) return;
+  clearTimeout(pending.get(key)?.timer);
+  const run = () => {
+    pending.delete(key);
+    persistLead(id, action());
+  };
+  pending.set(key, { timer: setTimeout(run, 1200), run });
+}
+/** Offene Eingaben eines Leads sofort speichern (vor dem Ergebnis, damit sie in der Pipedrive-Notiz landen) */
+function flushPending(id: string) {
+  for (const [key, p] of pending)
+    if (key.endsWith(`:${id}`)) {
+      clearTimeout(p.timer);
+      p.run();
+    }
+}
+
+export function setLeadStatus(id: string, status: StatusKey | "nicht_erreicht", reason?: string, note?: string, opts: { silent?: boolean } = {}): string {
   const l = leadById(id);
   if (!l) return "";
   const attempt = status === "nicht_erreicht";
@@ -171,13 +202,15 @@ export function setLeadStatus(id: string, status: StatusKey | "nicht_erreicht", 
   }
   pushNotif(l.setter, `${l.kunde}: Status → ${STATUS[st].label}${reason ? ` (${reason})` : ""}`, st);
   rerender();
+  flushPending(id);
+  persistLead(id, { type: "status", status, reason, note, silent: opts.silent });
   return attempt ? `${l.kunde}: Versuch ${l.attempts} – nächster ${l.nextTry}` : `${l.kunde}: ${STATUS[st].label} · ${first(l.setter)} wurde benachrichtigt`;
 }
 
 /** Telefonleitfaden: zum dringendsten offenen Lead (außer fromId) weiter; liefert dessen Namen */
 export function guideAdvance(fromId: string): string | null {
   const nxt = d()
-    .LEADS.filter((x) => x.presetter === currentUser() && x.status === "eingereicht" && x.id !== fromId)
+    .LEADS.filter((x) => inCallPool(x, currentUser()) && x.status === "eingereicht" && x.id !== fromId)
     .sort(urgencySort(d().NOW))[0];
   store.ui.guideSlot = null;
   if (nxt) store.ui.guideLead = nxt.id;
@@ -196,6 +229,7 @@ export function saveCallback(id: string, date: string, time: string, note: strin
   if (note) l.preNote = [l.preNote, note].filter(Boolean).join(" · ");
   pushNotif(l.setter, `${l.kunde}: Rückruf vereinbart (${when})`, "eingereicht");
   rerender();
+  persistLead(id, { type: "callback", date, time, note });
   return when;
 }
 
@@ -211,11 +245,11 @@ export function applyFeedback(apptId: string, res: FeedbackResult, o: { note: st
   if (real) real.feedback = { result: res, at: nowStamp(d().NOW), note: o.note || "" };
   if (res === "checks") {
     if (o.date) d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer: a.closer, kind: "closing", date: o.date, start: o.hour ?? 17, dur: 1.5, ort: a.ort, feedback: null });
-    setLeadStatus(l.id, "checks");
+    setLeadStatus(l.id, "checks", undefined, undefined, { silent: true });
     l.hist[0][0] = `Ersttermin fand statt – in den Checks${o.date ? `, 2. Termin ${fmtDay(o.date)} ${fmtHour(o.hour ?? 17)}` : ""}`;
     d().NOTIFS[l.setter][0].t = `${l.kunde}: Ersttermin fand statt – Kunde ist in den Checks`;
-  } else if (res === "verkauft") setLeadStatus(l.id, "verkauft");
-  else if (res === "verloren") setLeadStatus(l.id, "verloren", o.reason, o.note);
+  } else if (res === "verkauft") setLeadStatus(l.id, "verkauft", undefined, undefined, { silent: true });
+  else if (res === "verloren") setLeadStatus(l.id, "verloren", o.reason, o.note, { silent: true });
   else if (res === "nicht_angetroffen") {
     l.status = "eingereicht";
     l.nextTry = "Neuen Termin legen";
@@ -268,11 +302,14 @@ export function setLeadVq(id: string, name: string, value: string | string[]) {
   if (!l) return;
   (l.vq ??= {})[name] = Array.isArray(value) ? value.join(", ") : value;
   notify();
+  persistLater(`vq:${id}`, id, () => ({ type: "vq", answers: { ...(l.vq ?? {}) } }));
 }
 
 export function setLeadPreNote(id: string, note: string) {
   const l = leadById(id);
-  if (l) l.preNote = note;
+  if (!l) return;
+  l.preNote = note;
+  persistLater(`note:${id}`, id, () => ({ type: "note", text: l.preNote }));
 }
 
 /** Ersttermin in einem freien Closer-Slot buchen */

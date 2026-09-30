@@ -37,6 +37,8 @@ export function persist<T>(call: () => Promise<Result<T>>, opts: { reload?: bool
         toast(res.error, "info");
         return reloadWorkspace();
       }
+      const warning = (res.data as { warning?: string } | null)?.warning;
+      if (warning) toast(warning, "info");
       opts.onOk?.(res.data);
       if (opts.reload) return reloadWorkspace();
     })

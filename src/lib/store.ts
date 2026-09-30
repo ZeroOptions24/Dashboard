@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from "react";
 import { createDemoData } from "./demo-data";
 import type { LeadStats } from "./stats";
+import type { PresetterStats } from "./lead-activity";
 import type { FormValues } from "./vq";
 import type { IconName } from "./icons";
 import type { AdminKpi, Appointment, Lead, MbStats, PersonKey, Role } from "./types";
@@ -147,6 +148,8 @@ export function clearDemoData() {
   Object.assign(d.SETTER_BOARD, { published: "–", by: "System" });
   d.CALL_DAY.done = 0;
   d.DAY_GOAL.streak = 0;
+  /* Vergleichswerte kommen aus /api/stats; nur Zielwerte bleiben */
+  for (const k of Object.keys(d.BENCH)) if (k !== "firstCallH") delete d.BENCH[k];
   rerender();
 }
 
@@ -219,6 +222,7 @@ export function applyLiveStats(s: {
   bench?: LeadStats["bench"];
   setterBoardRows?: [PersonKey, number][];
   dayGoal?: LeadStats["dayGoal"][string];
+  presetter?: PresetterStats;
 }) {
   const d = store.data;
   if (s.adminKpi) Object.assign(d.ADMIN_KPI, s.adminKpi);
@@ -230,6 +234,15 @@ export function applyLiveStats(s: {
   if (s.setterBoardRows) {
     replaceAll(d.SETTER_BOARD.rows, s.setterBoardRows);
     Object.assign(d.SETTER_BOARD, { title: `Setter-Rangliste ${s.monat} ${d.NOW.getFullYear()}`, ends: s.monatsende, published: "laufend aus Pipedrive", by: "System" });
+  }
+  if (s.presetter) {
+    const p = s.presetter;
+    d.CALL_DAY.done = p.callsToday;
+    const setOrDrop = (k: string, v: number | null) => (v == null ? delete d.BENCH[k] : (d.BENCH[k] = v));
+    setOrDrop("firstCallMe", p.firstCallH);
+    setOrDrop("firstCallTeam", p.teamFirstCallH);
+    setOrDrop("presetterTerminMe", p.terminQuote);
+    setOrDrop("presetterTermin", p.teamTerminQuote);
   }
   if (s.dayGoal) {
     replaceAll(d.DAY_GOAL.week, s.dayGoal.week);

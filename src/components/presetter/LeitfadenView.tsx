@@ -9,7 +9,7 @@ import { bookSlot, setLeadPreNote, setLeadVq } from "@/lib/actions";
 import { bookableSlots } from "@/lib/appointments";
 import { GUIDES } from "@/lib/domain";
 import { fmtDay, fmtHour } from "@/lib/format";
-import { telFull, telHref, urgencySort } from "@/lib/leads";
+import { inCallPool, telFull, telHref, urgencySort } from "@/lib/leads";
 import { store, updateUi } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
 import { VQ_SECTIONS, fieldVisible, heatText, vqProgress, type FormValues } from "@/lib/vq";
@@ -42,7 +42,7 @@ function Script({ text, anrede }: { text: string; anrede: string }) {
 
 export default function LeitfadenView() {
   const { data, ui, me, now, person, toast } = useDashboard();
-  const queue = data.LEADS.filter((l) => l.presetter === me && l.status === "eingereicht").sort(urgencySort(now));
+  const queue = data.LEADS.filter((l) => inCallPool(l, me) && l.status === "eingereicht").sort(urgencySort(now));
   const l = queue.find((x) => x.id === ui.guideLead) || queue[0];
   if (!l)
     return (
@@ -86,7 +86,7 @@ export default function LeitfadenView() {
     bookSlot(l, sel);
     toast(`Termin gebucht: ${fmtDay(sel.date)} ${fmtHour(sel.start)} · ${person(sel.closer).first} und ${person(l.setter).first} informiert`);
     /* weiter zum dringendsten offenen Lead */
-    const nxt = store.data.LEADS.filter((x) => x.presetter === me && x.status === "eingereicht" && x.id !== l.id).sort(urgencySort(now))[0];
+    const nxt = store.data.LEADS.filter((x) => inCallPool(x, me) && x.status === "eingereicht" && x.id !== l.id).sort(urgencySort(now))[0];
     updateUi({ guideLead: nxt?.id ?? null, guideSlot: null });
     if (nxt) toast(`Nächster Anruf: ${nxt.kunde}`, "phone");
   };

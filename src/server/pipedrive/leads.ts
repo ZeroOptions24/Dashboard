@@ -2,6 +2,7 @@ import "server-only";
 import { STATUS } from "@/lib/domain";
 import { isAdmin } from "@/lib/roles";
 import type { HistoryEntry, Lead, Role, StatusKey } from "@/lib/types";
+import { applyActivities, type ActivityRow } from "@/lib/lead-activity";
 import { getDeals, getPersons, type PdDeal, type PdPerson } from "./client";
 import { DEAL_FIELDS, PIPEDRIVE_PIPELINE_ID, PRODUCT_TITLE_PREFIX, STAGE_ATTEMPTS, STAGE_TO_STATUS } from "./config";
 
@@ -80,8 +81,13 @@ export function dealToLead(deal: PdDeal, person: PdPerson | undefined): Lead {
     reason: deal.lost_reason,
     reasonNote: "",
     eigenlead: true,
+    pdAddTime: utc(deal.add_time),
+    pdChangedAt: utc(changed || deal.add_time),
   };
 }
+
+/** Pipedrive-Zeit („2026-09-28 08:00:00“ oder ISO) → ISO in UTC */
+const utc = (iso: string) => new Date(iso.includes("T") ? iso : iso.replace(" ", "T") + "Z").toISOString();
 
 /** Alle Wärmepumpen-Leads der Pipeline, neueste zuerst. */
 async function fetchAllLeads(): Promise<Lead[]> {
@@ -98,6 +104,11 @@ async function fetchAllLeads(): Promise<Lead[]> {
 /* Kurzer Zwischenspeicher: nicht bei jedem Seitenaufruf alle Deals aus Pipedrive laden. */
 const CACHE_MS = 60_000;
 let cache: { at: number; leads: Promise<Lead[]> } | null = null;
+
+/** Nach dem Schreiben nach Pipedrive: beim nächsten Laden frisch holen */
+export const invalidateLeadCache = () => {
+  cache = null;
+};
 
 export function loadLeadsFromPipedrive(): Promise<Lead[]> {
   if (!cache || Date.now() - cache.at > CACHE_MS) {
@@ -125,18 +136,27 @@ export interface LeadUser {
 export const withSetterIds = (leads: Lead[], ids: Map<string, string>) => leads.map((l) => (ids.has(l.setter) ? { ...l, setter: ids.get(l.setter)! } : l));
 
 /** Nur die Leads, die diese Person sehen darf – die Filterung passiert hier auf dem Server.
- *  Admins: alle. Setter: Deals mit ihrem Pipedrive-Setter-Namen. Personen-Schlüssel = Nutzer-ID. */
-export async function loadLeadsForUser(user: LeadUser, setterIds: Map<string, string>, closerLeadIds: Set<string> = new Set()): Promise<LeadsForUser> {
-  const all = withSetterIds(await loadLeadsFromPipedrive(), setterIds);
+ *  Personen-Schlüssel = Nutzer-ID. Dashboard-Aktionen (activities) werden vorher angewendet.
+ *  - Admin: alle
+ *  - Setter: eigene (Pipedrive-Feld „Setter“), Nummer maskiert
+ *  - Presetter: gemeinsamer Pool aller offenen Leads + Leads, die sie selbst bearbeitet haben – volle Nummer
+ *  - Closer: Leads mit Termin bei ihnen – volle Nummer */
+export async function loadLeadsForUser(
+  user: LeadUser,
+  setterIds: Map<string, string>,
+  closerLeadIds: Set<string> = new Set(),
+  activities: ActivityRow[] = [],
+): Promise<LeadsForUser> {
+  const all = applyActivities(withSetterIds(await loadLeadsFromPipedrive(), setterIds), activities);
   const keys: Partial<Record<Role, string>> = {};
   if (user.roles.includes("setter")) keys.setter = user.id;
-  /* TODO: Zuordnung für Presetter/Closer in Pipedrive klären (Deal-Owner? Feld „VQ Berater“?) */
-  const note = user.roles.includes("presetter") && !isAdmin(user.roles) ? "Die Zuordnung von Presetter-Leads aus Pipedrive ist noch offen." : undefined;
+  if (user.roles.includes("presetter")) keys.presetter = user.id;
   if (user.roles.includes("closer")) keys.closer = user.id;
+  const touched = new Set(activities.filter((a) => a.userId === user.id && a.role === "presetter").map((a) => a.leadId));
+  const inPool = (l: Lead) => !!keys.presetter && (l.status === "eingereicht" || touched.has(l.id));
   if (isAdmin(user.roles)) return { leads: all, keys };
-  /* Setter: eigene Leads (Nummer maskiert); Closer: Leads mit einem Termin bei ihnen – mit voller Nummer */
   const leads = all
-    .filter((l) => (keys.setter && l.setter === keys.setter) || closerLeadIds.has(l.id))
-    .map((l) => (closerLeadIds.has(l.id) ? l : { ...l, telFull: undefined }));
-  return { leads, keys, note };
+    .filter((l) => (keys.setter && l.setter === keys.setter) || closerLeadIds.has(l.id) || inPool(l))
+    .map((l) => (closerLeadIds.has(l.id) || inPool(l) ? l : { ...l, telFull: undefined }));
+  return { leads, keys };
 }

@@ -81,3 +81,33 @@ export async function getPersons(ids: number[]): Promise<PdPerson[]> {
   }
   return out;
 }
+
+/* ---------- Schreiben (nur mit PIPEDRIVE_WRITE=true) ---------- */
+
+/** Zurückschreiben ist ausdrücklich eingeschaltet – schützt echte Deals beim Testen. */
+export const pipedriveWriteEnabled = () => process.env.PIPEDRIVE_WRITE === "true";
+
+async function pdSend(method: "PATCH" | "POST", url: string, body: unknown) {
+  const token = process.env.PIPEDRIVE_API_TOKEN;
+  if (!token) throw new PipedriveNotConfigured();
+  const res = await fetch(url, {
+    method,
+    headers: { "x-api-token": token, accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Pipedrive ${method} ${new URL(url).pathname}: HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface DealUpdate {
+  stage_id?: number;
+  status?: "open" | "won" | "lost";
+  lost_reason?: string;
+}
+
+/** Deal ändern (API v2) */
+export const updateDeal = (id: number, patch: DealUpdate) => pdSend("PATCH", `${BASE}/deals/${id}`, patch);
+
+/** Notiz am Deal (Notizen gibt es nur in API v1) */
+export const addDealNote = (dealId: number, content: string) => pdSend("POST", `${BASE.replace(/\/v2$/, "/v1")}/notes`, { deal_id: dealId, content });

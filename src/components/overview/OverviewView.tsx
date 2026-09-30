@@ -13,7 +13,7 @@ import { TARGETS } from "@/lib/domain";
 import { WD, dkey, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
 import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, newestFirst, telFull, telHref, urgencySort } from "@/lib/leads";
 import { perfTone } from "@/lib/ranking";
-import { LIVE, useStore } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Appointment, Lead } from "@/lib/types";
 import { callLead, changeStatus, openDrawer } from "@/lib/ui";
@@ -163,35 +163,39 @@ function PresetterOverview() {
               meta={overdue ? "Neu > 24 Std. oder Rückruf verpasst" : "alles im Plan"}
               tone={overdue ? "bad" : "good"}
             />
-            {LIVE ? (
-              /* TODO(EnergyEngel): Presetter-Kennzahlen, sobald die Presetter-Zuordnung in Pipedrive steht */
-              <>
-                <Kpi label="Ø bis Erstanruf" value="–" meta="noch keine Daten" />
-                <Kpi label="Terminquote" value="–" meta="noch keine Daten" />
-              </>
+            {BENCH.firstCallMe != null ? (
+              <Kpi
+                label="Ø bis Erstanruf"
+                value={
+                  <>
+                    {num1(BENCH.firstCallMe)} <small>Std.</small>
+                  </>
+                }
+                meta={
+                  BENCH.firstCallMe > BENCH.firstCallH ? (
+                    <>
+                      <span className="is-bad">▲ {num1(BENCH.firstCallMe - BENCH.firstCallH)} Std.</span> über Ziel ({BENCH.firstCallH} Std.)
+                    </>
+                  ) : (
+                    <>
+                      <span className="is-good">im Ziel</span> ({BENCH.firstCallH} Std.)
+                    </>
+                  )
+                }
+                tone={perfTone(BENCH.firstCallMe, BENCH.firstCallH, false)}
+              />
             ) : (
-              <>
-                <Kpi
-                  label="Ø bis Erstanruf"
-                  value={
-                    <>
-                      3,4 <small>Std.</small>
-                    </>
-                  }
-                  meta={
-                    <>
-                      <span className="is-bad">▲ 1,4 Std.</span> über Ziel ({BENCH.firstCallH} Std.)
-                    </>
-                  }
-                  tone={perfTone(BENCH.firstCallMe, BENCH.firstCallH, false)}
-                />
-                <Kpi
-                  label="Terminquote"
-                  value={`${BENCH.presetterTerminMe} %`}
-                  meta={<VsTeam v={BENCH.presetterTerminMe} bench={BENCH.presetterTermin} unit=" %" />}
-                  tone={perfTone(BENCH.presetterTerminMe, BENCH.presetterTermin)}
-                />
-              </>
+              <Kpi label="Ø bis Erstanruf" value="–" meta={`noch keine Anrufe diesen Monat · Ziel ${BENCH.firstCallH} Std.`} />
+            )}
+            {BENCH.presetterTerminMe != null ? (
+              <Kpi
+                label="Terminquote"
+                value={`${BENCH.presetterTerminMe} %`}
+                meta={<VsTeam v={BENCH.presetterTerminMe} bench={BENCH.presetterTermin} unit=" %" />}
+                tone={perfTone(BENCH.presetterTerminMe, BENCH.presetterTermin)}
+              />
+            ) : (
+              <Kpi label="Terminquote" value="–" meta="noch keine Anrufe diesen Monat" />
             )}
           </div>
           <section className="ee-card ee-card--flush" data-component="CallQueue">
@@ -247,6 +251,9 @@ interface Todo {
   right: ReactNode;
   onClick: () => void;
 }
+
+/** 3.4 → „3,4“ */
+const num1 = (n: number) => n.toLocaleString("de-DE", { maximumFractionDigits: 1 });
 
 function CloserOverview() {
   const { data, me, now, go, firstName } = useDashboard();

@@ -1,5 +1,6 @@
 import { parseRoles } from "@/lib/roles";
 import { getSession } from "@/server/auth";
+import { loadActivities } from "@/server/lead-activity";
 import { leadIdsForCloser, setterIdMap } from "@/server/workspace";
 import { PipedriveNotConfigured } from "@/server/pipedrive/client";
 import { loadLeadsForUser } from "@/server/pipedrive/leads";
@@ -13,7 +14,7 @@ export async function GET() {
   const session = await getSession();
   if (!session) return Response.json({ error: "Nicht angemeldet" }, { status: 401 });
   try {
-    const result = await loadLeadsForUser({ id: session.user.id, roles: parseRoles(session.user.role) }, await setterIdMap(), await leadIdsForCloser(session.user.id));
+    const result = await loadLeadsForUser({ id: session.user.id, roles: parseRoles(session.user.role) }, await setterIdMap(), await leadIdsForCloser(session.user.id), await loadActivities());
     return Response.json(result, { headers: { "cache-control": "private, no-store" } });
   } catch (e) {
     if (e instanceof PipedriveNotConfigured) return Response.json({ error: e.message }, { status: 503 });
