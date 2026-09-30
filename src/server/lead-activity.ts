@@ -7,7 +7,7 @@ import { isAdmin } from "@/lib/roles";
 import type { Role, StatusKey } from "@/lib/types";
 import { vqSummary } from "@/lib/vq";
 import { db, schema } from "./db";
-import { addDealNote, pipedriveWriteEnabled, updateDeal, type DealUpdate } from "./pipedrive/client";
+import { addDealNote, pipedriveWriteMode, updateDeal, type DealUpdate } from "./pipedrive/client";
 import { invalidateLeadCache, loadLeadsFromPipedrive } from "./pipedrive/leads";
 import { leadIdsForCloser, notify, setterIdMap, type Viewer } from "./workspace";
 
@@ -128,9 +128,11 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
 
   /* Zurückschreiben nach Pipedrive (nur wenn eingeschaltet) */
   let pd: string | null = null;
-  if (pipedriveWriteEnabled() && (patch || pdNote) && lead.pd) {
+  const mode = pipedriveWriteMode();
+  if (mode !== "aus" && (patch || pdNote) && lead.pd) {
     try {
-      if (patch) await updateDeal(lead.pd, patch);
+      /* Stufe/Status nur im Modus „alles“ – vorerst verschiebt das Dashboard nichts in Pipedrive */
+      if (patch && mode === "alles") await updateDeal(lead.pd, patch);
       if (pdNote) await addDealNote(lead.pd, pdNote);
       pd = "ok";
       invalidateLeadCache();

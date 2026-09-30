@@ -84,8 +84,13 @@ export async function getPersons(ids: number[]): Promise<PdPerson[]> {
 
 /* ---------- Schreiben (nur mit PIPEDRIVE_WRITE=true) ---------- */
 
-/** Zurückschreiben ist ausdrücklich eingeschaltet – schützt echte Deals beim Testen. */
-export const pipedriveWriteEnabled = () => process.env.PIPEDRIVE_WRITE === "true";
+/** Zurückschreiben nach Pipedrive (PIPEDRIVE_WRITE):
+ *  aus (Standard) · „notizen“ = nur Notizen am Deal, Stufe/Status bleiben · „true“ = Notizen + Stufe/Status */
+export const pipedriveWriteMode = (): "aus" | "notizen" | "alles" => {
+  const v = (process.env.PIPEDRIVE_WRITE ?? "").trim().toLowerCase();
+  return v === "true" ? "alles" : v === "notizen" ? "notizen" : "aus";
+};
+export const pipedriveWriteEnabled = () => pipedriveWriteMode() !== "aus";
 
 async function pdSend(method: "PATCH" | "POST", url: string, body: unknown) {
   const token = process.env.PIPEDRIVE_API_TOKEN;

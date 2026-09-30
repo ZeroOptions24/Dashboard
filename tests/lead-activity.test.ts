@@ -85,7 +85,7 @@ vi.mock("@/server/db", async () => (await import("./db")).createTestDb());
 const pd = { updateDeal: vi.fn(async () => ({})), addDealNote: vi.fn(async () => ({})) };
 vi.mock("@/server/pipedrive/client", () => ({
   PipedriveNotConfigured: class extends Error {},
-  pipedriveWriteEnabled: () => process.env.PIPEDRIVE_WRITE === "true",
+  pipedriveWriteMode: () => (process.env.PIPEDRIVE_WRITE === "true" ? "alles" : process.env.PIPEDRIVE_WRITE === "notizen" ? "notizen" : "aus"),
   updateDeal: (...a: unknown[]) => pd.updateDeal(...(a as [])),
   addDealNote: (...a: unknown[]) => pd.addDealNote(...(a as [])),
   getDeals: async () => [
@@ -140,6 +140,13 @@ describe("Lead-Aktionen auf dem Server", () => {
     expect(pd.updateDeal).not.toHaveBeenCalled();
   });
 
+  it("PIPEDRIVE_WRITE=notizen: nur Notiz, Stufe/Status bleiben unverändert", async () => {
+    vi.stubEnv("PIPEDRIVE_WRITE", "notizen");
+    await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "abgesagt", reason: "Kein Eigentümer" });
+    expect(pd.updateDeal).not.toHaveBeenCalled();
+    expect((pd.addDealNote.mock.calls.at(-1) as unknown as [number, string])[1]).toContain("Abgesagt – Kein Eigentümer");
+  });
+
   it("mit PIPEDRIVE_WRITE: Stufe, Notiz mit Gespräch und Vorqualifizierung, Verlustgrund", async () => {
     vi.stubEnv("PIPEDRIVE_WRITE", "true");
     const r = await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "nicht_erreicht" });
@@ -168,7 +175,7 @@ describe("Lead-Aktionen auf dem Server", () => {
     const r2 = await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "termin" });
     expect(r2.warning).toMatch(/HTTP 403/);
     const acts = await la.loadActivities();
-    expect(acts.filter((a) => a.leadId === "PD-7").length).toBe(8);
+    expect(acts.filter((a) => a.leadId === "PD-7").length).toBe(9);
   });
 
   it("Setter wird über Ergebnisse informiert", async () => {
