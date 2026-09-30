@@ -2,7 +2,9 @@
 
 Dashboard für die MBs (Setter, Presetter, Closer) und Admins: Leads und Status aus Pipedrive, Zahlen, Ranglisten, Events, Auszahlungen, Verträge und Stammdaten.
 
-**Stand:** Login mit Rollen und Onboarding neuer MAs (Einladung → Daten → Vertrag → Unterschrift → Zugang) laufen mit eigener Datenbank. Die Dashboard-Inhalte sind noch Beispieldaten bzw. optional Pipedrive. Echte Setter-Daten erst nach der Datenschutz-Freigabe (eigener Server, AV-Verträge).
+**Stand:** Login mit mehreren Rollen je Person, Onboarding, Team-Verwaltung, Verträge, Events, Closer-Kalender und Termine, Wettbewerb, Auszahlungen und Benachrichtigungen laufen mit eigener Datenbank; Leads und Kennzahlen kommen aus Pipedrive. Echte Daten erst nach der Datenschutz-Freigabe (eigener Server, AV-Verträge).
+
+**Zwei Betriebsarten** (`NEXT_PUBLIC_DATA_SOURCE`): `demo` zeigt den Prototyp mit erfundenen Beispieldaten (nichts wird gespeichert); `pipedrive` ist der echte Betrieb – Pipedrive + Datenbank, Beispieldaten werden nie angezeigt.
 
 **Offene Punkte für EnergyEngel:** [`docs/TODO-EnergyEngel.md`](docs/TODO-EnergyEngel.md)
 
@@ -18,6 +20,8 @@ npm run dev
 Vorher einmalig `.env.example` nach `.env.local` kopieren und `BETTER_AUTH_SECRET` sowie `DATA_ENCRYPTION_KEY` erzeugen (`openssl rand -base64 32`).
 
 Beim ersten Aufruf führt `/setup` durch das Anlegen des ersten Admins. Admins sehen oben rechts „Ansicht als“ und können in die anderen Rollen hineinschauen.
+
+**Tests:** `npm test` (Vitest) – Logik, Pipedrive-Zuordnung und Rechteprüfungen gegen eine In-Memory-Datenbank mit den echten Migrationen.
 
 **Nur lokal (Entwicklung):**
 - `/dev/postfach` – alle E-Mails, die das System verschickt hätte (ohne SMTP-Zugang)
@@ -35,6 +39,10 @@ Beim ersten Aufruf führt `/setup` durch das Anlegen des ersten Admins. Admins s
 | Passwort festlegen | MA | Aktiv |
 
 Außerdem: Link erneut senden, *Direkt freischalten* (bestehende MAs mit Vertrag), *Zurückziehen* (sperrt den Zugang). Jede Aktion landet im Protokoll (`audit_log`).
+
+**Team-Verwaltung:** Rollen (mehrere je Person), Name und E-Mail ändern, sperren, löschen (DSGVO, samt aller Daten), Details und IBAN (Abruf protokolliert), bestehende MAs als Liste übernehmen („Name – E-Mail – Rollen“, optional ohne Vertragsschritt). Es bleibt immer mindestens ein aktiver Admin.
+
+**Verträge:** MAs sehen ihre Verträge, öffnen das PDF und stellen Rückfragen (Mail an Admins). Admins sehen alle, erinnern, klären Rückfragen und schicken weitere Unterlagen zur Unterschrift.
 
 **Erinnerungen** (täglich über `POST /api/cron/reminders` mit `CRON_SECRET`, oder per Button im Team-Bereich): Formular nach 3 Tagen erneut senden (max. 2×), abgelaufenen Passwort-Link neu senden, hängende Fälle (Vertrag nicht gesendet/unterschrieben) als Zusammenfassung an die Admins.
 
@@ -56,13 +64,16 @@ Das Dashboard lädt dann die Wärmepumpen-Deals der Pipeline „Empfehlung kommt
 
 **Test ohne echten Token:** `PIPEDRIVE_API_BASE` kann auf einen nachgebauten Pipedrive-Server zeigen.
 
+**Personen:** Im echten Betrieb ist jede Person über ihre Nutzer-ID bekannt. Der Pipedrive-Setter-Name wird auf dem Server dem passenden Konto zugeordnet; Setter ohne Konto erscheinen mit ihrem Namen. Closer sehen die Leads, für die bei ihnen ein Termin gebucht ist. Die volle Telefonnummer bekommen nur Admins und der zuständige Closer.
+
 **Zuordnung** (`src/server/pipedrive/config.ts`, bestätigt am 25.09.2026):
 - Empfehlung kommt, QUALI, Kontaktieren (2) → *Lead eingereicht* · An Mitarbeiter übergeben, Mitarbeiter in Bearbeitung → *Termin gelegt* · Checks → *In den Checks* · Verkauf / gewonnen → *Verkauf* · Später Interessant, Anderes Potential, Ablehnung → *Abgesagt*
 - Setter: Deal-Feld „Setter“ (Name, von n8n über den Setter-Link gesetzt). Fehlt der Link, bleibt das Feld leer → Lead erscheint als „unbekannt“.
 - Vorerst nur Wärmepumpen; PV und weitere Produkte kommen später.
 
 **Noch offen:**
-- Presetter und Closer: Woran erkennt man sie in Pipedrive (Deal-Owner, Feld „VQ Berater“)? Bis dahin bekommen sie aus Pipedrive keine Leads.
+- Presetter: Woran erkennt man sie in Pipedrive? Bis dahin bekommen sie keine Leads.
+- Status-Änderungen aus dem Dashboard werden noch nicht nach Pipedrive geschrieben.
 - *Ausgezahlt* gibt es in Pipedrive nicht – kommt später aus der eigenen Datenbank.
 
 ## Aufbau
@@ -77,11 +88,14 @@ Das Dashboard lädt dann die Wärmepumpen-Deals der Pipeline „Empfehlung kommt
 | `src/app/globals.css` | Design-Tokens (hell/dunkel) und alle `ee-`-Komponenten-Styles |
 | `src/lib/types.ts` | Datenmodell (Lead, Termin, Auszahlung, Vertrag, …) – Schnittstelle zur späteren Datenquelle |
 | `src/lib/domain.ts` | Geschäftsregeln: Pipeline-Status, Provisionssätze, Verlustgründe, Leitfaden |
-| `src/lib/demo-data.ts` | Beispieldaten (`createDemoData()`), wird später durch Datenbank/Pipedrive ersetzt |
-| `src/lib/store.ts` | Zustand im Browser (Daten, Ansicht, Assistent, Overlays); Änderungen nur über Aktionen |
+| `src/lib/demo-data.ts` | Beispieldaten (`createDemoData()`) für den Demo-Modus |
+| `src/lib/store.ts` | Zustand im Browser (Daten, Ansicht, Assistent, Overlays); im echten Betrieb werden die Beispieldaten geleert und durch Pipedrive/Datenbank ersetzt |
+| `src/lib/live.ts` / `src/components/DataSource.tsx` | Laden der echten Daten; `persist()` speichert Änderungen auf dem Server |
 | `src/components/` | React-Komponenten – **alle Ansichten** (Übersicht, Pipeline, Lead erfassen, Leitfaden, Kalender, Termine, Rangliste, Auszahlungen, Verträge, Events, Stammdaten, Team) |
 | `src/lib/vq.ts` | Fragen der Vorqualifizierung (Lead erfassen, Leitfaden), Heizlast-Schätzung |
-| `src/lib/actions.ts` | Aktionen auf den Dashboard-Daten (Zusagen, Verträge, Freigaben, Ranglisten) – hier dockt später die echte Datenquelle an |
+| `src/lib/actions.ts` | Aktionen auf den Dashboard-Daten – sofort sichtbar, im echten Betrieb zusätzlich gespeichert |
+| `src/server/workspace.ts` | Team-Alltag (Events, Kalender, Termine, Wettbewerb, Auszahlungen, Benachrichtigungen) mit Rechteprüfung je Aktion; Server Actions in `src/app/actions/workspace.ts` |
+| `src/server/team.ts` / `contract-service.ts` | Team-Verwaltung und Verträge |
 | `src/server/db/` | Datenbankschema (Drizzle) und Verbindung; Migrationen in `drizzle/` (`npm run db:generate`) |
 | `src/server/auth.ts` | Login (Better Auth): Rollen, Passwort-Links, `requireAdmin()` |
 | `src/server/onboarding.ts` | Onboarding-Ablauf; Server Actions in `src/app/actions/onboarding.ts` |
@@ -95,6 +109,4 @@ Vorlage: [`mb-dashboard.html`](https://zerooptions24.github.io/EnergyEngel/mb-da
 
 ## Nächste Schritte
 
-1. Presetter/Closer-Zuordnung aus Pipedrive (sobald geklärt), Kennzahlen der Übersicht aus echten Daten berechnen.
-2. Anbindungen: Kalender, n8n-Webhooks, Auszahlungen.
-3. Hosting auf eigenem EU-Server (geplant: Hetzner + Coolify).
+Siehe [`docs/TODO-EnergyEngel.md`](docs/TODO-EnergyEngel.md): Presetter-Zuordnung, Rückschreiben nach Pipedrive, Lead erfassen über n8n, Provisionslogik, Hosting auf eigenem EU-Server (Hetzner + Coolify).
