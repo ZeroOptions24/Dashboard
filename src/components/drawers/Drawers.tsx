@@ -12,7 +12,7 @@ import { dkey, fmtDay, fmtHour, maskIban, pad } from "@/lib/format";
 import { formatIban } from "@/lib/iban";
 import { isLost, provFor, telFull, telHref } from "@/lib/leads";
 import { ROLE_LABEL } from "@/lib/nav";
-import { store, useStore, type Drawer } from "@/lib/store";
+import { store, useStore, type Drawer, LIVE } from "@/lib/store";
 import { callLead, changeStatus, closeOverlays, openDrawer, toast } from "@/lib/ui";
 import { useDashboard } from "@/lib/useDashboard";
 
@@ -166,7 +166,7 @@ function LeadDrawer({ id }: { id: string }) {
         )}
         {actions}
         <div className="stack" style={{ gap: 10 }}>
-          <span className="eyebrow">Verlauf (aus Pipedrive)</span>
+          <span className="eyebrow">{LIVE ? "Verlauf (Pipedrive + Dashboard)" : "Verlauf (aus Pipedrive)"}</span>
           <ul className="ee-timeline">
             {l.hist.map(([s, t], i) => (
               <li key={i}>

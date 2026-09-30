@@ -28,7 +28,7 @@ const lead = (id: string, over: Partial<Lead> = {}): Lead => ({
   pdChangedAt: "2026-09-30T06:00:00.000Z",
   ...over,
 });
-const act = (leadId: string, userId: string, kind: ActivityRow["kind"], createdAt: string, data: Record<string, unknown> = {}, text = kind): ActivityRow => ({
+const act = (leadId: string, userId: string, kind: ActivityRow["kind"], createdAt: string, data: Record<string, unknown> = {}, text: string = kind): ActivityRow => ({
   leadId,
   userId,
   role: "presetter",

@@ -195,7 +195,7 @@ function ensureSetter(k: PersonKey) {
   const d = store.data;
   if (d.PEOPLE[k]) return;
   const first = k === "unbekannt" ? "ohne Setter" : k.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-  d.PEOPLE[k] = { key: k, name: first, first: first.split(" ")[0], role: "setter", initials: first.slice(0, 2).toUpperCase() };
+  d.PEOPLE[k] = { key: k, name: first, first: k === "unbekannt" ? first : first.split(" ")[0], role: "setter", initials: first.slice(0, 2).toUpperCase() };
 }
 
 /** Live-Leads (z. B. aus Pipedrive, bereits serverseitig gefiltert) übernehmen. */

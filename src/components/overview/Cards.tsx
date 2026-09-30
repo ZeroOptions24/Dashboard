@@ -6,7 +6,7 @@ import { PAYOUT_STATUS, PROV } from "@/lib/domain";
 import { WD, dkey, eur } from "@/lib/format";
 import { leadsForUser } from "@/lib/leads";
 import { rankOf, ranked } from "@/lib/ranking";
-import { setMoneyGoal } from "@/lib/store";
+import { setMoneyGoal, LIVE } from "@/lib/store";
 import { useDashboard, type DashboardCtx } from "@/lib/useDashboard";
 
 /* ---------- Monatsziel bearbeiten (Setter, Presetter, Closer) ---------- */
@@ -55,8 +55,18 @@ export function MoneyCard() {
   const cur = (data.PAYOUTS[me] || [])[0];
   const rate = role === "presetter" ? PROV.presetter.termin : role === "closer" ? PROV.closer.abschluss : PROV.setter.abschluss;
   const per = role === "presetter" ? "Termine" : "Verkäufe";
+  /* Echte Daten ohne Abrechnung: verdient = Verkäufe (Setter) bzw. gelegte Termine (Presetter) in diesem Monat.
+     TODO(EnergyEngel): Sätze aus PROV sind Beispielwerte (Provisionsmodell 3.5). */
+  const thisMonth = (l: (typeof L)[number]) => {
+    const d = l.pdChangedAt ? new Date(l.pdChangedAt) : null;
+    return !!d && d.getFullYear() === data.NOW.getFullYear() && d.getMonth() === data.NOW.getMonth();
+  };
+  const liveEarned =
+    role === "presetter"
+      ? L.filter((l) => l.presetter === me && ["termin", "checks", "verkauft", "ausgezahlt"].includes(l.status)).length * rate
+      : L.filter((l) => ["verkauft", "ausgezahlt"].includes(l.status) && thisMonth(l)).length * rate;
   const goal = data.MONEY_GOAL[me] || 3000,
-    earned = cur ? cur.betrag : 0;
+    earned = cur ? cur.betrag : LIVE ? liveEarned : 0;
   const soonLeads = role === "presetter" ? [] : L.filter((l) => ["termin", "checks"].includes(l.status));
   const soon = soonLeads.length * rate;
   const pE = Math.min(100, (earned / goal) * 100),

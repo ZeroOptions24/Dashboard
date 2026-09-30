@@ -90,11 +90,15 @@ export default function EventsView() {
     return (
       <>
         <PageHead title="Events" />
-        <div className="ee-grid g-2">
-          {list.map((e) => (
-            <EventCard key={e.id} event={e} />
-          ))}
-        </div>
+        {list.length ? (
+          <div className="ee-grid g-2">
+            {list.map((e) => (
+              <EventCard key={e.id} event={e} />
+            ))}
+          </div>
+        ) : (
+          <div className="ee-empty">Gerade stehen keine Events an.</div>
+        )}
       </>
     );
   return (

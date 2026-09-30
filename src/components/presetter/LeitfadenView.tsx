@@ -62,7 +62,7 @@ export default function LeitfadenView() {
     t
       .replace("{anrede}", l.anrede)
       .replace("{me}", person(me).first)
-      .replace("{setter}", person(l.setter).first)
+      .replace("{setter}", l.setter === "unbekannt" ? "unserem Team" : person(l.setter).first)
       .replace("{closer}", person(s1?.closer ?? closers[0] ?? "").first || "unser Energieberater")
       .replace("{slot1}", s1 ? `${fmtDay(s1.date)} um ${fmtHour(s1.start)} Uhr` : "…")
       .replace("{slot2}", s2 ? `${fmtDay(s2.date)} um ${fmtHour(s2.start)} Uhr` : "…");
