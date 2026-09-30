@@ -105,7 +105,7 @@ export default function LeitfadenView() {
         <div className="ee-callbar__who">
           <b>{l.kunde}</b>
           <span>
-            {l.ort} · {l.attempts ? `${l.attempts}. Versuch` : "Erstanruf"}
+            {[l.ort, l.attempts ? `${l.attempts}. Versuch` : "Erstanruf"].filter(Boolean).join(" · ")}
           </span>
         </div>
         <a className="ee-btn ee-btn--primary" href={telHref(l)}>

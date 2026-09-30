@@ -291,8 +291,10 @@ export function SetterRankCard() {
             </b>{" "}
             bis Platz {above.rank}
           </>
-        ) : (
+        ) : my.val > 0 ? (
           <b>Du führst die Setter-Rangliste</b>
+        ) : (
+          <>Noch keine gelegten Termine diesen Monat – dein erster Termin bringt dich nach vorn.</>
         )}
       </p>
     </section>

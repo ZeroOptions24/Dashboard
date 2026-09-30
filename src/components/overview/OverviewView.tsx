@@ -107,7 +107,7 @@ function CallQueue({ queue }: { queue: Lead[] }) {
           <button className="ee-call__who" onClick={() => openLead(l.id)}>
             <b>{l.kunde}</b>
             <span>
-              {l.ort} · von {person(l.setter).first}
+              {[l.ort, l.setter === "unbekannt" ? "ohne Setter" : `von ${person(l.setter).first}`].filter(Boolean).join(" · ")}
             </span>
             <span className="mono">{telFull(l)}</span>
           </button>

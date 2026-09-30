@@ -48,7 +48,7 @@ export default function TermineView() {
                     <td>
                       <div className="who">{l.kunde}</div>
                       <div className="sub">
-                        {l.ort} · seit {l.hist[0][1].split(" ")[0]}
+                        {[l.ort, `seit ${l.hist[0][1].split(" ")[0]}`].filter(Boolean).join(" · ")}
                       </div>
                     </td>
                     <td className="r" data-span="">
