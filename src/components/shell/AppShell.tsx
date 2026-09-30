@@ -21,7 +21,7 @@ import TopBar, { NotifPanel } from "@/components/shell/TopBar";
 import TeamView from "@/components/team/TeamView";
 import { allowedView } from "@/lib/nav";
 import { viewableRoles } from "@/lib/roles";
-import { notify, store, useStore } from "@/lib/store";
+import { clearDemoData, LIVE, notify, store, useStore } from "@/lib/store";
 import { closeOverlays } from "@/lib/ui";
 import { refreshContractSummary } from "@/lib/live";
 import type { Role } from "@/lib/types";
@@ -64,6 +64,7 @@ export default function AppShell({
 
   const rolesKey = roles.join(",");
   useEffect(() => {
+    if (LIVE && !store.session) clearDemoData();
     store.session = { name, roles: rolesKey.split(",") as Role[] };
     store.ui.role = startRole;
     store.ui.view = allowedView(startRole, view ?? store.ui.view);

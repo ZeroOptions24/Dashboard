@@ -36,6 +36,13 @@
       "when": 1790772198204,
       "tag": "0004_vertraege",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790772641633,
+      "tag": "0005_team_alltag",
+      "breakpoints": true
     }
   ]
 }

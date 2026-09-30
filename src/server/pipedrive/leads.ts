@@ -65,6 +65,8 @@ export function dealToLead(deal: PdDeal, person: PdPerson | undefined): Lead {
     kunde,
     anrede: kunde,
     tel: phone ? maskPhone(phone) : "–",
+    /* volle Nummer – loadLeadsForUser gibt sie nur an Rollen weiter, die anrufen */
+    telFull: phone ? phone.replace(/\s+/g, " ").trim() : undefined,
     ort: person?.postal_address?.locality || "",
     produkt: "wp",
     status,
@@ -115,22 +117,26 @@ export interface LeadsForUser {
 }
 
 export interface LeadUser {
+  id: string;
   roles: Role[];
-  pipedriveSetterName: string | null;
-  name: string;
 }
 
-export const setterKeyOf = (user: LeadUser) => setterKey(user.pipedriveSetterName || user.name.split(" ")[0]);
+/** Setter-Namen aus Pipedrive durch Nutzer-IDs ersetzen (unbekannte Namen bleiben stehen) */
+export const withSetterIds = (leads: Lead[], ids: Map<string, string>) => leads.map((l) => (ids.has(l.setter) ? { ...l, setter: ids.get(l.setter)! } : l));
 
 /** Nur die Leads, die diese Person sehen darf – die Filterung passiert hier auf dem Server.
- *  Admins: alle. Setter: Deals mit ihrem Pipedrive-Setter-Namen. */
-export async function loadLeadsForUser(user: LeadUser): Promise<LeadsForUser> {
-  const all = await loadLeadsFromPipedrive();
+ *  Admins: alle. Setter: Deals mit ihrem Pipedrive-Setter-Namen. Personen-Schlüssel = Nutzer-ID. */
+export async function loadLeadsForUser(user: LeadUser, setterIds: Map<string, string>, closerLeadIds: Set<string> = new Set()): Promise<LeadsForUser> {
+  const all = withSetterIds(await loadLeadsFromPipedrive(), setterIds);
   const keys: Partial<Record<Role, string>> = {};
-  if (user.roles.includes("setter")) keys.setter = setterKeyOf(user);
+  if (user.roles.includes("setter")) keys.setter = user.id;
   /* TODO: Zuordnung für Presetter/Closer in Pipedrive klären (Deal-Owner? Feld „VQ Berater“?) */
-  const note =
-    user.roles.includes("presetter") || user.roles.includes("closer") ? "Die Zuordnung von Presetter- und Closer-Leads aus Pipedrive ist noch offen." : undefined;
+  const note = user.roles.includes("presetter") && !isAdmin(user.roles) ? "Die Zuordnung von Presetter-Leads aus Pipedrive ist noch offen." : undefined;
+  if (user.roles.includes("closer")) keys.closer = user.id;
   if (isAdmin(user.roles)) return { leads: all, keys };
-  return { leads: keys.setter ? all.filter((l) => l.setter === keys.setter) : [], keys, note };
+  /* Setter: eigene Leads (Nummer maskiert); Closer: Leads mit einem Termin bei ihnen – mit voller Nummer */
+  const leads = all
+    .filter((l) => (keys.setter && l.setter === keys.setter) || closerLeadIds.has(l.id))
+    .map((l) => (closerLeadIds.has(l.id) ? l : { ...l, telFull: undefined }));
+  return { leads, keys, note };
 }

@@ -6,7 +6,7 @@ import Icon from "@/components/ui/Icon";
 import { TryChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
 import { bookSlot, setLeadPreNote, setLeadVq } from "@/lib/actions";
-import { closerPaused, freeSlots } from "@/lib/appointments";
+import { bookableSlots } from "@/lib/appointments";
 import { GUIDES } from "@/lib/domain";
 import { fmtDay, fmtHour } from "@/lib/format";
 import { telFull, telHref, urgencySort } from "@/lib/leads";
@@ -17,12 +17,13 @@ import type { Slot } from "@/lib/types";
 import { changeStatus, openDrawer } from "@/lib/ui";
 
 /* Prototyp: fester Closer „Leo“ – später die Closer, denen der Presetter zuarbeitet */
-const CLOSER = "leo";
 
 /** zwei Terminvorschläge an unterschiedlichen Tagen */
 function twoSlots(slots: Slot[]): [Slot | undefined, Slot | undefined] {
+  /* zweiter Vorschlag an einem anderen Tag – möglichst beim selben Closer (das Skript nennt einen Namen) */
   const a = slots[0],
-    b = slots.find((s) => a && s.date !== a.date) || slots[1];
+    same = slots.filter((s) => a && s !== a && s.closer === a.closer),
+    b = same.find((s) => s.date !== a.date) || same[0];
   return [a, b];
 }
 
@@ -55,14 +56,14 @@ export default function LeitfadenView() {
       </>
     );
   const g = GUIDES.wp,
-    slots = freeSlots(data.SLOTS, data.APPTS, CLOSER, now),
+    { slots, closers, paused } = bookableSlots(data.SLOTS, data.APPTS, now),
     [s1, s2] = twoSlots(slots);
   const fill = (t: string) =>
     t
       .replace("{anrede}", l.anrede)
       .replace("{me}", person(me).first)
       .replace("{setter}", person(l.setter).first)
-      .replace("{closer}", person(CLOSER).first)
+      .replace("{closer}", person(s1?.closer ?? closers[0] ?? "").first || "unser Energieberater")
       .replace("{slot1}", s1 ? `${fmtDay(s1.date)} um ${fmtHour(s1.start)} Uhr` : "…")
       .replace("{slot2}", s2 ? `${fmtDay(s2.date)} um ${fmtHour(s2.start)} Uhr` : "…");
   const vq: FormValues = l.vq || {},
@@ -244,9 +245,9 @@ export default function LeitfadenView() {
             <div className="ee-phase" data-step="4">
               <h3>Termin legen</h3>
               <Script text={fill(g.close)} anrede={l.anrede} />
-              {closerPaused(data.APPTS, CLOSER, now) && (
+              {paused.length > 0 && (
                 <div className="ee-alert ee-alert--bad">
-                  <Icon name="lock" small /> {person(CLOSER).first} ist pausiert – offene Rückmeldungen
+                  <Icon name="lock" small /> {paused.map((k) => person(k).first).join(", ")} {paused.length > 1 ? "sind" : "ist"} pausiert – offene Rückmeldungen
                 </div>
               )}
               <div data-component="SlotPicker">
@@ -260,6 +261,7 @@ export default function LeitfadenView() {
                           {ss.map((s) => (
                             <button key={s.id} className="ee-slotpick__btn" aria-pressed={ui.guideSlot === s.id} onClick={() => updateUi({ guideSlot: s.id })}>
                               {fmtHour(s.start)}
+                              {closers.length > 1 ? ` · ${person(s.closer).first}` : ""}
                             </button>
                           ))}
                         </div>

@@ -4,6 +4,7 @@
 
 import { PROV, STATUS } from "./domain";
 import { eur, parseKey } from "./format";
+import { LIVE } from "./source";
 import type { Appointment, Lead, PersonKey, Role, StatusKey } from "./types";
 
 /** Leads, die eine Person in ihrer Rolle sehen darf. */
@@ -95,10 +96,14 @@ export function urgencySort(now: Date) {
 /** Lead hatte bereits einen Termin (für Terminquoten). */
 export const hadTermin = (s: StatusKey) => ["termin", "checks", "verkauft", "ausgezahlt", "verloren"].includes(s);
 
-/** PROTOTYP: volle Nummer aus der maskierten Demo-Nummer. Später liefert der Server
- *  die volle Nummer nur an Rollen, die sie sehen dürfen (Presetter, Closer). */
-export const telFull = (l: Lead) => l.tel.replace("••••", "4418");
-export const telHref = (l: Lead) => "tel:" + telFull(l).replace(/\s/g, "");
+/** Volle Nummer, falls der Server sie für diese Person mitliefert – sonst die maskierte.
+ *  Nur die Beispieldaten ergänzen die maskierte Demo-Nummer; echte Nummern werden nie erraten. */
+export const telFull = (l: Lead) => l.telFull ?? (LIVE ? l.tel : l.tel.replace("••••", "4418"));
+/** Anruf-Link nur mit vollständiger Nummer */
+export const telHref = (l: Lead) => {
+  const t = telFull(l);
+  return /[•–]/.test(t) || !/\d/.test(t) ? undefined : "tel:" + t.replace(/\s/g, "");
+};
 
 /** Eingangszeitpunkt: Datum aus „datum“ (TT.MM.JJJJ), Uhrzeit aus dem ersten Verlaufseintrag. */
 export function receivedAt(l: Lead): number {

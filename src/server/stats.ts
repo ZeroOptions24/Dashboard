@@ -2,7 +2,7 @@ import "server-only";
 import { computeStats, type LeadStats } from "@/lib/stats";
 import type { AdminKpi, MbStats, PersonKey } from "@/lib/types";
 import { isAdmin } from "@/lib/roles";
-import { loadLeadsFromPipedrive, setterKeyOf, type LeadUser } from "./pipedrive/leads";
+import { loadLeadsFromPipedrive, withSetterIds, type LeadUser } from "./pipedrive/leads";
 
 /* Kennzahlen je Rolle: berechnet über ALLE Leads, ausgeliefert nur das Erlaubte.
    - Admin: alles
@@ -21,10 +21,10 @@ export interface StatsForUser {
   dayGoal?: LeadStats["dayGoal"][string];
 }
 
-export async function statsForUser(user: LeadUser): Promise<StatsForUser> {
-  const s = computeStats(await loadLeadsFromPipedrive(), new Date());
+export async function statsForUser(user: LeadUser, setterIds: Map<string, string>): Promise<StatsForUser> {
+  const s = computeStats(withSetterIds(await loadLeadsFromPipedrive(), setterIds), new Date());
   const base = { monat: s.adminKpi.monat, monatsende: s.monatsende };
-  const key = user.roles.includes("setter") ? setterKeyOf(user) : null;
+  const key = user.roles.includes("setter") ? user.id : null;
   const setterPart = key ? { bench: s.bench, setterBoardRows: s.setterBoardRows, dayGoal: s.dayGoal[key] ?? { week: [], streak: 0 } } : {};
   if (isAdmin(user.roles))
     return { ...base, ...setterPart, adminKpi: s.adminKpi, mbStats: s.perSetter, weekly: s.weekly, lossStats: s.lossStats, bench: s.bench, setterBoardRows: s.setterBoardRows };

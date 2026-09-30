@@ -5,10 +5,10 @@ import Icon from "@/components/ui/Icon";
 import { StatusChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
 import { bookSlot, createLead, pushNotif, setLeadStatus } from "@/lib/actions";
-import { closerPaused, freeSlots } from "@/lib/appointments";
+import { bookableSlots } from "@/lib/appointments";
 import { fmtDay, fmtHour, nowStamp } from "@/lib/format";
 import { leadsForUser } from "@/lib/leads";
-import { newWizard, setWizard, store, type WizardStep } from "@/lib/store";
+import { newWizard, setWizard, store, type WizardStep, LIVE } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
 import { STEP1, VQ_SECTIONS, heatText, vqProgress, vqSummary, type FormValues } from "@/lib/vq";
 import type { Slot } from "@/lib/types";
@@ -19,8 +19,7 @@ import { toast } from "@/lib/ui";
    Schritt 2 „Vorqualifizieren“  → später n8n-Webhook POST /webhook/wp-vorqual (optional)
    Schritt 3 „Termin legen“      → bucht einen freien Closer-Slot (optional) */
 
-const CLOSER = "leo"; /* Prototyp: fester Closer */
-const PRESETTER = "inan"; /* Prototyp: fester Presetter */
+const PRESETTER = "inan"; /* Prototyp: fester Presetter; echte Daten: „das Presetting“ */
 
 const go = (step: WizardStep) => {
   setWizard({ step });
@@ -96,7 +95,8 @@ function Step1() {
     }
     const l = createLead(w.data);
     setWizard({ leadId: l.id });
-    toast(`${l.kunde} in Pipedrive angelegt`);
+    /* TODO(EnergyEngel): Übertragung nach Pipedrive (n8n-Webhook) – bis dahin nur im Dashboard */
+    toast(LIVE ? `${l.kunde} angelegt – Übertragung nach Pipedrive folgt` : `${l.kunde} in Pipedrive angelegt`);
     go(next === "vq" ? 2 : "created");
   };
   return (
@@ -166,7 +166,7 @@ function Created() {
       <div className="ee-wiz__check">
         <Icon name="check" />
       </div>
-      <h2>Der neue Kunde wurde erfolgreich in Pipedrive angelegt</h2>
+      <h2>{LIVE ? "Der neue Kunde ist angelegt" : "Der neue Kunde wurde erfolgreich in Pipedrive angelegt"}</h2>
       <p className="muted">
         {l.kunde} · {l.adresse}
       </p>
@@ -206,7 +206,7 @@ function Step2() {
       setWizard({ phone: true });
       l.preNote = `An der Tür vorqualifiziert (${p.done}/${p.total} Fragen): ${sum || "–"}. Rest telefonisch klären.`;
       pushNotif(PRESETTER, `${l.kunde}: Vorqualifizierung an der Tür begonnen (${p.done}/${p.total}) – bitte Rest telefonisch klären`, "eingereicht");
-      toast(`Teilantworten übertragen – ${person(PRESETTER).first} klärt den Rest`);
+      toast(`Teilantworten übertragen – ${LIVE ? "das Presetting" : person(PRESETTER).first} klärt den Rest`);
       return go("done");
     }
     l.preNote = `An der Tür vorqualifiziert: ${sum || "–"}`;
@@ -299,7 +299,8 @@ function Ko() {
 function Step3() {
   const { data, now, person, toast } = useDashboard();
   const w = store.wiz;
-  const slots = freeSlots(data.SLOTS, data.APPTS, CLOSER, now);
+  const { slots, closers, paused } = bookableSlots(data.SLOTS, data.APPTS, now);
+  const firsts = (ks: string[]) => ks.map((k) => person(k).first).join(", ");
   const byDay: Record<string, Slot[]> = {};
   slots.forEach((s) => (byDay[s.date] ??= []).push(s));
   const sel = data.SLOTS.find((x) => x.id === w.slot);
@@ -317,7 +318,7 @@ function Step3() {
       <section className="ee-card" data-component="SlotPicker">
         <div className="ee-card__head">
           <h2>Freie Termine</h2>
-          <span className="muted">Closer: {person(CLOSER).first} · 90 Min. vor Ort</span>
+          <span className="muted">{closers.length ? `Closer: ${firsts(closers)} · ` : ""}90 Min. vor Ort</span>
         </div>
         {Object.keys(byDay).length ? (
           Object.entries(byDay).map(([k, ss]) => (
@@ -327,14 +328,15 @@ function Step3() {
                 {ss.map((s) => (
                   <button key={s.id} className="ee-slotpick__btn" aria-pressed={w.slot === s.id} onClick={() => setWizard({ slot: s.id })}>
                     {fmtHour(s.start)}
+                    {closers.length > 1 ? ` · ${person(s.closer).first}` : ""}
                   </button>
                 ))}
               </div>
             </div>
           ))
-        ) : closerPaused(data.APPTS, CLOSER, now) ? (
+        ) : paused.length ? (
           <div className="ee-alert ee-alert--bad">
-            <Icon name="lock" small /> {person(CLOSER).first} ist pausiert – offene Rückmeldungen
+            <Icon name="lock" small /> {firsts(paused)} {paused.length > 1 ? "sind" : "ist"} pausiert – offene Rückmeldungen
           </div>
         ) : (
           <p className="muted">Keine freien Termine.</p>
@@ -393,12 +395,12 @@ function Done() {
       <h2>{l.kunde} ist erfasst</h2>
       <ul className="ee-donelist">
         <Row ok>
-          Lead in Pipedrive angelegt (<span className="mono">{l.id}</span>)
+          {LIVE ? "Lead angelegt – Übertragung nach Pipedrive folgt" : "Lead in Pipedrive angelegt"} (<span className="mono">{l.id}</span>)
         </Row>
         <Row ok={w.vqSent}>
-          {w.vqSent ? `Vorqualifizierung übertragen${w.phone ? ` – Rest klärt ${person(PRESETTER).first} telefonisch` : ""}` : "Vorqualifizierung übersprungen – macht das Presetting"}
+          {w.vqSent ? `Vorqualifizierung übertragen${w.phone ? ` – Rest klärt ${LIVE ? "das Presetting" : person(PRESETTER).first} telefonisch` : ""}` : "Vorqualifizierung übersprungen – macht das Presetting"}
         </Row>
-        <Row ok={!!a}>{a ? `Termin: ${fmtDay(a.date)} ${fmtHour(a.start)} mit ${person(a.closer).first}` : `Kein Termin – ${person(PRESETTER).first} ruft den Kunden an`}</Row>
+        <Row ok={!!a}>{a ? `Termin: ${fmtDay(a.date)} ${fmtHour(a.start)} mit ${person(a.closer).first}` : `Kein Termin – ${LIVE ? "das Presetting" : person(PRESETTER).first} ruft den Kunden an`}</Row>
       </ul>
       <p className="muted">
         Heute:{" "}

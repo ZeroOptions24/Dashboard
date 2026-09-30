@@ -51,7 +51,7 @@ function AdminPayouts() {
                   <td>
                     <div className="who">{person(r.who).name}</div>
                     <div className="sub">
-                      {ROLE_LABEL[person(r.who).role]} · <span className="mono">{maskIban(data.PROFILES[r.who]?.iban ?? "")}</span>
+                      {ROLE_LABEL[person(r.who).role]} · <span className="mono">{r.ibanLast4 ? `•••• ${r.ibanLast4}` : maskIban(data.PROFILES[r.who]?.iban ?? "")}</span>
                     </div>
                   </td>
                   <td className="sub">{r.periode}</td>
@@ -102,6 +102,7 @@ export default function AuszahlungenView() {
   const paid = paidList.reduce((s, p) => s + p.betrag, 0);
   const vorl = cur.posten.filter((x) => String(x[4]).startsWith("vorlaeufig")).reduce((s, x) => s + x[3], 0);
   const iban = data.PROFILES[me]?.iban;
+  const ibanText = cur.ibanLast4 ? `•••• ${cur.ibanLast4}` : iban ? maskIban(iban) : "–";
   const st = PAYOUT_STATUS[cur.status];
   return (
     <>
@@ -115,7 +116,7 @@ export default function AuszahlungenView() {
           value={cur.datum}
           meta={
             <>
-              auf <span className="mono">{iban ? maskIban(iban) : "–"}</span>
+              auf <span className="mono">{ibanText}</span>
             </>
           }
         />

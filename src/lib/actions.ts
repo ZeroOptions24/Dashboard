@@ -1,13 +1,26 @@
-/* Aktionen auf den Dashboard-Daten (Events, Verträge, Auszahlungen, Ranglisten).
-   Heute ändern sie die Beispieldaten im Store; später rufen sie hier die echte
-   Datenquelle auf (Datenbank, Yousign, n8n) – die Ansichten bleiben gleich. */
+/* Aktionen auf den Dashboard-Daten (Events, Kalender, Auszahlungen, Ranglisten, Leads).
+   Sie ändern zuerst den Store (sofort sichtbar); im Live-Modus speichert persist()
+   die Änderung zusätzlich auf dem Server (src/server/workspace.ts).
+   Noch nur lokal: Lead-Status, Rückrufe, Vorqualifizierung – die gehen später nach Pipedrive. */
 
+import {
+  addSlotsAction,
+  bookSlotAction,
+  markNotificationsReadAction,
+  postEventAction,
+  publishBoardAction,
+  releasePayoutAction,
+  removeSlotAction,
+  saveFeedbackAction,
+  toggleRsvpAction,
+} from "@/app/actions/workspace";
+import { persist } from "./live";
 import { dkey, eur, fmtDay, fmtHour, nowStamp, pad, parseKey } from "./format";
 import { apptEnd } from "./appointments";
 import { STATUS } from "./domain";
 import { urgencySort } from "./leads";
 import { ranked } from "./ranking";
-import { currentUser, notify, rerender, store } from "./store";
+import { currentUser, LIVE, notify, rerender, store } from "./store";
 import type { Board, Lead, PersonKey, Slot, StatusKey, TeamEvent } from "./types";
 import type { FormValues } from "./vq";
 
@@ -31,15 +44,17 @@ export function toggleEventGoing(id: string): boolean {
   if (i >= 0) ev.going.splice(i, 1);
   else ev.going.push(me);
   rerender();
+  persist(() => toggleRsvpAction(id));
   return i < 0;
 }
 
 export function postEvent(input: Omit<TeamEvent, "id" | "going" | "by" | "isNew">) {
   const ev: TeamEvent = { ...input, id: `E-${rnd()}`, going: [], by: currentUser(), isNew: true };
   d().EVENTS.push(ev);
-  /* Prototyp: Beispielpersonen je Rolle benachrichtigen */
-  for (const k of ["romy", "inan", "leo"]) pushNotif(k, `Neues Event: ${ev.title} am ${fmtDay(ev.date)}`);
+  /* Prototyp: Beispielpersonen je Rolle benachrichtigen; live benachrichtigt der Server die Zielgruppe */
+  if (!LIVE) for (const k of ["romy", "inan", "leo"]) pushNotif(k, `Neues Event: ${ev.title} am ${fmtDay(ev.date)}`);
   rerender();
+  persist(() => postEventAction(input), { reload: true });
 }
 
 /* ---------- Auszahlungen ---------- */
@@ -48,8 +63,9 @@ export function releasePayout(who: PersonKey, id: string) {
   const p = d().PAYOUTS[who]?.find((x) => x.id === id);
   if (!p) return null;
   p.status = "freigegeben";
-  pushNotif(who, `Deine Abrechnung ${p.periode} wurde freigegeben (${eur(p.betrag)})`);
+  if (!LIVE) pushNotif(who, `Deine Abrechnung ${p.periode} wurde freigegeben (${eur(p.betrag)})`);
   rerender();
+  persist(() => releasePayoutAction(id));
   return p;
 }
 
@@ -63,7 +79,13 @@ export function publishBoard(board: Board, patch: { title: string; goal?: number
   board.rows.splice(0, board.rows.length, ...patch.rows.map(([k, v]): [PersonKey, number] => [k, Math.max(0, v || 0)]));
   board.published = `${pad(n.getDate())}.${pad(n.getMonth() + 1)}.${n.getFullYear()}, ${pad(n.getHours())}:${pad(n.getMinutes())}`;
   board.by = d().PEOPLE[currentUser()]?.first ?? "Admin";
-  for (const k of notify) {
+  if (LIVE && board === d().BOARD) {
+    const rows = board.rows.map(([k, v]): [string, number] => [k, v]);
+    persist(() => publishBoardAction({ id: store.live.boardId, title: board.title, goal: board.goal ?? undefined, ends: board.ends, rows, prizes: board.prizes, marks: board.marks }), {
+      reload: true,
+    });
+  }
+  if (!LIVE) for (const k of notify) {
     const r = ranked(board.rows).find((x) => x.key === k);
     pushNotif(k, r ? `Neue Rangliste: ${board.title} – du bist auf Platz ${r.rank}` : `Neue Rangliste: ${board.title}`);
   }
@@ -79,6 +101,7 @@ const myApptAt = (k: string, h: number) => d().APPTS.find((a) => a.closer === cu
 export function addSlot(date: string, hour: number) {
   d().SLOTS.push({ id: `S-${rnd()}`, closer: currentUser(), date, start: hour });
   rerender();
+  persist(() => addSlotsAction([{ date, start: hour }]), { reload: true });
   return `Freier Slot eingetragen: ${fmtDay(date)} ${fmtHour(hour)}`;
 }
 
@@ -86,11 +109,13 @@ export function removeSlot(id: string) {
   const i = d().SLOTS.findIndex((s) => s.id === id);
   if (i >= 0) d().SLOTS.splice(i, 1);
   rerender();
+  persist(() => removeSlotAction(id));
 }
 
 /** Stundenweise Slots von–bis eintragen (optional 4 Wochen); liefert die Anzahl neuer Slots */
 export function addSlotRange(date: string, from: number, to: number, repeat4Weeks: boolean): number {
   let n = 0;
+  const added: { date: string; start: number }[] = [];
   for (let w = 0; w < (repeat4Weeks ? 4 : 1); w++) {
     const day = parseKey(date);
     day.setDate(day.getDate() + w * 7);
@@ -98,12 +123,14 @@ export function addSlotRange(date: string, from: number, to: number, repeat4Week
     for (let h = from; h < to; h++)
       if (!mySlotAt(k, h) && !myApptAt(k, h)) {
         d().SLOTS.push({ id: `S-${rnd()}`, closer: currentUser(), date: k, start: h });
+        added.push({ date: k, start: h });
         n++;
       }
   }
-  /* Prototyp: Presetterin „Inan“ bekommt die neuen Slots angezeigt */
-  pushNotif("inan", `${first(currentUser())} hat ${n} neue freie Slots eingetragen`);
+  /* Prototyp: Presetterin „Inan“ bekommt die neuen Slots angezeigt; live benachrichtigt der Server alle Presetter */
+  if (!LIVE) pushNotif("inan", `${first(currentUser())} hat ${n} neue freie Slots eingetragen`);
   rerender();
+  if (added.length) persist(() => addSlotsAction(added), { reload: true });
   return n;
 }
 
@@ -201,6 +228,17 @@ export function applyFeedback(apptId: string, res: FeedbackResult, o: { note: st
   }
   if (o.note && res !== "verloren") l.hist[0][0] += ` – ${o.note}`;
   rerender();
+  persist(
+    () =>
+      saveFeedbackAction(apptId, {
+        result: res,
+        note: o.note,
+        reason: o.reason,
+        second: res === "checks" && o.date ? { date: o.date, hour: o.hour ?? 17 } : null,
+        lead: { kunde: l.kunde, ort: l.ort },
+      }),
+    { reload: true },
+  );
   return `Rückmeldung gespeichert · ${first(l.setter)} informiert`;
 }
 
@@ -209,6 +247,7 @@ export function applyFeedback(apptId: string, res: FeedbackResult, o: { note: st
 export function markAllNotifRead() {
   (d().NOTIFS[currentUser()] || []).forEach((n) => (n.unread = false));
   rerender();
+  persist(() => markNotificationsReadAction());
 }
 
 /** Demo: Statusänderung aus Pipedrive simulieren (Setter); liefert den Kundennamen */
@@ -243,8 +282,9 @@ export function bookSlot(l: Lead, s: Slot) {
   d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer: s.closer, kind: "erst", date: s.date, start: s.start, dur: 1.5, ort: l.ort, feedback: null });
   l.closer = s.closer;
   setLeadStatus(l.id, "termin");
-  pushNotif(s.closer, `Neuer Ersttermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, "termin");
+  if (!LIVE) pushNotif(s.closer, `Neuer Ersttermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, "termin");
   rerender();
+  persist(() => bookSlotAction(s.id, { id: l.id, kunde: l.kunde, ort: l.ort }), { reload: true });
 }
 
 /** Lead aus dem Setting-Formular anlegen (Prototyp: lokal; echt: n8n-Webhook → Pipedrive) */

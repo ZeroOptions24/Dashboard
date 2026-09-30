@@ -5,6 +5,7 @@ import Icon from "@/components/ui/Icon";
 import { PageHead } from "@/components/ui/Kpi";
 import { publishBoard } from "@/lib/actions";
 import { ranked } from "@/lib/ranking";
+import { LIVE } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Board, PersonKey } from "@/lib/types";
 
@@ -40,7 +41,7 @@ function Leaderboard({ B }: { B: Board }) {
             <i style={{ width: `${Math.min(100, (total / B.goal) * 100)}%` }} />
           </div>
           <p className="muted" style={{ fontSize: ".84rem" }}>
-            Noch {Math.max(0, B.goal - total)} {B.unit} bis zum Teamziel · veröffentlicht {B.published} von {B.by}
+            Noch {Math.max(0, B.goal - total)} {B.unit} bis zum Teamziel · {B.published ? `veröffentlicht ${B.published} von ${B.by}` : "Entwurf – noch nicht veröffentlicht"}
           </p>
         </section>
       ) : (
@@ -48,7 +49,7 @@ function Leaderboard({ B }: { B: Board }) {
           <span className="eyebrow">Nur Setter · {B.unit}</span>
           <h2 style={{ color: "#fff" }}>{B.title}</h2>
           <p className="muted" style={{ fontSize: ".84rem" }}>
-            Team: {total} · veröffentlicht {B.published} von {B.by}
+            Team: {total} · {B.published ? `veröffentlicht ${B.published} von ${B.by}` : "noch nicht veröffentlicht"}
           </p>
         </section>
       )}
@@ -236,7 +237,16 @@ export default function RanglisteView() {
           <Leaderboard B={B} />
         </div>
         <div className="stack">
-          <BoardEditor key={`${boardKey}-${B.published}`} B={B} boardKey={boardKey} />
+          {LIVE && boardKey === "setter" ? (
+            <section className="ee-card">
+              <h2>Automatisch aus Pipedrive</h2>
+              <p className="muted" style={{ marginTop: 6 }}>
+                Die Setter-Rangliste zählt laufend die gelegten Termine im aktuellen Monat – hier gibt es nichts einzutragen.
+              </p>
+            </section>
+          ) : (
+            <BoardEditor key={`${boardKey}-${B.published}`} B={B} boardKey={boardKey} />
+          )}
           <Archive />
         </div>
       </div>

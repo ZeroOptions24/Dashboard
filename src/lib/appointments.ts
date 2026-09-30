@@ -33,3 +33,14 @@ export function freeSlots(slots: Slot[], appts: Appointment[], closer: PersonKey
     .filter((s) => s.closer === closer && (s.date > today || (s.date === today && s.start > now.getHours())))
     .sort((a, b) => (a.date + pad(a.start)).localeCompare(b.date + pad(b.start)));
 }
+
+/** Buchbare Slots aller Closer (pausierte ausgenommen), sortiert; dazu wer anbietet und wer pausiert ist. */
+export function bookableSlots(slots: Slot[], appts: Appointment[], now: Date) {
+  const all = [...new Set([...slots.map((s) => s.closer), ...appts.map((a) => a.closer)])];
+  const paused = all.filter((c) => closerPaused(appts, c, now));
+  const free = all
+    .filter((c) => !paused.includes(c))
+    .flatMap((c) => freeSlots(slots, appts, c, now, true))
+    .sort((a, b) => (a.date + pad(a.start)).localeCompare(b.date + pad(b.start)));
+  return { slots: free, closers: [...new Set(free.map((s) => s.closer))], paused: paused.filter((c) => slots.some((s) => s.closer === c)) };
+}

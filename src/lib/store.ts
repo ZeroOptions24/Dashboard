@@ -8,7 +8,12 @@ import { createDemoData } from "./demo-data";
 import type { LeadStats } from "./stats";
 import type { FormValues } from "./vq";
 import type { IconName } from "./icons";
-import type { AdminKpi, Lead, MbStats, PersonKey, Role } from "./types";
+import type { AdminKpi, Appointment, Lead, MbStats, PersonKey, Role } from "./types";
+import type { Workspace } from "@/server/workspace";
+import { setMoneyGoalAction } from "@/app/actions/workspace";
+
+import { LIVE } from "./source";
+export { LIVE };
 
 /* ---------- Assistent „Lead erfassen“ ---------- */
 export type WizardStep = 1 | "created" | 2 | "ko" | 3 | "done";
@@ -82,7 +87,15 @@ export const store = {
   overlay: { drawer: null as Drawer | null, drawerOpen: false, more: false, notif: false },
   toasts: [] as Toast[],
   /** Zähler aus der Datenbank (null = noch nicht geladen) */
-  live: { contracts: null as { openMine: number; openAll: number; questions: number } | null },
+  live: {
+    contracts: null as { openMine: number; openAll: number; questions: number } | null,
+    /** Termine aus der Datenbank (sichtbar werden nur die, deren Lead geladen ist) */
+    appts: [] as Appointment[],
+    /** ID des aktiven Wettbewerbs (null = Entwurf, noch nicht veröffentlicht) */
+    boardId: null as string | null,
+    /** Datenbank-Daten geladen */
+    ready: false,
+  },
   /** Angemeldete Person (aus der Sitzung) */
   session: null as { name: string; roles: Role[] } | null,
 };
@@ -118,25 +131,78 @@ export function updateUi(patch: Partial<UiState>) {
 export function setMoneyGoal(user: PersonKey, euro: number) {
   store.data.MONEY_GOAL[user] = euro;
   rerender();
+  if (LIVE) void setMoneyGoalAction(euro);
 }
 
 /** Array-Inhalt ersetzen, ohne das Array selbst auszutauschen (Komponenten halten Referenzen). */
 const replaceAll = <T,>(arr: T[], items: T[]) => arr.splice(0, arr.length, ...items);
 
+/** Echte Daten: Beispieldaten leeren, damit nie erfundene Leads, Personen oder Beträge aufblitzen. */
+export function clearDemoData() {
+  const d = store.data;
+  d.NOW.setTime(Date.now());
+  for (const arr of [d.LEADS, d.APPTS, d.SLOTS, d.EVENTS, d.CONTRACTS, d.BOARD_ARCHIVE, d.TEAM, d.WEEKLY, d.LOSS_STATS, d.MB_STATS, d.BOARD.rows, d.SETTER_BOARD.rows, d.DAY_GOAL.week]) arr.splice(0);
+  for (const rec of [d.PEOPLE, d.PAYOUTS, d.NOTIFS, d.PROFILES, d.MONEY_GOAL, d.ROLE_USER] as Record<string, unknown>[]) for (const k of Object.keys(rec)) delete rec[k];
+  Object.assign(d.ADMIN_KPI, { leads: 0, leadsVormonat: 0, termin: 0, checks: 0, verkauft: 0, checksWoche: 0 });
+  Object.assign(d.SETTER_BOARD, { published: "–", by: "System" });
+  d.CALL_DAY.done = 0;
+  d.DAY_GOAL.streak = 0;
+  rerender();
+}
+
+/** Termine zeigen, deren Lead geladen ist, und den Closer am Lead vermerken. */
+function syncAppts() {
+  const d = store.data;
+  const ids = new Set(d.LEADS.map((l) => l.id));
+  replaceAll(
+    d.APPTS,
+    store.live.appts.filter((a) => ids.has(a.lead)),
+  );
+  for (const a of d.APPTS) {
+    const l = d.LEADS.find((x) => x.id === a.lead);
+    if (l && !l.closer) l.closer = a.closer;
+  }
+}
+
+/** Daten aus der Datenbank übernehmen (Personen, Benachrichtigungen, Events, Kalender, Wettbewerb, Auszahlungen). */
+export function applyWorkspace(w: Workspace) {
+  const d = store.data;
+  for (const p of w.people) d.PEOPLE[p.key] = p;
+  /* Alle Rollen zeigen die eigenen Daten der angemeldeten Person */
+  for (const r of ["setter", "presetter", "closer", "admin"] as Role[]) d.ROLE_USER[r] = w.me;
+  d.NOTIFS[w.me] = w.notifications;
+  replaceAll(d.EVENTS, w.events);
+  replaceAll(d.SLOTS, w.slots);
+  store.live.appts = w.appointments;
+  syncAppts();
+  const { id, ...board } = w.board;
+  store.live.boardId = id;
+  Object.assign(d.BOARD, { ...board, rows: d.BOARD.rows });
+  replaceAll(d.BOARD.rows, board.rows);
+  replaceAll(d.BOARD_ARCHIVE, w.boardArchive);
+  for (const k of Object.keys(d.PAYOUTS)) delete d.PAYOUTS[k];
+  Object.assign(d.PAYOUTS, w.payouts);
+  if (w.moneyGoal != null) d.MONEY_GOAL[w.me] = w.moneyGoal;
+  store.live.ready = true;
+  rerender();
+}
+
+/** Setter aus Pipedrive ohne Dashboard-Konto als Person bekannt machen (Anzeige „von Florian“) */
+function ensureSetter(k: PersonKey) {
+  const d = store.data;
+  if (d.PEOPLE[k]) return;
+  const first = k === "unbekannt" ? "ohne Setter" : k.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+  d.PEOPLE[k] = { key: k, name: first, first: first.split(" ")[0], role: "setter", initials: first.slice(0, 2).toUpperCase() };
+}
+
 /** Live-Leads (z. B. aus Pipedrive, bereits serverseitig gefiltert) übernehmen. */
 export function applyLiveLeads(leads: Lead[], keys: Partial<Record<Role, string>>) {
   const d = store.data;
   replaceAll(d.LEADS, leads);
-  d.APPTS.splice(0);
+  syncAppts();
   /* Echte Daten → echtes Datum statt der festen Prototyp-Zeit */
   d.NOW.setTime(Date.now());
-  /* Setter aus Pipedrive als Personen bekannt machen (Anzeige „von Florian“) */
-  for (const k of new Set(leads.map((l) => l.setter))) {
-    if (!d.PEOPLE[k]) {
-      const first = k === "unbekannt" ? "ohne Setter" : k.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-      d.PEOPLE[k] = { key: k, name: first, first, role: "setter", initials: first.slice(0, 2).toUpperCase() };
-    }
-  }
+  for (const k of new Set(leads.map((l) => l.setter))) ensureSetter(k);
   /* Eigene Rollen zeigen die eigenen Leads (fremde Rollen bei Admins weiter die Beispielperson) */
   for (const r of store.session?.roles ?? []) if (keys[r]) d.ROLE_USER[r] = keys[r]!;
   rerender();
@@ -156,6 +222,7 @@ export function applyLiveStats(s: {
 }) {
   const d = store.data;
   if (s.adminKpi) Object.assign(d.ADMIN_KPI, s.adminKpi);
+  for (const k of [...(s.mbStats ?? []).map((m) => m.key), ...(s.setterBoardRows ?? []).map((r) => r[0])]) ensureSetter(k);
   if (s.mbStats) replaceAll(d.MB_STATS, s.mbStats);
   if (s.weekly) replaceAll(d.WEEKLY, s.weekly);
   if (s.lossStats) replaceAll(d.LOSS_STATS, s.lossStats);

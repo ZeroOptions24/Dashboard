@@ -75,7 +75,10 @@ export interface Lead {
   pd: number | null;
   kunde: string;
   anrede: string;
+  /** maskierte Nummer (für alle) */
   tel: string;
+  /** volle Nummer – liefert der Server nur an Rollen, die anrufen (Admin, zuständiger Closer) */
+  telFull?: string;
   ort: string;
   adresse?: string;
   produkt: ProductKey;
@@ -143,6 +146,8 @@ export interface Payout {
   status: PayoutStatusKey;
   datum: string;
   posten: PayoutLine[];
+  /** letzte 4 Stellen der IBAN (echte Daten; Beispieldaten nutzen PROFILES) */
+  ibanLast4?: string | null;
 }
 
 export interface Contract {

@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, primaryKey, real, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 /* =====================================================================
    Tabellen für Login (Better Auth) – Felder wie von Better Auth erwartet,
@@ -126,6 +126,8 @@ export const profile = pgTable("profile", {
   datenschutzAkzeptiertAt: timestamp("datenschutz_akzeptiert_at"),
   /** Name, den n8n ins Pipedrive-Deal-Feld „Setter“ schreibt (Zuordnung der Leads) */
   pipedriveSetterName: text("pipedrive_setter_name"),
+  /** Monatsziel Verdienst in Euro (vom MA selbst eingestellt) */
+  moneyGoal: integer("money_goal"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -149,6 +151,131 @@ export const contract = pgTable("contract", {
   questionAt: timestamp("question_at"),
   lastReminderAt: timestamp("last_reminder_at"),
 });
+
+/* =====================================================================
+   Team-Alltag: Benachrichtigungen, Events, Closer-Kalender, Ranglisten, Auszahlungen.
+   Leads selbst liegen in Pipedrive (lead_id = „PD-<Deal-ID>“).
+   ===================================================================== */
+
+const userRef = (name: string) =>
+  text(name)
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" });
+
+/** Glocke oben rechts. status = Lead-Status für die Farbe (optional) */
+export const notification = pgTable(
+  "notification",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    userId: userRef("user_id"),
+    text: text("text").notNull(),
+    status: text("status"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    readAt: timestamp("read_at"),
+  },
+  (t) => [index("notification_user_idx").on(t.userId, t.createdAt)],
+);
+
+export const teamEvent = pgTable("team_event", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  /** „JJJJ-MM-TT“ */
+  date: text("date").notNull(),
+  time: text("time").notNull(),
+  ort: text("ort").notNull(),
+  type: text("type").notNull(),
+  /** Alle | Setter | Presetter | Closer */
+  target: text("target").notNull(),
+  description: text("description").notNull().default(""),
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const eventRsvp = pgTable(
+  "event_rsvp",
+  {
+    eventId: text("event_id")
+      .notNull()
+      .references(() => teamEvent.id, { onDelete: "cascade" }),
+    userId: userRef("user_id"),
+  },
+  (t) => [primaryKey({ columns: [t.eventId, t.userId] })],
+);
+
+/** Freie Stunde im Closer-Kalender */
+export const closerSlot = pgTable(
+  "closer_slot",
+  {
+    id: text("id").primaryKey(),
+    closerId: userRef("closer_id"),
+    date: text("date").notNull(),
+    start: integer("start").notNull(),
+  },
+  (t) => [uniqueIndex("closer_slot_unique").on(t.closerId, t.date, t.start)],
+);
+
+/** Termin beim Kunden: erst = Ersttermin (Presetter/Setter bucht Slot), closing = 2. Termin */
+export const appointment = pgTable(
+  "appointment",
+  {
+    id: text("id").primaryKey(),
+    leadId: text("lead_id").notNull(),
+    closerId: userRef("closer_id"),
+    kind: text("kind").notNull(),
+    date: text("date").notNull(),
+    /** Stunde, z. B. 14 oder 14.5 */
+    start: real("start").notNull(),
+    dur: real("dur").notNull().default(1.5),
+    ort: text("ort").notNull().default(""),
+    /** Kundenname zur Anzeige, falls der Lead (noch) nicht geladen ist */
+    kunde: text("kunde"),
+    feedbackResult: text("feedback_result"),
+    feedbackNote: text("feedback_note"),
+    feedbackAt: timestamp("feedback_at"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("appointment_closer_idx").on(t.closerId, t.date)],
+);
+
+/** Wettbewerb (z. B. Wärmepumpen-Cup). Genau einer ist aktiv (archivedAt = null). */
+export const board = pgTable("board", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  unit: text("unit").notNull(),
+  goal: integer("goal"),
+  /** „TT.MM.JJJJ“ */
+  ends: text("ends").notNull(),
+  /** JSON [[userId, Wert], …] */
+  rows: text("rows").notNull().default("[]"),
+  /** JSON [[Schwelle, Prämie], …] */
+  prizes: text("prizes").notNull().default("[]"),
+  /** JSON [5, 10] – Prämienstufen auf der Leiste */
+  marks: text("marks").notNull().default("[]"),
+  publishedAt: timestamp("published_at"),
+  publishedBy: text("published_by").references(() => user.id, { onDelete: "set null" }),
+  archivedAt: timestamp("archived_at"),
+});
+
+/** Monatsabrechnung eines MAs. Positionen als JSON [[Datum, Kunde, Text, Betrag, Status], …] */
+export const payout = pgTable(
+  "payout",
+  {
+    id: text("id").primaryKey(),
+    userId: userRef("user_id"),
+    periode: text("periode").notNull(),
+    betrag: integer("betrag").notNull(),
+    /** pruefung | freigegeben | ausgezahlt */
+    status: text("status").notNull().default("pruefung"),
+    /** geplantes bzw. tatsächliches Auszahlungsdatum „TT.MM.JJJJ“ */
+    datum: text("datum").notNull(),
+    posten: text("posten").notNull().default("[]"),
+    releasedBy: text("released_by").references(() => user.id, { onDelete: "set null" }),
+    releasedAt: timestamp("released_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("payout_user_idx").on(t.userId)],
+);
 
 /** Protokoll sensibler Zugriffe und Aktionen (z. B. IBAN angezeigt, Vertrag gesendet). */
 export const auditLog = pgTable("audit_log", {

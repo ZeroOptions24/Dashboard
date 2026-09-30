@@ -8,12 +8,12 @@ import { CloserMoneyHero, DailyGoal, MoneyCard, SetterRankCard } from "@/compone
 import Icon from "@/components/ui/Icon";
 import { StatusChip, ToneChip, TryChip } from "@/components/ui/Chips";
 import { Kpi, PageHead, VsTeam } from "@/components/ui/Kpi";
-import { apptEnd, closerPaused, feedbackDue, freeSlots, kindLabel, pendingFeedback } from "@/lib/appointments";
+import { apptEnd, bookableSlots, closerPaused, feedbackDue, kindLabel, pendingFeedback } from "@/lib/appointments";
 import { TARGETS } from "@/lib/domain";
-import { WD, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
+import { WD, dkey, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
 import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, newestFirst, telFull, telHref, urgencySort } from "@/lib/leads";
 import { perfTone } from "@/lib/ranking";
-import { useStore } from "@/lib/store";
+import { LIVE, useStore } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Appointment, Lead } from "@/lib/types";
 import { callLead, changeStatus, openDrawer } from "@/lib/ui";
@@ -136,8 +136,7 @@ function PresetterOverview() {
   const queue = L.filter((l) => l.status === "eingereicht").sort(urgencySort(now));
   const overdue = queue.filter((l) => isOverdue(l, now) || callbackLate(l, now)).length;
   const { CALL_DAY, BENCH } = data;
-  /* Prototyp: fester Closer „Leo“ – später die Closer, denen der Presetter zuarbeitet */
-  const closer = "leo";
+  const booking = bookableSlots(data.SLOTS, data.APPTS, now);
   return (
     <>
       <PageHead title={`Hallo ${firstName}`} />
@@ -164,26 +163,36 @@ function PresetterOverview() {
               meta={overdue ? "Neu > 24 Std. oder Rückruf verpasst" : "alles im Plan"}
               tone={overdue ? "bad" : "good"}
             />
-            <Kpi
-              label="Ø bis Erstanruf"
-              value={
-                <>
-                  3,4 <small>Std.</small>
-                </>
-              }
-              meta={
-                <>
-                  <span className="is-bad">▲ 1,4 Std.</span> über Ziel ({BENCH.firstCallH} Std.)
-                </>
-              }
-              tone={perfTone(BENCH.firstCallMe, BENCH.firstCallH, false)}
-            />
-            <Kpi
-              label="Terminquote"
-              value={`${BENCH.presetterTerminMe} %`}
-              meta={<VsTeam v={BENCH.presetterTerminMe} bench={BENCH.presetterTermin} unit=" %" />}
-              tone={perfTone(BENCH.presetterTerminMe, BENCH.presetterTermin)}
-            />
+            {LIVE ? (
+              /* TODO(EnergyEngel): Presetter-Kennzahlen, sobald die Presetter-Zuordnung in Pipedrive steht */
+              <>
+                <Kpi label="Ø bis Erstanruf" value="–" meta="noch keine Daten" />
+                <Kpi label="Terminquote" value="–" meta="noch keine Daten" />
+              </>
+            ) : (
+              <>
+                <Kpi
+                  label="Ø bis Erstanruf"
+                  value={
+                    <>
+                      3,4 <small>Std.</small>
+                    </>
+                  }
+                  meta={
+                    <>
+                      <span className="is-bad">▲ 1,4 Std.</span> über Ziel ({BENCH.firstCallH} Std.)
+                    </>
+                  }
+                  tone={perfTone(BENCH.firstCallMe, BENCH.firstCallH, false)}
+                />
+                <Kpi
+                  label="Terminquote"
+                  value={`${BENCH.presetterTerminMe} %`}
+                  meta={<VsTeam v={BENCH.presetterTerminMe} bench={BENCH.presetterTermin} unit=" %" />}
+                  tone={perfTone(BENCH.presetterTerminMe, BENCH.presetterTermin)}
+                />
+              </>
+            )}
           </div>
           <section className="ee-card ee-card--flush" data-component="CallQueue">
             <div className="ee-card__head">
@@ -198,15 +207,17 @@ function PresetterOverview() {
           <section className="ee-card">
             <div className="ee-card__head">
               <h2>Freie Closer-Slots</h2>
-              <span className="muted">{person(closer).first}</span>
+              <span className="muted">{booking.closers.map((k) => person(k).first).join(", ")}</span>
             </div>
             <div className="ee-list">
-              {closerPaused(data.APPTS, closer, now) && (
+              {booking.paused.length > 0 && (
                 <div className="ee-alert ee-alert--bad">
-                  <Icon name="lock" small /> {person(closer).first} ist pausiert – offene Rückmeldungen
+                  <Icon name="lock" small /> {booking.paused.map((k) => person(k).first).join(", ")} {booking.paused.length > 1 ? "sind" : "ist"} pausiert – offene
+                  Rückmeldungen
                 </div>
               )}
-              {freeSlots(data.SLOTS, data.APPTS, closer, now)
+              {!booking.slots.length && !booking.paused.length && <p className="muted">Keine freien Termine.</p>}
+              {booking.slots
                 .slice(0, 4)
                 .map((s) => (
                   <div key={s.id} className="ee-list__row">
@@ -214,6 +225,7 @@ function PresetterOverview() {
                       <div className="ee-list__title">
                         {fmtDay(s.date)} · {fmtHour(s.start)} Uhr
                       </div>
+                      {booking.closers.length > 1 && <div className="ee-list__sub">{person(s.closer).first}</div>}
                     </div>
                     <span className="ee-chip ee-chip--pos">frei</span>
                   </div>
@@ -244,7 +256,10 @@ function CloserOverview() {
   const inChecks = data.LEADS.filter(
     (l) => l.closer === me && l.status === "checks" && !data.APPTS.some((a) => a.lead === l.id && a.kind === "closing" && !a.feedback),
   );
-  const nextWeek = data.SLOTS.filter((s) => s.closer === me && s.date >= "2026-09-28" && s.date <= "2026-10-04").length;
+  /* freie Slots in der kommenden Kalenderwoche (Mo–So) */
+  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ((8 - now.getDay()) % 7 || 7)),
+    sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+  const nextWeek = data.SLOTS.filter((s) => s.closer === me && s.date >= dkey(mon) && s.date <= dkey(sun)).length;
   const dueChip = (a: Appointment) => {
     const d = feedbackDue(a),
       h = (d.getTime() - now.getTime()) / 36e5;
@@ -383,6 +398,11 @@ function AdminOverview() {
     .flat()
     .filter((p) => p.status !== "ausgezahlt")
     .reduce((s, p) => s + p.betrag, 0);
+  const openPayouts = Object.values(PAYOUTS)
+    .flat()
+    .filter((p) => p.status !== "ausgezahlt");
+  const inReview = openPayouts.filter((p) => p.status === "pruefung");
+  const nextPayout = openPayouts.map((p) => p.datum).sort((x, y) => x.split(".").reverse().join().localeCompare(y.split(".").reverse().join()))[0];
   const inactive = MB_STATS.filter((m) => m.days >= 3);
   const lossMax = Math.max(1, ...LOSS_STATS.map((x) => x[1]));
   const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -393,10 +413,11 @@ function AdminOverview() {
   const avgQ = pct(team.termin, team.leads),
     avgT = pct(team.checks, team.leads),
     avgA = pct(team.verkauft, team.leads);
-  const teamRow = (key: string) => () => openDrawer({ kind: "team", key });
-  /* Prototyp: nur Closer „Leo“ – später alle Closer */
+  /* Beispieldaten: Seitenleiste mit Stammdaten; echte Daten: Team-Verwaltung */
+  const teamRow = (key: string) => () => (data.PROFILES[key] ? openDrawer({ kind: "team", key }) : go("team"));
+  const closers = [...new Set(data.APPTS.map((a) => a.closer))];
   const todo = [
-    ...["leo"]
+    ...closers
       .filter((k) => pendingFeedback(data.APPTS, k, now).length)
       .map((k) => {
         const paused = closerPaused(data.APPTS, k, now),
@@ -422,7 +443,17 @@ function AdminOverview() {
     ...(openC
       ? [{ tone: "warn", chip: "Offen", title: `${openC} ${openC === 1 ? "Vertrag" : "Verträge"} nicht unterschrieben`, sub: "Erinnerung per E-Mail möglich", onClick: () => go("vertraege") }]
       : []),
-    { tone: "info", chip: "Freigeben", title: "2 Abrechnungen in Prüfung", sub: "Auszahlung am 15.10.2026", onClick: () => go("auszahlungen") },
+    ...(inReview.length
+      ? [
+          {
+            tone: "info",
+            chip: "Freigeben",
+            title: `${inReview.length} ${inReview.length === 1 ? "Abrechnung" : "Abrechnungen"} in Prüfung`,
+            sub: `Auszahlung am ${inReview[0].datum}`,
+            onClick: () => go("auszahlungen"),
+          },
+        ]
+      : []),
   ];
   const flow: [string, number, number | null, string | null][] = [
     ["Eingereicht", K.leads, null, null],
@@ -461,7 +492,7 @@ function AdminOverview() {
         <Kpi label="In den Checks" value={K.checks} meta={`${K.checksWoche} diese Woche`} />
         <Kpi label="Verkauft" value={K.verkauft} meta={`Soll heute: ${sollHeute} von ${TARGETS.verkaufMonat}`} tone={perfTone(K.verkauft, sollHeute)} />
         <Kpi label="Offene Verträge" value={openC} meta="Elektronische Unterschrift" tone={openC ? "bad" : "good"} />
-        <Kpi label="Auszahlungen offen" value={eur(payOpen)} meta="zum 15.10." tone="money" />
+        <Kpi label="Auszahlungen offen" value={eur(payOpen)} meta={nextPayout ? `zum ${nextPayout.slice(0, 6)}` : "keine offen"} tone="money" />
       </div>
       <div className="ee-grid g-main" style={{ alignItems: "start" }}>
         <section className="ee-card" data-component="Funnel">

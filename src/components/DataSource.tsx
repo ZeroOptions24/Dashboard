@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { applyLiveLeads, applyLiveStats } from "@/lib/store";
+import { reloadWorkspace } from "@/lib/live";
+import { applyLiveLeads, applyLiveStats, LIVE } from "@/lib/store";
 import type { Lead, Role } from "@/lib/types";
 
-/* Datenquelle umschalten: NEXT_PUBLIC_DATA_SOURCE=pipedrive lädt die Leads über
-   /api/leads aus Pipedrive – bereits auf dem Server nach angemeldeter Person gefiltert –,
-   sonst bleiben die Beispieldaten. */
-const SOURCE = process.env.NEXT_PUBLIC_DATA_SOURCE === "pipedrive" ? "pipedrive" : "demo";
+/* Datenquelle: NEXT_PUBLIC_DATA_SOURCE=pipedrive lädt echte Daten – Leads und Kennzahlen aus
+   Pipedrive (auf dem Server nach angemeldeter Person gefiltert) und den Team-Alltag aus der
+   Datenbank. Sonst bleiben die Beispieldaten des Prototyps. */
 
 export default function DataSource() {
-  const [state, setState] = useState<string | null>(SOURCE === "pipedrive" ? "Lade Leads aus Pipedrive …" : null);
+  const [state, setState] = useState<string | null>(LIVE ? "Lade Daten …" : null);
 
   useEffect(() => {
-    if (SOURCE !== "pipedrive") return;
+    if (!LIVE) return;
     let cancelled = false;
     const get = async <T,>(url: string): Promise<T> => {
       const r = await fetch(url);
@@ -21,16 +21,25 @@ export default function DataSource() {
       if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
       return body as T;
     };
+    const pipedrive = (async () => {
+      const { leads, keys, note } = await get<{ leads: Lead[]; keys: Partial<Record<Role, string>>; note?: string }>("/api/leads");
+      if (cancelled) return "";
+      applyLiveLeads(leads, keys);
+      applyLiveStats(await get<Parameters<typeof applyLiveStats>[0]>("/api/stats"));
+      return note ? `Pipedrive: ${note}` : `Pipedrive · ${leads.length} Leads`;
+    })();
     (async () => {
+      await reloadWorkspace();
+      let msg: string;
       try {
-        const { leads, keys, note } = await get<{ leads: Lead[]; keys: Partial<Record<Role, string>>; note?: string }>("/api/leads");
-        if (cancelled) return;
-        applyLiveLeads(leads, keys);
-        applyLiveStats(await get<Parameters<typeof applyLiveStats>[0]>("/api/stats"));
-        if (!cancelled) setState(note ? `Pipedrive: ${note}` : `Pipedrive · ${leads.length} Leads`);
+        msg = await pipedrive;
       } catch (e) {
-        if (!cancelled) setState(`Pipedrive-Fehler: ${(e as Error).message} – zeige Beispieldaten`);
+        /* Keine Beispieldaten im echten Betrieb – lieber leer mit klarer Meldung */
+        msg = `Pipedrive-Fehler: ${(e as Error).message} – Leads konnten nicht geladen werden`;
       }
+      if (cancelled) return;
+      setState(msg);
+      setTimeout(() => !cancelled && setState(null), 4000);
     })();
     return () => {
       cancelled = true;

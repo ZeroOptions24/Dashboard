@@ -6,7 +6,7 @@ import Icon from "@/components/ui/Icon";
 import { StatusChip } from "@/components/ui/Chips";
 import { markAllNotifRead, simulatePipedriveUpdate } from "@/lib/actions";
 import { NAV, ROLE_LABEL } from "@/lib/nav";
-import { useStore } from "@/lib/store";
+import { useStore, LIVE } from "@/lib/store";
 import { setRole, toast, toggleNotif } from "@/lib/ui";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Role } from "@/lib/types";
@@ -121,7 +121,7 @@ export function NotifPanel() {
       ) : (
         <div className="ee-notif__item muted">Keine Benachrichtigungen.</div>
       )}
-      {role === "setter" && (
+      {role === "setter" && !LIVE && (
         <div className="ee-notif__foot">
           <button
             className="ee-btn ee-btn--sm ee-btn--block"
@@ -154,7 +154,7 @@ export default function TopBar({ switchable, name, demo }: { switchable: Role[];
         {cur ? cur[1] : ""}
       </div>
       <div className="ee-top__spacer" />
-      <span className="ee-proto">Prototyp · Beispieldaten</span>
+      {!LIVE && <span className="ee-proto">Prototyp · Beispieldaten</span>}
       <div className="ee-role" data-component="RoleSwitch" hidden={switchable.length < 2}>
         <span className="ee-role__label">{demo ? "Ansicht als" : "Rolle"}</span>
         <div className="ee-seg" role="group" aria-label="Rolle wechseln" id="roleSeg">

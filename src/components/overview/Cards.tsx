@@ -244,7 +244,7 @@ export function SetterRankCard() {
     R = ranked(B.rows),
     my = rankOf(me, B),
     n = R.length,
-    top = R[0].val || 1;
+    top = R[0]?.val || 1;
   const above = R.filter((r) => r.val > my.val).slice(-1)[0];
   return (
     <section className="ee-card ee-cup" data-component="SetterRankCard">
