@@ -4,11 +4,10 @@ import { isValidIban, normalizeIban } from "@/lib/iban";
 import { parseRoles, serializeRoles } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 import { adminEmails, auth } from "./auth";
-import { generateContract } from "./contracts";
+import { createAndSendContract, markContractSigned } from "./contract-service";
 import { encrypt, hashToken, newToken } from "./crypto";
 import { db, schema } from "./db";
 import { appUrl, mailLayout, sendMail } from "./mail";
-import { signingProvider } from "./signing";
 
 /* Onboarding neuer MAs:
    1. Admin lädt ein (Name, E-Mail, Rolle)      → eingeladen       (Mail mit Formular-Link)
@@ -229,22 +228,9 @@ export async function submitFormData(token: string, d: OnboardingFormData) {
 /* ---------- 3. Vertrag senden ---------- */
 
 export async function sendContract(userId: string, adminId: string) {
-  const { ob, user } = await getRow(userId);
+  const { ob } = await getRow(userId);
   if (ob.status !== "daten_erfasst") throw new Error("Vertrag kann erst nach der Datenerfassung gesendet werden");
-  const [p] = await db.select().from(schema.profile).where(eq(schema.profile.userId, userId));
-  const doc = await generateContract({
-    roles: parseRoles(user.role),
-    name: user.name,
-    email: user.email,
-    strasse: p.strasse ?? "",
-    plz: p.plz ?? "",
-    ort: p.ort ?? "",
-    geburtsdatum: p.geburtsdatum ?? "",
-    steuernummer: p.steuernummer ?? "",
-    kleinunternehmer: p.kleinunternehmer,
-  });
-  const [first, ...rest] = user.name.split(" ");
-  const requestId = await signingProvider().send(doc, { firstName: first, lastName: rest.join(" ") || first, email: user.email });
+  const requestId = await createAndSendContract(userId, adminId);
   await setStatus(userId, "vertrag_versendet", { contractSentAt: new Date(), signatureRequestId: requestId, ...RESET_REMINDERS });
   await audit(adminId, "onboarding.contract_sent", userId, requestId);
 }
@@ -259,13 +245,14 @@ async function sendAccess(userId: string, email: string) {
 
 /** Vom Signing-Tool (Webhook) bzw. der Dev-Unterschriftsseite aufgerufen. */
 export async function markSigned(signatureRequestId: string) {
+  await markContractSigned(signatureRequestId);
   const [row] = await db
     .select({ ob: schema.onboarding, user: schema.user })
     .from(schema.onboarding)
     .innerJoin(schema.user, eq(schema.user.id, schema.onboarding.userId))
     .where(eq(schema.onboarding.signatureRequestId, signatureRequestId));
-  if (!row) throw new Error("Unbekannte Signaturanfrage");
-  if (row.ob.status !== "vertrag_versendet") return; /* doppelte Webhooks ignorieren */
+  /* kein Onboarding-Vertrag (z. B. weitere Unterlagen) oder doppelter Webhook: fertig */
+  if (!row || row.ob.status !== "vertrag_versendet") return;
   await setStatus(row.user.id, "unterschrieben", { signedAt: new Date(), ...RESET_REMINDERS });
   await audit(null, "onboarding.signed", row.user.id, signatureRequestId);
   await sendAccess(row.user.id, row.user.email);

@@ -1,7 +1,7 @@
 /* =====================================================================
    BEISPIELDATEN – alle Namen, Adressen, Beträge und IDs sind erfunden.
    Im echten Betrieb kommen Leads/Status aus Pipedrive, Verträge aus
-   DocuSign, Stammdaten aus der eigenen Datenbank; Automatisierungen
+   Yousign, Stammdaten aus der eigenen Datenbank; Automatisierungen
    (Benachrichtigungen, WhatsApp) laufen über n8n.
    createDemoData() liefert bei jedem Aufruf einen frischen, veränderbaren
    Satz Daten – dieselbe Form, die später die echte Datenquelle liefert.
@@ -147,7 +147,7 @@ export function createDemoData() {
     ],
   };
 
-  /* Verträge (DocuSign-Status) */
+  /* Verträge (Demo für den Team-Drawer) */
   const CONTRACTS: Contract[] = [
     { id:'V-101', who:'romy', doc:'Handelsvertretervertrag (§ 84 HGB)', status:'signed', sent:'01.03.2026', signed:'03.03.2026' },
     { id:'V-102', who:'romy', doc:'Provisionsvereinbarung 2026', status:'signed', sent:'01.03.2026', signed:'03.03.2026' },

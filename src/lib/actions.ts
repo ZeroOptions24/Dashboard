@@ -1,6 +1,6 @@
 /* Aktionen auf den Dashboard-Daten (Events, Verträge, Auszahlungen, Ranglisten).
    Heute ändern sie die Beispieldaten im Store; später rufen sie hier die echte
-   Datenquelle auf (Datenbank, DocuSign/Yousign, n8n) – die Ansichten bleiben gleich. */
+   Datenquelle auf (Datenbank, Yousign, n8n) – die Ansichten bleiben gleich. */
 
 import { dkey, eur, fmtDay, fmtHour, nowStamp, pad, parseKey } from "./format";
 import { apptEnd } from "./appointments";
@@ -14,10 +14,6 @@ import type { FormValues } from "./vq";
 const d = () => store.data;
 const first = (k: PersonKey) => d().PEOPLE[k]?.first ?? k;
 const rnd = () => Math.random().toString(36).slice(2, 6);
-const today = () => {
-  const n = d().NOW;
-  return `${pad(n.getDate())}.${pad(n.getMonth() + 1)}.${n.getFullYear()}`;
-};
 
 /** Benachrichtigung an eine Person (später: n8n → E-Mail/WhatsApp) */
 export function pushNotif(who: PersonKey, t: string, status: StatusKey | null = null) {
@@ -43,45 +39,6 @@ export function postEvent(input: Omit<TeamEvent, "id" | "going" | "by" | "isNew"
   d().EVENTS.push(ev);
   /* Prototyp: Beispielpersonen je Rolle benachrichtigen */
   for (const k of ["romy", "inan", "leo"]) pushNotif(k, `Neues Event: ${ev.title} am ${fmtDay(ev.date)}`);
-  rerender();
-}
-
-/* ---------- Verträge ---------- */
-
-export function signContract(id: string) {
-  const c = d().CONTRACTS.find((x) => x.id === id);
-  if (!c) return;
-  c.status = "signed";
-  c.signed = today();
-  pushNotif("tim", `${first(c.who)} hat „${c.doc}“ unterschrieben`);
-  rerender();
-}
-
-export function askContractQuestion(id: string, question: string) {
-  const c = d().CONTRACTS.find((x) => x.id === id);
-  if (!c || !question.trim()) return;
-  c.question = question.trim();
-  pushNotif("tim", `${first(c.who)} hat eine Rückfrage zu „${c.doc}“`);
-  rerender();
-}
-
-export function remindContract(id: string) {
-  const c = d().CONTRACTS.find((x) => x.id === id);
-  if (c) pushNotif(c.who, `Erinnerung: Bitte „${c.doc}“ in DocuSign unterschreiben`);
-}
-
-export function resolveContractQuestion(id: string) {
-  const c = d().CONTRACTS.find((x) => x.id === id);
-  if (!c) return;
-  delete c.question;
-  pushNotif(c.who, `Deine Rückfrage zu „${c.doc}“ wurde beantwortet`);
-  rerender();
-}
-
-/** Vertrag aus Vorlage an eine Person senden (Demo; echt: Onboarding/Signing-Tool) */
-export function sendContractDemo(who: PersonKey, doc: string) {
-  d().CONTRACTS.unshift({ id: `V-${rnd().toUpperCase()}`, who, doc, status: "open", sent: today(), signed: null });
-  pushNotif(who, `Neuer Vertrag zur Unterschrift: „${doc}“`);
   rerender();
 }
 

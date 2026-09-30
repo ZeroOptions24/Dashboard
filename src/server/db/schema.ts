@@ -129,6 +129,27 @@ export const profile = pgTable("profile", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+/** Verträge zur elektronischen Unterschrift (Onboarding und später weitere Unterlagen) */
+export const contract = pgTable("contract", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  /** JSON-Liste der enthaltenen Unterlagen, z. B. ["Handelsvertretervertrag (§ 84 HGB)", …] */
+  documents: text("documents").notNull(),
+  /** offen | unterschrieben | storniert */
+  status: text("status").notNull().default("offen"),
+  signatureRequestId: text("signature_request_id").unique(),
+  /** erzeugtes PDF (base64) – nach der Unterschrift später durch das signierte PDF ersetzen */
+  pdfBase64: text("pdf_base64"),
+  sentBy: text("sent_by").references(() => user.id, { onDelete: "set null" }),
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  signedAt: timestamp("signed_at"),
+  question: text("question"),
+  questionAt: timestamp("question_at"),
+  lastReminderAt: timestamp("last_reminder_at"),
+});
+
 /** Protokoll sensibler Zugriffe und Aktionen (z. B. IBAN angezeigt, Vertrag gesendet). */
 export const auditLog = pgTable("audit_log", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

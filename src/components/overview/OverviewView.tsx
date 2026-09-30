@@ -13,6 +13,7 @@ import { TARGETS } from "@/lib/domain";
 import { WD, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
 import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, newestFirst, telFull, telHref, urgencySort } from "@/lib/leads";
 import { perfTone } from "@/lib/ranking";
+import { useStore } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Appointment, Lead } from "@/lib/types";
 import { callLead, changeStatus, openDrawer } from "@/lib/ui";
@@ -372,9 +373,11 @@ function QuoteCell({ v, avg }: { v: number; avg: number }) {
 
 function AdminOverview() {
   const { data, now, person, go, openLead } = useDashboard();
-  const { CONTRACTS, WEEKLY, PAYOUTS, MB_STATS, LOSS_STATS, ADMIN_KPI: K } = data;
+  const { WEEKLY, PAYOUTS, MB_STATS, LOSS_STATS, ADMIN_KPI: K } = data;
+  const { live } = useStore();
   const lead = (id: string) => data.LEADS.find((l) => l.id === id)!;
-  const openC = CONTRACTS.filter((c) => c.status === "open").length;
+  const openC = live.contracts?.openAll ?? 0,
+    questionsC = live.contracts?.questions ?? 0;
   const max = Math.max(1, ...WEEKLY.map((w) => w[1]));
   const payOpen = Object.values(PAYOUTS)
     .flat()
@@ -413,14 +416,12 @@ function AdminOverview() {
       sub: `Letzter Lead am ${m.last}`,
       onClick: teamRow(m.key),
     })),
-    ...CONTRACTS.filter((c) => c.question).map((c) => ({
-      tone: "warn",
-      chip: "Klären",
-      title: `Rückfrage von ${person(c.who).first}`,
-      sub: c.question!,
-      onClick: () => go("vertraege"),
-    })),
-    { tone: "warn", chip: "Offen", title: `${openC} Verträge nicht unterschrieben`, sub: "Erinnerung per DocuSign", onClick: () => go("vertraege") },
+    ...(questionsC
+      ? [{ tone: "warn", chip: "Klären", title: `${questionsC} ${questionsC === 1 ? "Rückfrage" : "Rückfragen"} zu Verträgen`, sub: "Unter Verträge beantworten", onClick: () => go("vertraege") }]
+      : []),
+    ...(openC
+      ? [{ tone: "warn", chip: "Offen", title: `${openC} ${openC === 1 ? "Vertrag" : "Verträge"} nicht unterschrieben`, sub: "Erinnerung per E-Mail möglich", onClick: () => go("vertraege") }]
+      : []),
     { tone: "info", chip: "Freigeben", title: "2 Abrechnungen in Prüfung", sub: "Auszahlung am 15.10.2026", onClick: () => go("auszahlungen") },
   ];
   const flow: [string, number, number | null, string | null][] = [
@@ -459,7 +460,7 @@ function AdminOverview() {
         <Kpi label="Terminquote" value={`${terminQuote} %`} meta={`Ziel ${TARGETS.terminQuote} %`} tone={perfTone(terminQuote, TARGETS.terminQuote)} />
         <Kpi label="In den Checks" value={K.checks} meta={`${K.checksWoche} diese Woche`} />
         <Kpi label="Verkauft" value={K.verkauft} meta={`Soll heute: ${sollHeute} von ${TARGETS.verkaufMonat}`} tone={perfTone(K.verkauft, sollHeute)} />
-        <Kpi label="Offene Verträge" value={openC} meta="DocuSign" tone={openC ? "bad" : "good"} />
+        <Kpi label="Offene Verträge" value={openC} meta="Elektronische Unterschrift" tone={openC ? "bad" : "good"} />
         <Kpi label="Auszahlungen offen" value={eur(payOpen)} meta="zum 15.10." tone="money" />
       </div>
       <div className="ee-grid g-main" style={{ alignItems: "start" }}>

@@ -29,6 +29,13 @@
       "when": 1790718017303,
       "tag": "0003_bestehende_mas",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790772198204,
+      "tag": "0004_vertraege",
+      "breakpoints": true
     }
   ]
 }

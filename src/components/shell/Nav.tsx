@@ -10,8 +10,9 @@ import { useDashboard } from "@/lib/useDashboard";
 /** Zähler an Menüpunkten: offene Verträge, fällige Closer-Rückmeldungen */
 function Badge({ view }: { view: string }) {
   const { data, role, me, now } = useDashboard();
+  const { live } = useStore();
   let n = 0;
-  if (view === "vertraege") n = data.CONTRACTS.filter((c) => c.status === "open" && (role === "admin" || c.who === me)).length;
+  if (view === "vertraege" && live.contracts) n = role === "admin" ? live.contracts.openAll + live.contracts.questions : live.contracts.openMine;
   if (view === "termine" && role === "closer") n = pendingFeedback(data.APPTS, me, now).length;
   return n ? <span className="ee-nav__badge">{n}</span> : null;
 }

@@ -11,6 +11,8 @@ import type { Role } from "@/lib/types";
 
 export interface ContractInput {
   roles: Role[];
+  /** feste Liste von Unterlagen (sonst aus den Rollen abgeleitet) */
+  documents?: string[];
   name: string;
   email: string;
   strasse: string;
@@ -34,9 +36,14 @@ export const CONTRACTS_BY_ROLE: Record<Exclude<Role, "admin">, string[]> = {
   closer: ["Handelsvertretervertrag (§ 84 HGB)", "Provisionsvereinbarung Closing"],
 };
 
+/** Unterlagen aller Rollen einer Person, ohne Doppelte (HV-Vertrag nur einmal) */
+export const documentsForRoles = (roles: Role[]) => [...new Set(roles.flatMap((r) => (r === "admin" ? [] : CONTRACTS_BY_ROLE[r])))];
+
+/** Alle Vorlagen, die ein Admin einzeln verschicken kann */
+export const ALL_TEMPLATES = [...new Set(Object.values(CONTRACTS_BY_ROLE).flat()), "Vertraulichkeits- & Datenschutzvereinbarung"];
+
 export async function generateContract(input: ContractInput): Promise<ContractDocument> {
-  /* alle Unterlagen der Rollen dieser Person, ohne Doppelte (HV-Vertrag nur einmal) */
-  const titles = [...new Set(input.roles.flatMap((r) => (r === "admin" ? [] : CONTRACTS_BY_ROLE[r])))];
+  const titles = input.documents?.length ? input.documents : documentsForRoles(input.roles);
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);

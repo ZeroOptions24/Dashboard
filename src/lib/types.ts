@@ -1,6 +1,6 @@
 /* Datenmodell des MB-Dashboards.
    Diese Typen sind die Schnittstelle zwischen Oberfläche und Datenquelle:
-   heute Beispieldaten (demo-data.ts), später Datenbank, Pipedrive und DocuSign. */
+   heute Beispieldaten (demo-data.ts), später Datenbank, Pipedrive und Yousign. */
 
 /* ---------- Personen & Rollen ---------- */
 export type Role = "setter" | "presetter" | "closer" | "admin";

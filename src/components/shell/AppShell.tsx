@@ -23,6 +23,7 @@ import { allowedView } from "@/lib/nav";
 import { viewableRoles } from "@/lib/roles";
 import { notify, store, useStore } from "@/lib/store";
 import { closeOverlays } from "@/lib/ui";
+import { refreshContractSummary } from "@/lib/live";
 import type { Role } from "@/lib/types";
 
 const VIEWS: Record<string, () => React.ReactNode> = {
@@ -67,6 +68,7 @@ export default function AppShell({
     store.ui.role = startRole;
     store.ui.view = allowedView(startRole, view ?? store.ui.view);
     notify();
+    void refreshContractSummary();
   }, [name, rolesKey, startRole, view]);
 
   /* Escape schließt Seitenleisten und Menüs */

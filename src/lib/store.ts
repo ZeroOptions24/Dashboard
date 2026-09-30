@@ -81,6 +81,8 @@ export const store = {
   /* drawer bleibt nach dem Schließen gesetzt, damit der Inhalt beim Herausgleiten sichtbar bleibt */
   overlay: { drawer: null as Drawer | null, drawerOpen: false, more: false, notif: false },
   toasts: [] as Toast[],
+  /** Zähler aus der Datenbank (null = noch nicht geladen) */
+  live: { contracts: null as { openMine: number; openAll: number; questions: number } | null },
   /** Angemeldete Person (aus der Sitzung) */
   session: null as { name: string; roles: Role[] } | null,
 };
