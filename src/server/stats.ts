@@ -23,9 +23,9 @@ export interface StatsForUser {
   presetter?: PresetterStats;
 }
 
-export async function statsForUser(user: LeadUser, setterIds: Map<string, string>, activities: ActivityRow[] = []): Promise<StatsForUser> {
+export async function statsForUser(user: LeadUser, setterIds: Map<string, string>, activities: ActivityRow[] = [], defaultPresetter: string | null = null): Promise<StatsForUser> {
   const now = new Date();
-  const leads = applyActivities(withSetterIds(await loadLeadsFromPipedrive(), setterIds), activities);
+  const leads = applyActivities(withSetterIds(await loadLeadsFromPipedrive(), setterIds), activities, defaultPresetter);
   const s = computeStats(leads, now);
   const base: StatsForUser = { monat: s.adminKpi.monat, monatsende: s.monatsende };
   /* Presetter (auch Admins mit Presetter-Rolle): eigene Anrufe, Ø bis Erstanruf, Terminquote + Teamschnitt */

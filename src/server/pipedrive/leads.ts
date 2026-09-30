@@ -146,14 +146,15 @@ export async function loadLeadsForUser(
   setterIds: Map<string, string>,
   closerLeadIds: Set<string> = new Set(),
   activities: ActivityRow[] = [],
+  defaultPresetter: string | null = null,
 ): Promise<LeadsForUser> {
-  const all = applyActivities(withSetterIds(await loadLeadsFromPipedrive(), setterIds), activities);
+  const all = applyActivities(withSetterIds(await loadLeadsFromPipedrive(), setterIds), activities, defaultPresetter);
   const keys: Partial<Record<Role, string>> = {};
   if (user.roles.includes("setter")) keys.setter = user.id;
   if (user.roles.includes("presetter")) keys.presetter = user.id;
   if (user.roles.includes("closer")) keys.closer = user.id;
   const touched = new Set(activities.filter((a) => a.userId === user.id && a.role === "presetter").map((a) => a.leadId));
-  const inPool = (l: Lead) => !!keys.presetter && (l.status === "eingereicht" || touched.has(l.id));
+  const inPool = (l: Lead) => !!keys.presetter && (l.status === "eingereicht" || touched.has(l.id) || l.presetter === user.id);
   if (isAdmin(user.roles)) return { leads: all, keys };
   const leads = all
     .filter((l) => (keys.setter && l.setter === keys.setter) || closerLeadIds.has(l.id) || inPool(l))

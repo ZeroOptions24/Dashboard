@@ -43,12 +43,13 @@ export function berlinDay(d: Date) {
 
 /** Aktivitäten (beliebige Reihenfolge) auf die Leads anwenden. Leads werden kopiert, nicht verändert.
  *  Status aus dem Dashboard gilt, solange Pipedrive seitdem nicht selbst geändert wurde. */
-export function applyActivities(leads: Lead[], rows: ActivityRow[]): Lead[] {
+export function applyActivities(leads: Lead[], rows: ActivityRow[], defaultPresetter?: PersonKey | null): Lead[] {
   const byLead = new Map<string, ActivityRow[]>();
   for (const r of rows) (byLead.get(r.leadId) ?? byLead.set(r.leadId, []).get(r.leadId)!).push(r);
   return leads.map((lead) => {
     const acts = (byLead.get(lead.id) ?? []).slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    if (!acts.length) return lead;
+    /* Standard-Presetter (z. B. die eine Presetterin, die alle bisherigen Leads betreut) */
+    if (!acts.length) return defaultPresetter && !lead.presetter ? { ...lead, presetter: defaultPresetter } : lead;
     const l: Lead = { ...lead, hist: lead.hist.slice() };
     const attempts = acts.filter((a) => a.kind === "attempt");
     const lastAttempt = attempts[attempts.length - 1];
@@ -73,6 +74,7 @@ export function applyActivities(leads: Lead[], rows: ActivityRow[]): Lead[] {
     if (vqs.length) l.vq = { ...(vqs[vqs.length - 1].data.answers as Record<string, string>) };
     const pre = acts.filter((a) => a.role === "presetter" && a.userId);
     if (pre.length) l.presetter = pre[pre.length - 1].userId!;
+    else if (defaultPresetter && !l.presetter) l.presetter = defaultPresetter;
     /* Verlauf: Aktionen mit sichtbarem Text, neueste oben */
     const shown = acts.filter((a) => a.kind === "attempt" || a.kind === "callback" || a.kind === "status");
     for (const a of shown) l.hist.unshift([a.text, stamp(a.createdAt)]);

@@ -106,6 +106,14 @@ async function idsWithRole(...roles: Role[]) {
   return (await users()).filter((u) => !u.banned && parseRoles(u.role).some((r) => roles.includes(r))).map((u) => u.id);
 }
 
+/** Standard-Presetter für Leads ohne Dashboard-Aktion (Server-Einstellung STANDARD_PRESETTER_EMAIL) */
+export async function defaultPresetterId(): Promise<string | null> {
+  const email = process.env.STANDARD_PRESETTER_EMAIL?.trim().toLowerCase();
+  if (!email) return null;
+  const [u] = await db.select({ id: schema.user.id }).from(schema.user).where(eq(schema.user.email, email));
+  return u?.id ?? null;
+}
+
 /** Leads, bei denen die Person Closer eines Termins ist */
 export async function leadIdsForCloser(userId: string) {
   const rows = await db.select({ leadId: schema.appointment.leadId }).from(schema.appointment).where(eq(schema.appointment.closerId, userId));

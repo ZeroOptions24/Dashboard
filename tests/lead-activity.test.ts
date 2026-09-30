@@ -60,6 +60,12 @@ describe("Aktivitäten auf Leads", () => {
     expect(applyActivities([lead("PD-1", { status: "checks", pdChangedAt: "2026-09-30T12:00:00Z" })], [status])[0].status).toBe("checks");
   });
 
+  it("Standard-Presetter für Leads ohne eigene Presetter-Aktion", () => {
+    const [a, b] = applyActivities([lead("PD-1"), lead("PD-2")], [act("PD-2", "u-lara", "attempt", "2026-09-30T08:00:00Z", { attempt: 1 })], "u-aimee");
+    expect(a.presetter).toBe("u-aimee");
+    expect(b.presetter).toBe("u-lara");
+  });
+
   it("Presetter-Kennzahlen: Anrufe heute, Ø bis Erstanruf, Terminquote, Teamschnitt", () => {
     const leads = [lead("PD-1"), lead("PD-2"), lead("PD-3")];
     const rows = [

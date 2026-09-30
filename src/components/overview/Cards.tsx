@@ -63,7 +63,7 @@ export function MoneyCard() {
   };
   const liveEarned =
     role === "presetter"
-      ? L.filter((l) => l.presetter === me && ["termin", "checks", "verkauft", "ausgezahlt"].includes(l.status)).length * rate
+      ? L.filter((l) => l.presetter === me && ["termin", "checks", "verkauft", "ausgezahlt"].includes(l.status) && thisMonth(l)).length * rate
       : L.filter((l) => ["verkauft", "ausgezahlt"].includes(l.status) && thisMonth(l)).length * rate;
   const goal = data.MONEY_GOAL[me] || 3000,
     earned = cur ? cur.betrag : LIVE ? liveEarned : 0;
