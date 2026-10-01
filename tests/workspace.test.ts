@@ -85,6 +85,22 @@ describe("Closer-Kalender und Buchung", () => {
   });
 });
 
+describe("Termin direkt eintragen", () => {
+  it("nur Setter/Presetter; nur echte Closer; keine Überschneidung; passender Slot wird verbraucht", async () => {
+    const lead = { id: "PD-50", kunde: "Direkt Kunde", ort: "Leipzig" };
+    await expect(ws.bookDirect(closer, lead, { date: tomorrow, start: 14, closerId: "u-closer" })).rejects.toThrow(/Berechtigung/);
+    await expect(ws.bookDirect(presetter, lead, { date: tomorrow, start: 14, closerId: "u-setter" })).rejects.toThrow(/Closer wählen/);
+    await expect(ws.bookDirect(presetter, lead, { date: "2020-01-01", start: 14, closerId: "u-closer" })).rejects.toThrow(/ab heute/);
+    await expect(ws.bookDirect(presetter, lead, { date: tomorrow, start: 14.25, closerId: "u-closer" })).rejects.toThrow(/Uhrzeit/);
+    const [slot] = await ws.addSlots(closer2, [{ date: tomorrow, start: 15 }]);
+    const a = await ws.bookDirect(presetter, lead, { date: tomorrow, start: 15.5, closerId: "u-closer2" });
+    expect(a).toMatchObject({ closer: "u-closer2", start: 15.5 });
+    expect((await ws.loadWorkspace(presetter)).slots.some((x) => x.id === slot.id)).toBe(false);
+    await expect(ws.bookDirect(setter, { ...lead, id: "PD-51" }, { date: tomorrow, start: 16.5, closerId: "u-closer2" })).rejects.toThrow(/schon einen Termin/);
+    expect((await ws.loadWorkspace(presetter)).closers.sort()).toEqual(["u-closer", "u-closer2"]);
+  });
+});
+
 describe("Events", () => {
   it("nur Admins posten; die Zielgruppe wird benachrichtigt und sieht das Event", async () => {
     const input = { title: "Closer-Training", date: tomorrow, time: "18:00", ort: "Büro", type: "Training", target: "Closer", desc: "" };

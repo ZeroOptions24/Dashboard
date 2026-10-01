@@ -5,6 +5,7 @@
 
 import {
   addSlotsAction,
+  bookDirectAction,
   bookSlotAction,
   markNotificationsReadAction,
   postEventAction,
@@ -322,6 +323,25 @@ export function bookSlot(l: Lead, s: Slot) {
   if (!LIVE) pushNotif(s.closer, `Neuer Ersttermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, "termin");
   rerender();
   persist(() => bookSlotAction(s.id, { id: l.id, kunde: l.kunde, ort: l.ort }), { reload: true });
+}
+
+/** Personen, die als Closer gebucht werden können */
+export const closerOptions = (): PersonKey[] =>
+  store.live.closers ?? Object.values(d().PEOPLE).filter((p) => p.role === "closer").map((p) => p.key);
+
+/** Ersttermin direkt eintragen (ohne freien Slot) – Datum, Uhrzeit (z. B. 17.5), Closer */
+export function bookDirect(l: Lead, date: string, start: number, closer: PersonKey) {
+  const clash = d().APPTS.some((a) => a.closer === closer && a.date === date && start < a.start + a.dur && a.start < start + 1.5);
+  if (clash) return "Der Closer hat zu der Zeit schon einen Termin";
+  const i = d().SLOTS.findIndex((s) => s.closer === closer && s.date === date && s.start === Math.floor(start));
+  if (i >= 0) d().SLOTS.splice(i, 1);
+  d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer, kind: "erst", date, start, dur: 1.5, ort: l.ort, feedback: null });
+  l.closer = closer;
+  setLeadStatus(l.id, "termin");
+  if (!LIVE) pushNotif(closer, `Neuer Ersttermin: ${l.kunde}, ${fmtDay(date)} ${fmtHour(start)} (${l.ort})`, "termin");
+  rerender();
+  persist(() => bookDirectAction({ id: l.id, kunde: l.kunde, ort: l.ort }, { date, start, closerId: closer }), { reload: true });
+  return null;
 }
 
 /** Lead aus dem Setting-Formular anlegen (Prototyp: lokal; echt: n8n-Webhook → Pipedrive) */

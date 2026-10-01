@@ -5,6 +5,7 @@ import Icon from "@/components/ui/Icon";
 import { StatusChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
 import { bookSlot, createLead, pushNotif, setLeadStatus } from "@/lib/actions";
+import DirectBooking from "@/components/booking/DirectBooking";
 import { bookableSlots } from "@/lib/appointments";
 import { fmtDay, fmtHour, nowStamp } from "@/lib/format";
 import { leadsForUser } from "@/lib/leads";
@@ -304,6 +305,7 @@ function Step3() {
   const byDay: Record<string, Slot[]> = {};
   slots.forEach((s) => (byDay[s.date] ??= []).push(s));
   const sel = data.SLOTS.find((x) => x.id === w.slot);
+  const wizLead = data.LEADS.find((x) => x.id === w.leadId);
   return (
     <>
       <CustomerBar />
@@ -340,6 +342,11 @@ function Step3() {
           </div>
         ) : (
           <p className="muted">Keine freien Termine.</p>
+        )}
+        {wizLead && (
+          <div style={{ marginTop: 12 }}>
+            <DirectBooking lead={wizLead} onBooked={() => go("done")} />
+          </div>
         )}
       </section>
       <div className="ee-wiz__bar">

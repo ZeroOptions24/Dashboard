@@ -139,6 +139,8 @@ export async function markNotificationsRead(v: Viewer) {
 export interface Workspace {
   me: PersonKey;
   people: Person[];
+  /** aktive Personen mit Closer-Rolle (Auswahl beim direkten Termin) */
+  closers: PersonKey[];
   notifications: Notification[];
   events: TeamEvent[];
   slots: Slot[];
@@ -288,6 +290,7 @@ export async function loadWorkspace(v: Viewer): Promise<Workspace> {
   return {
     me: v.id,
     people,
+    closers: closerIds,
     notifications: notifs.map((n) => ({ t: n.text, time: relTime(n.createdAt), status: (n.status as StatusKey) ?? null, unread: !n.readAt })),
     events,
     slots,
@@ -427,6 +430,31 @@ export async function saveFeedback(
   const status: StatusKey = input.result === "verkauft" ? "verkauft" : input.result === "verloren" ? "verloren" : input.result === "nicht_angetroffen" ? "eingereicht" : "checks";
   if (setter) await notify([setter], `${kunde}: ${FEEDBACK_TEXT[input.result]}`, status);
   return { second };
+}
+
+/** Termin direkt eintragen (ohne freien Slot): Datum, Uhrzeit, Closer frei wählbar.
+ *  Abgelehnt, wenn der Closer zu der Zeit schon einen Termin hat; ein passender freier Slot wird verbraucht. */
+export async function bookDirect(v: Viewer, lead: { id: string; kunde: string; ort: string }, input: { date: string; start: number; closerId: string }) {
+  must(can(v, "setter", "presetter"), "Keine Berechtigung zum Buchen");
+  const leadId = clean(lead.id, 60);
+  must(!!leadId, "Lead fehlt");
+  must(isDateKey(input.date) && input.date >= todayKey(), "Bitte ein Datum ab heute wählen");
+  const start = Number(input.start);
+  must(Number.isFinite(start) && start >= 6 && start <= 21.5 && (start * 2) % 1 === 0, "Bitte eine gültige Uhrzeit wählen");
+  const [closer] = await db.select({ id: schema.user.id, role: schema.user.role, banned: schema.user.banned }).from(schema.user).where(eq(schema.user.id, input.closerId));
+  must(!!closer && !closer.banned && parseRoles(closer.role).includes("closer"), "Bitte einen Closer wählen");
+  const dur = 1.5;
+  const same = await db.select().from(schema.appointment).where(and(eq(schema.appointment.closerId, closer.id), eq(schema.appointment.date, input.date)));
+  must(!same.some((a) => start < a.start + a.dur && a.start < start + dur), "Der Closer hat zu der Zeit schon einen Termin");
+  await db.delete(schema.closerSlot).where(and(eq(schema.closerSlot.closerId, closer.id), eq(schema.closerSlot.date, input.date), eq(schema.closerSlot.start, Math.floor(start))));
+  const id = randomUUID();
+  const kunde = clean(lead.kunde, 120),
+    ort = clean(lead.ort, 120);
+  await db.insert(schema.appointment).values({ id, leadId, closerId: closer.id, kind: "erst", date: input.date, start, dur, ort, kunde, createdBy: v.id });
+  const [, m, d] = input.date.split("-");
+  const time = `${pad(Math.floor(start))}:${start % 1 ? "30" : "00"}`;
+  if (closer.id !== v.id) await notify([closer.id], `Neuer Ersttermin: ${kunde}, ${d}.${m}. ${time}${ort ? ` (${ort})` : ""}`, "termin");
+  return { id, closer: closer.id, date: input.date, start };
 }
 
 /* ---------- Wettbewerb ---------- */

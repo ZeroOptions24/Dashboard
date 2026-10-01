@@ -6,6 +6,7 @@ import Icon from "@/components/ui/Icon";
 import { TryChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
 import { bookSlot, setLeadPreNote, setLeadVq } from "@/lib/actions";
+import DirectBooking from "@/components/booking/DirectBooking";
 import { bookableSlots } from "@/lib/appointments";
 import { GUIDES } from "@/lib/domain";
 import { fmtDay, fmtHour } from "@/lib/format";
@@ -85,7 +86,10 @@ export default function LeitfadenView() {
     if (!sel) return;
     bookSlot(l, sel);
     toast(`Termin gebucht: ${fmtDay(sel.date)} ${fmtHour(sel.start)} · ${person(sel.closer).first} und ${person(l.setter).first} informiert`);
-    /* weiter zum dringendsten offenen Lead */
+    advance();
+  };
+  /* weiter zum dringendsten offenen Lead */
+  const advance = () => {
     const nxt = store.data.LEADS.filter((x) => inCallPool(x, me) && x.status === "eingereicht" && x.id !== l.id).sort(urgencySort(now))[0];
     updateUi({ guideLead: nxt?.id ?? null, guideSlot: null });
     if (nxt) toast(`Nächster Anruf: ${nxt.kunde}`, "phone");
@@ -274,6 +278,7 @@ export default function LeitfadenView() {
               <button className="ee-btn ee-btn--primary" disabled={!sel} onClick={book}>
                 <Icon name="cal" small /> {sel ? `Termin ${fmtDay(sel.date)} ${fmtHour(sel.start)} eintragen` : "Termin auswählen"}
               </button>
+              <DirectBooking key={l.id} lead={l} onBooked={advance} />
             </div>
           </div>
         </section>

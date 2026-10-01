@@ -96,6 +96,8 @@ export const store = {
     boardId: null as string | null,
     /** Datenbank-Daten geladen */
     ready: false,
+    /** Personen mit Closer-Rolle (null = Beispieldaten → aus PEOPLE) */
+    closers: null as PersonKey[] | null,
   },
   /** Angemeldete Person (aus der Sitzung) */
   session: null as { name: string; roles: Role[] } | null,
@@ -186,6 +188,7 @@ export function applyWorkspace(w: Workspace) {
   for (const k of Object.keys(d.PAYOUTS)) delete d.PAYOUTS[k];
   Object.assign(d.PAYOUTS, w.payouts);
   if (w.moneyGoal != null) d.MONEY_GOAL[w.me] = w.moneyGoal;
+  store.live.closers = w.closers;
   store.live.ready = true;
   rerender();
 }
