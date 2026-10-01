@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { sendReminders } from "@/server/onboarding";
+import { retryOwnLeadSync } from "@/server/own-leads";
 
-/* Tägliche Onboarding-Erinnerungen.
+/* Täglicher Lauf: Onboarding-Erinnerungen + Pipedrive-Übertragung nachholen.
    TODO (Hosting): einmal täglich aufrufen, z. B. als geplante Aufgabe in Coolify:
      curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<domain>/api/cron/reminders
    Ohne CRON_SECRET ist der Endpunkt gesperrt. */
@@ -19,5 +20,7 @@ function authorized(header: string | null) {
 export async function POST(request: Request) {
   if (!process.env.CRON_SECRET) return Response.json({ error: "CRON_SECRET ist nicht gesetzt" }, { status: 503 });
   if (!authorized(request.headers.get("authorization"))) return Response.json({ error: "Nicht berechtigt" }, { status: 401 });
-  return Response.json(await sendReminders());
+  /* zusätzlich: im Dashboard erfasste Leads, die noch nicht nach Pipedrive übertragen wurden, erneut übertragen */
+  const [reminders, pipedrive] = await Promise.all([sendReminders(), retryOwnLeadSync()]);
+  return Response.json({ ...reminders, pipedriveNachgeholt: pipedrive.filter((p) => !p.error).length, pipedriveFehler: pipedrive.filter((p) => p.error).length });
 }

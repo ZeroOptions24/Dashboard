@@ -320,6 +320,58 @@ export const leadLock = pgTable("lead_lock", {
   until: timestamp("until").notNull(),
 });
 
+/** Einstellungen der App (z. B. die vom Dashboard angelegte Pipedrive-Pipeline mit Stufen und Feldern) */
+export const appSetting = pgTable("app_setting", {
+  key: text("key").primaryKey(),
+  /** JSON */
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/** Leads, die im Dashboard erfasst wurden („Lead erfassen“). Das Dashboard ist hier die Quelle der Wahrheit;
+ *  Person und Deal in Pipedrive (neue Pipeline) werden daraus angelegt und aktuell gehalten. */
+export const ownLead = pgTable(
+  "own_lead",
+  {
+    /** Lead-ID im Dashboard: „MB-…“ */
+    id: text("id").primaryKey(),
+    setterId: text("setter_id").references(() => user.id, { onDelete: "set null" }),
+    /** eingereicht | termin | checks | verkauft | abgesagt | verloren */
+    status: text("status").notNull().default("eingereicht"),
+    reason: text("reason"),
+    reasonNote: text("reason_note"),
+    anrede: text("anrede"),
+    vorname: text("vorname").notNull(),
+    nachname: text("nachname").notNull(),
+    telefon: text("telefon").notNull(),
+    email: text("email"),
+    strasse: text("strasse").notNull(),
+    hausnummer: text("hausnummer").notNull(),
+    plz: text("plz").notNull(),
+    ort: text("ort").notNull(),
+    /** JSON-Liste, z. B. ["Wärmepumpe"] */
+    themen: text("themen").notNull().default("[]"),
+    entscheider: text("entscheider"),
+    rueckrufDatum: text("rueckruf_datum"),
+    rueckrufUhrzeit: text("rueckruf_uhrzeit"),
+    /** JSON-Liste */
+    zeitfenster: text("zeitfenster").notNull().default("[]"),
+    notizen: text("notizen"),
+    gpsLat: real("gps_lat"),
+    gpsLon: real("gps_lon"),
+    /** Vorqualifizierung (JSON Feldname → Antwort) */
+    vq: text("vq").notNull().default("{}"),
+    pdPersonId: integer("pd_person_id"),
+    pdDealId: integer("pd_deal_id"),
+    /** letzter Abgleich mit Pipedrive; Fehlertext, wenn er nicht geklappt hat */
+    syncedAt: timestamp("synced_at"),
+    syncError: text("sync_error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("own_lead_setter_idx").on(t.setterId), index("own_lead_status_idx").on(t.status)],
+);
+
 /** Protokoll sensibler Zugriffe und Aktionen (z. B. IBAN angezeigt, Vertrag gesendet). */
 export const auditLog = pgTable("audit_log", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

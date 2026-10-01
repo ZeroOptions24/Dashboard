@@ -84,6 +84,7 @@ describe("Aktivitäten auf Leads", () => {
 vi.mock("@/server/db", async () => (await import("./db")).createTestDb());
 const pd = { updateDeal: vi.fn(async () => ({})), addDealNote: vi.fn(async () => ({})) };
 vi.mock("@/server/pipedrive/client", () => ({
+  getRecentNotes: async () => [],
   PipedriveNotConfigured: class extends Error {},
   pipedriveWriteMode: () => (process.env.PIPEDRIVE_WRITE === "true" ? "alles" : process.env.PIPEDRIVE_WRITE === "notizen" ? "notizen" : "aus"),
   updateDeal: (...a: unknown[]) => pd.updateDeal(...(a as [])),

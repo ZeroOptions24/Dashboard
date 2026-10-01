@@ -147,3 +147,71 @@ export const updateDeal = (id: number, patch: DealUpdate) => pdSend("PATCH", `${
 
 /** Notiz am Deal (Notizen gibt es nur in API v1) */
 export const addDealNote = (dealId: number, content: string) => pdSend("POST", `${BASE.replace(/\/v2$/, "/v1")}/notes`, { deal_id: dealId, content });
+
+/* ---------- Dashboard-Pipeline: anlegen und Leads schreiben (Dashboard = Quelle der Wahrheit) ---------- */
+
+const V1 = () => BASE.replace(/\/v2$/, "/v1");
+
+async function pdCall<T>(method: "GET" | "POST" | "PATCH", url: string, body?: unknown): Promise<T> {
+  const token = process.env.PIPEDRIVE_API_TOKEN;
+  if (!token) throw new PipedriveNotConfigured();
+  const res = await fetch(url, {
+    method,
+    headers: { "x-api-token": token, accept: "application/json", ...(body ? { "content-type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Pipedrive ${method} ${new URL(url).pathname}: HTTP ${res.status} ${text.slice(0, 200)}`);
+  return (text ? JSON.parse(text) : {}) as T;
+}
+
+export const listPipelines = async () => (await pdCall<{ data: { id: number; name: string }[] | null }>("GET", `${V1()}/pipelines`)).data ?? [];
+export const createPipeline = async (name: string) => (await pdCall<{ data: { id: number } }>("POST", `${V1()}/pipelines`, { name })).data.id;
+export const listStages = async (pipelineId: number) =>
+  (await pdCall<{ data: { id: number; name: string; order_nr: number }[] | null }>("GET", `${V1()}/stages?pipeline_id=${pipelineId}`)).data ?? [];
+export const createStage = async (pipelineId: number, name: string) => (await pdCall<{ data: { id: number } }>("POST", `${V1()}/stages`, { name, pipeline_id: pipelineId })).data.id;
+export const listDealFields = async () =>
+  (await pdCall<{ data: { key: string; name: string; field_type: string }[] | null }>("GET", `${V1()}/dealFields?limit=500`)).data ?? [];
+export const createDealField = async (name: string, fieldType: "varchar" | "text" | "double") =>
+  (await pdCall<{ data: { key: string } }>("POST", `${V1()}/dealFields`, { name, field_type: fieldType })).data.key;
+
+export interface NewPerson {
+  name: string;
+  phone: string;
+  email?: string | null;
+  address?: { value: string; route: string; street_number: string; postal_code: string; locality: string } | null;
+}
+
+/** Person anlegen (API v2) – mit echter Adresse; lehnt Pipedrive die Adresse ab, ohne Adresse erneut */
+export async function createPerson(p: NewPerson): Promise<number> {
+  const body = {
+    name: p.name,
+    phones: [{ value: p.phone, primary: true, label: "mobile" }],
+    ...(p.email ? { emails: [{ value: p.email, primary: true, label: "work" }] } : {}),
+  };
+  if (p.address) {
+    try {
+      return (await pdCall<{ data: { id: number } }>("POST", `${BASE}/persons`, { ...body, postal_address: { ...p.address, country: "Deutschland" } })).data.id;
+    } catch (e) {
+      if (!/HTTP 400/.test(String(e))) throw e;
+    }
+  }
+  return (await pdCall<{ data: { id: number } }>("POST", `${BASE}/persons`, body)).data.id;
+}
+
+/** Deal anlegen (API v2) mit eigenen Feldern */
+export async function createDeal(d: { title: string; personId: number; pipelineId: number; stageId: number; customFields: Record<string, unknown> }) {
+  return (
+    await pdCall<{ data: { id: number } }>("POST", `${BASE}/deals`, {
+      title: d.title,
+      person_id: d.personId,
+      pipeline_id: d.pipelineId,
+      stage_id: d.stageId,
+      custom_fields: d.customFields,
+    })
+  ).data.id;
+}
+
+/** Deal ändern inkl. eigener Felder (API v2) */
+export const patchDeal = (id: number, patch: DealUpdate & { custom_fields?: Record<string, unknown> }) => pdCall("PATCH", `${BASE}/deals/${id}`, patch);

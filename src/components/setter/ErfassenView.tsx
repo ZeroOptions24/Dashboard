@@ -155,10 +155,10 @@ function Step1() {
     submitLeadAction(w.data, lastStandort)
       .then((res) => {
         if (!res.ok) return toast(res.error, "info");
-        const l = createLead(w.data, { dealId: res.data.dealId });
+        const l = createLead(w.data, { leadId: res.data.leadId, dealId: res.data.dealId });
         lastStandort = null;
         setWizard({ leadId: l.id });
-        toast(`${l.kunde} in Pipedrive angelegt`);
+        toast(res.data.warning ?? `${l.kunde} angelegt`);
         go(next === "vq" ? 2 : "created");
       })
       .catch(() => toast("Keine Verbindung – Lead wurde nicht angelegt, bitte erneut senden", "info"))

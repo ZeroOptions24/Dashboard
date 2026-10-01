@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db", async () => (await import("./db")).createTestDb());
 vi.mock("@/server/pipedrive/client", () => ({
+  getRecentNotes: async () => [],
   getDeals: async () => [
     {
       id: 77,
@@ -73,7 +74,7 @@ describe("Lead an n8n", () => {
   it("sendet mit Setter-Code und liefert die Deal-ID", async () => {
     await db.update(schema.profile).set({ setterCode: "sara-7" });
     const f = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({ dealId: 4711 }), { status: 200 }));
-    expect(await submitLead(setter, values, null)).toEqual({ dealId: 4711 });
+    expect(await submitLead(setter, values, null)).toEqual({ leadId: "PD-4711", dealId: 4711 });
     const [url, init] = f.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://n8n.beispiel.test/webhook/wp-lead");
     expect(JSON.parse(String(init.body)).meta.setter).toBe("sara-7");

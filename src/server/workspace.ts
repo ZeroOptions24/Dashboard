@@ -5,6 +5,7 @@ import { isAdmin, parseRoles } from "@/lib/roles";
 import type { Appointment, Board, BoardArchiveEntry, Notification, Payout, PayoutLine, PayoutStatusKey, Person, PersonKey, Role, Slot, StatusKey, TeamEvent } from "@/lib/types";
 import { db, schema } from "./db";
 import { loadLeadsFromPipedrive, setterKey, withAssignments } from "./pipedrive/leads";
+import { getOwnLead, isOwnLeadId, syncOwnLead } from "./own-leads";
 import { loadSetterAssignments } from "./setter-assignment";
 
 /* Team-Alltag aus der Datenbank: Personen, Benachrichtigungen, Events, Closer-Kalender,
@@ -359,6 +360,7 @@ export async function removeSlot(v: Viewer, slotId: string) {
 /** Setter-Nutzer-ID eines Pipedrive-Leads (für Benachrichtigungen) */
 async function setterOfLead(leadId: string): Promise<string | null> {
   try {
+    if (isOwnLeadId(leadId)) return (await getOwnLead(leadId))?.setter ?? null;
     const raw = (await loadLeadsFromPipedrive()).find((l) => l.id === leadId);
     if (!raw) return null;
     const [lead] = withAssignments([raw], await loadSetterAssignments());
@@ -382,6 +384,7 @@ export async function bookSlot(v: Viewer, slotId: string, lead: { id: string; ku
   await db.insert(schema.appointment).values({ id, leadId, closerId: s.closerId, kind: "erst", date: s.date, start: s.start, dur: 1.5, ort, kunde, createdBy: v.id });
   const [, m, d] = s.date.split("-");
   await notify([s.closerId], `Neuer Ersttermin: ${kunde}, ${d}.${m}. ${pad(s.start)}:00${ort ? ` (${ort})` : ""}`, "termin");
+  if (isOwnLeadId(leadId)) await syncOwnLead(leadId); /* Closer + Termin in Pipedrive eintragen */
   return { id, closer: s.closerId, date: s.date, start: s.start };
 }
 
@@ -429,6 +432,7 @@ export async function saveFeedback(
     await db.insert(schema.appointment).values({ id, leadId, closerId, kind: "closing", date: input.second.date, start: hour, dur: 1.5, ort, kunde, createdBy: v.id });
     second = { id, lead: leadId, closer: closerId, kind: "closing", date: input.second.date, start: hour, dur: 1.5, ort, feedback: null };
   }
+  if (second && isOwnLeadId(leadId)) await syncOwnLead(leadId);
   const setter = await setterOfLead(leadId);
   const status: StatusKey = input.result === "verkauft" ? "verkauft" : input.result === "verloren" ? "verloren" : input.result === "nicht_angetroffen" ? "eingereicht" : "checks";
   if (setter) await notify([setter], `${kunde}: ${FEEDBACK_TEXT[input.result]}`, status);
@@ -457,6 +461,7 @@ export async function bookDirect(v: Viewer, lead: { id: string; kunde: string; o
   const [, m, d] = input.date.split("-");
   const time = `${pad(Math.floor(start))}:${start % 1 ? "30" : "00"}`;
   if (closer.id !== v.id) await notify([closer.id], `Neuer Ersttermin: ${kunde}, ${d}.${m}. ${time}${ort ? ` (${ort})` : ""}`, "termin");
+  if (isOwnLeadId(leadId)) await syncOwnLead(leadId);
   return { id, closer: closer.id, date: input.date, start };
 }
 

@@ -4,6 +4,8 @@ import { STATUS } from "@/lib/domain";
 import { isAdmin } from "@/lib/roles";
 import type { FormValues } from "@/lib/vq";
 import { db, schema } from "./db";
+import { createOwnLead, loadOwnLeads } from "./own-leads";
+import { getPipelineConfig } from "./pipedrive/dashboard-pipeline";
 import { invalidateLeadCache, loadLeadsFromPipedrive } from "./pipedrive/leads";
 import type { Viewer } from "./workspace";
 
@@ -49,10 +51,25 @@ export function buildLeadPayload(v: FormValues, setterCode: string, standort: un
   };
 }
 
-export async function submitLead(v: Viewer, values: FormValues, standort: unknown): Promise<{ dealId: number | null }> {
+export interface SubmitResult {
+  /** Lead-ID im Dashboard („MB-…“ bzw. „PD-…“); null = erscheint nach dem nächsten Laden */
+  leadId: string | null;
+  dealId: number | null;
+  /** Hinweis, wenn Pipedrive (noch) nicht aktualisiert werden konnte */
+  warning?: string;
+}
+
+/** Lead aus „Lead erfassen“ anlegen. Mit eingerichteter Dashboard-Pipeline: im Dashboard (Quelle der Wahrheit)
+ *  und direkt in Pipedrive. Sonst wie bisher über n8n in die alte Pipeline. */
+export async function submitLead(v: Viewer, values: FormValues, standort: unknown): Promise<SubmitResult> {
   if (!v.roles.includes("setter") && !isAdmin(v.roles)) throw new Error("Nur Setter erfassen Leads");
   for (const k of ["vorname", "nachname", "telefon", "email", "strasse", "hausnummer", "plz", "stadt"])
     if (!s(values, k)) throw new Error("Bitte alle Pflichtfelder ausfüllen");
+  if (await getPipelineConfig()) {
+    const r = await createOwnLead(v.id, values, (standort ?? null) as { lat?: unknown; lon?: unknown } | null);
+    await db.insert(schema.auditLog).values({ actorId: v.id, action: "lead.submitted", detail: `${r.id}${r.dealId ? ` · Deal ${r.dealId}` : ""}` });
+    return { leadId: r.id, dealId: r.dealId, warning: r.syncError ? `Lead gespeichert, Pipedrive folgt (${r.syncError})` : undefined };
+  }
   const url = process.env.N8N_WP_LEAD_URL?.trim();
   if (!url) throw new Error("Die Übertragung nach Pipedrive ist noch nicht eingerichtet (N8N_WP_LEAD_URL fehlt)");
   const [p] = await db.select({ code: schema.profile.setterCode }).from(schema.profile).where(eq(schema.profile.userId, v.id));
@@ -74,7 +91,7 @@ export async function submitLead(v: Viewer, values: FormValues, standort: unknow
   }
   await db.insert(schema.auditLog).values({ actorId: v.id, action: "lead.submitted", detail: dealId ? `Deal ${dealId}` : "ohne Deal-ID" });
   invalidateLeadCache();
-  return { dealId };
+  return { leadId: dealId ? `PD-${dealId}` : null, dealId };
 }
 
 export interface DuplicateHint {
@@ -104,7 +121,7 @@ export async function findDuplicates(v: Viewer, values: FormValues): Promise<Dup
   const name = normName(`${s(values, "vorname")} ${s(values, "nachname")}`);
   if (tel.length < 6 && name.split(" ").length < 2) return [];
   const hits: DuplicateHint[] = [];
-  for (const l of await loadLeadsFromPipedrive()) {
+  for (const l of [...(await loadLeadsFromPipedrive()), ...(await loadOwnLeads())]) {
     const lt = digits(l.telFull ?? "").slice(-8);
     const grund = tel.length >= 6 && lt && lt === tel ? "Telefon" : name && normName(l.kunde) === name ? "Name" : null;
     if (grund) hits.push({ datum: l.datum, status: STATUS[l.status].label, grund });

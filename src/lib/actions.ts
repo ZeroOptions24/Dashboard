@@ -22,7 +22,7 @@ import { persist } from "./live";
 import { dkey, eur, fmtDay, fmtHour, nowStamp, pad, parseKey } from "./format";
 import { apptEnd } from "./appointments";
 import { STATUS } from "./domain";
-import { inCallPool, urgencySort } from "./leads";
+import { inCallPool, isStoredLeadId, urgencySort } from "./leads";
 import { ranked } from "./ranking";
 import { currentUser, LIVE, notify, rerender, store } from "./store";
 import type { Board, Lead, PersonKey, Slot, StatusKey, TeamEvent } from "./types";
@@ -152,7 +152,7 @@ const demoNextTry = (n: number) => (n === 1 ? "heute ab 17:00" : n === 2 ? "Do 2
 /** Im Live-Modus: Aktion an einem Pipedrive-Lead speichern (und ggf. nach Pipedrive schreiben) */
 function persistLead(id: string, action: LeadAction) {
   const role = store.ui.role;
-  if (!/^PD-\d+$/.test(id)) return;
+  if (!isStoredLeadId(id)) return;
   persist(() => leadAction(role, id, action));
 }
 
@@ -353,7 +353,7 @@ export function bookDirect(l: Lead, date: string, start: number, closer: PersonK
 }
 
 /** Lead aus dem Setting-Formular anlegen (Prototyp: lokal; echt: n8n-Webhook → Pipedrive) */
-export function createLead(v: FormValues, fromPipedrive?: { dealId: number | null }): Lead {
+export function createLead(v: FormValues, fromServer?: { leadId: string | null; dealId: number | null }): Lead {
   const s = (k: string) => String(v[k] ?? "").trim();
   const n = d().NOW;
   const tel = s("telefon").replace(/\s+/g, " ");
@@ -364,8 +364,8 @@ export function createLead(v: FormValues, fromPipedrive?: { dealId: number | nul
   const count = d().LEADS.length;
   const l: Lead = {
     /* echte Daten: Deal-ID aus n8n/Pipedrive; ohne Rückmeldung vorläufige ID bis zum nächsten Laden */
-    id: fromPipedrive ? (fromPipedrive.dealId ? `PD-${fromPipedrive.dealId}` : `NEU-${rnd()}`) : `L-${2450 + count}`,
-    pd: fromPipedrive ? fromPipedrive.dealId : 48400 + count,
+    id: fromServer ? (fromServer.leadId ?? `NEU-${rnd()}`) : `L-${2450 + count}`,
+    pd: fromServer ? fromServer.dealId : 48400 + count,
     kunde: `${s("vorname") ? s("vorname") + " " : ""}${s("nachname")}`,
     anrede: `${s("anrede") || "Familie"} ${s("nachname")}`,
     tel: telMasked,

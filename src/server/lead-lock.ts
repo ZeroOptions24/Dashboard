@@ -1,5 +1,6 @@
 import "server-only";
 import { and, eq, ne } from "drizzle-orm";
+import { isStoredLeadId } from "@/lib/leads";
 import { db, schema } from "./db";
 import type { Viewer } from "./workspace";
 
@@ -14,7 +15,7 @@ export interface LockInfo {
 }
 
 export async function claimLead(v: Viewer, leadId: string, force = false): Promise<LockInfo> {
-  if (!/^PD-\d+$/.test(leadId)) return { other: null };
+  if (!isStoredLeadId(leadId)) return { other: null };
   const now = new Date();
   const [cur] = await db
     .select({ userId: schema.leadLock.userId, since: schema.leadLock.since, until: schema.leadLock.until, name: schema.user.name })

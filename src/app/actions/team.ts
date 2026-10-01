@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { ALL_ROLES } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 import { requireAdmin } from "@/server/auth";
+import { ownLeadStats, retryOwnLeadSync } from "@/server/own-leads";
+import { ensurePipeline, getPipelineConfig, PIPELINE_NAME } from "@/server/pipedrive/dashboard-pipeline";
 import * as sa from "@/server/setter-assignment";
 import * as team from "@/server/team";
 import { setterIdMap } from "@/server/workspace";
@@ -95,4 +97,22 @@ export async function importAssignmentsAction(text: string) {
 
 export async function listAuditAction() {
   return asAdmin(() => team.listAudit());
+}
+
+/* ---------- Dashboard-Pipeline in Pipedrive ---------- */
+
+export async function pipelineStatusAction() {
+  return asAdmin(async () => ({ name: PIPELINE_NAME, config: await getPipelineConfig(), leads: await ownLeadStats() }));
+}
+
+/** Pipeline, Stufen und Felder in Pipedrive anlegen bzw. prüfen (vorhandene werden wiederverwendet) */
+export async function ensurePipelineAction() {
+  return asAdmin(async (adminId) => ensurePipeline(adminId));
+}
+
+export async function retryOwnLeadSyncAction() {
+  return asAdmin(async () => {
+    const r = await retryOwnLeadSync();
+    return { ok: r.filter((x) => !x.error).length, fehler: r.filter((x) => x.error).map((x) => `${x.id}: ${x.error}`) };
+  });
 }

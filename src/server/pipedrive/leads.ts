@@ -199,11 +199,19 @@ export interface LeadContext {
   activities?: ActivityRow[];
   /** Standard-Presetter für Leads ohne Dashboard-Aktion */
   defaultPresetter?: string | null;
+  /** im Dashboard erfasste Leads (Dashboard-Pipeline, „MB-…“) */
+  ownLeads?: Lead[];
 }
 
 /** Pipedrive-Leads mit allen Dashboard-Ergänzungen (Zuweisung → Konto → Aktionen) */
 export const enrichLeads = (leads: Lead[], ctx: LeadContext) =>
-  applyActivities(withSetterIds(withAssignments(leads, ctx.assignments ?? new Map()), ctx.setterIds), ctx.activities ?? [], ctx.defaultPresetter ?? null);
+  applyActivities(
+    [...(ctx.ownLeads ?? []), ...withSetterIds(withAssignments(leads, ctx.assignments ?? new Map()), ctx.setterIds)].sort((a, b) =>
+      (b.pdAddTime ?? "").localeCompare(a.pdAddTime ?? ""),
+    ),
+    ctx.activities ?? [],
+    ctx.defaultPresetter ?? null,
+  );
 
 /** Nur die Leads, die diese Person sehen darf – die Filterung passiert hier auf dem Server.
  *  Personen-Schlüssel = Nutzer-ID. Dashboard-Aktionen werden vorher angewendet.

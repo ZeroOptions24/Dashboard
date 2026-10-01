@@ -6,6 +6,7 @@ import type { Viewer } from "@/server/workspace";
 vi.mock("@/server/db", async () => (await import("./db")).createTestDb());
 /* Kein Pipedrive in Tests → Setter-Benachrichtigung zu Pipedrive-Leads entfällt */
 vi.mock("@/server/pipedrive/client", () => ({
+  getRecentNotes: async () => [],
   getDeals: vi.fn(async () => {
     throw new Error("offline");
   }),

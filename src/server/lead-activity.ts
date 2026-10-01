@@ -4,11 +4,12 @@ import { STATUS } from "@/lib/domain";
 import type { ActivityKind, ActivityRow } from "@/lib/lead-activity";
 import { nextTryText } from "@/lib/lead-activity";
 import { isAdmin } from "@/lib/roles";
-import type { Role, StatusKey } from "@/lib/types";
+import type { Lead, Role, StatusKey } from "@/lib/types";
 import { vqSummary } from "@/lib/vq";
 import { db, schema } from "./db";
 import { addDealNote, pipedriveWriteMode, updateDeal, type DealUpdate } from "./pipedrive/client";
 import { invalidateLeadCache, loadLeadsFromPipedrive, withAssignments } from "./pipedrive/leads";
+import { getOwnLead, isOwnLeadId, updateOwnLead } from "./own-leads";
 import { loadSetterAssignments } from "./setter-assignment";
 import { leadIdsForCloser, notify, setterIdMap, type Viewer } from "./workspace";
 
@@ -54,14 +55,26 @@ export interface ActionResult {
 export async function recordLeadAction(v: Viewer & { name: string }, role: Role, leadId: string, action: LeadAction): Promise<ActionResult> {
   /* Rolle muss zur Person gehören; Admins dürfen jede Ansicht nutzen */
   if (!isAdmin(v.roles) && !v.roles.includes(role)) throw new Error("Keine Berechtigung");
-  if (!/^PD-\d+$/.test(leadId)) throw new Error("Lead ist noch nicht in Pipedrive");
-  const raw = (await loadLeadsFromPipedrive()).find((l) => l.id === leadId);
-  if (!raw) throw new Error("Lead nicht gefunden");
-  /* Setter aus Pipedrive oder – wenn dort leer – aus der Zuweisung im Dashboard */
-  const [lead] = withAssignments([raw], await loadSetterAssignments());
+  /* Zwei Arten von Leads: „MB-…“ = im Dashboard erfasst (Dashboard ist Quelle der Wahrheit),
+     „PD-…“ = aus der bisherigen Pipedrive-Pipeline */
+  const isOwn = isOwnLeadId(leadId);
+  if (!isOwn && !/^PD-\d+$/.test(leadId)) throw new Error("Lead ist noch nicht in Pipedrive");
+  let lead: Lead;
+  if (isOwn) {
+    const own = await getOwnLead(leadId);
+    if (!own) throw new Error("Lead nicht gefunden");
+    lead = own;
+  } else {
+    const raw = (await loadLeadsFromPipedrive()).find((l) => l.id === leadId);
+    if (!raw) throw new Error("Lead nicht gefunden");
+    /* Setter aus Pipedrive oder – wenn dort leer – aus der Zuweisung im Dashboard */
+    [lead] = withAssignments([raw], await loadSetterAssignments());
+  }
+  /* Nutzer-ID des Setters (eigene Leads speichern sie direkt, Pipedrive-Leads über den Setter-Namen) */
+  const setterUserId = isOwn ? lead.setter : ((await setterIdMap()).get(lead.setter) ?? null);
   /* Setter: nur an eigenen Leads – Vorqualifizierung/Notiz an der Tür und Absage (K.-o.-Kriterium) */
   if (role === "setter") {
-    const own = (await setterIdMap()).get(lead.setter) === v.id;
+    const own = setterUserId === v.id;
     const allowed = action.type === "vq" || action.type === "note" || (action.type === "status" && action.status === "abgesagt");
     if (!own || !allowed) throw new Error("Nur Presetter, Closer und Admins bearbeiten Leads");
   } else if (!["presetter", "closer", "admin"].includes(role)) throw new Error("Nur Presetter, Closer und Admins bearbeiten Leads");
@@ -135,7 +148,23 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
     data = { answers };
   }
 
-  /* Zurückschreiben nach Pipedrive (nur wenn eingeschaltet) */
+  /* Eigene Leads: Dashboard ist Quelle der Wahrheit – Stand speichern und Deal immer aktualisieren */
+  if (isOwn) {
+    await db.insert(schema.leadActivity).values({ leadId, userId: v.id, role, kind, text, data: JSON.stringify(data) });
+    const upd =
+      kind === "status"
+        ? { status: data.status as StatusKey, reason: (data.reason as string) || null, reasonNote: (data.note as string) || null }
+        : kind === "vq"
+          ? { vq: data.answers as Record<string, string> }
+          : {};
+    const sync = await updateOwnLead(leadId, upd);
+    if (!sync.error && pdNote && sync.dealId) await addDealNote(sync.dealId, pdNote).catch(() => {});
+    if (sync.error) result.warning = `In Pipedrive noch nicht übernommen (${sync.error}) – im Dashboard gespeichert, wird erneut versucht`;
+    await notifySetter(kind, action, text, lead, setterUserId, v.id);
+    return result;
+  }
+
+  /* Bisherige Pipeline: Zurückschreiben nach Pipedrive nur, wenn eingeschaltet */
   let pd: string | null = null;
   const mode = pipedriveWriteMode();
   if (mode !== "aus" && (patch || pdNote) && lead.pd) {
@@ -153,13 +182,13 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
 
   await db.insert(schema.leadActivity).values({ leadId, userId: v.id, role, kind, text, data: JSON.stringify(data), pipedrive: pd });
 
-  /* Setter über Ergebnisse informieren (nicht bei Closer-Rückmeldungen – das macht saveFeedback) */
-  if (action.type === "status" && !action.silent && kind === "status") {
-    const setter = (await setterIdMap()).get(lead.setter);
-    if (setter && setter !== v.id) await notify([setter], `${lead.kunde}: ${text}`, action.status as StatusKey);
-  } else if (action.type === "callback") {
-    const setter = (await setterIdMap()).get(lead.setter);
-    if (setter && setter !== v.id) await notify([setter], `${lead.kunde}: ${text}`, "eingereicht");
-  }
+  await notifySetter(kind, action, text, lead, setterUserId, v.id);
   return result;
+}
+
+/** Setter über Ergebnisse und Rückrufe informieren (nicht bei Closer-Rückmeldungen – das macht saveFeedback) */
+async function notifySetter(kind: ActivityKind, action: LeadAction, text: string, lead: Lead, setterUserId: string | null, actorId: string) {
+  if (!setterUserId || setterUserId === actorId) return;
+  if (action.type === "status" && !action.silent && kind === "status") await notify([setterUserId], `${lead.kunde}: ${text}`, action.status as StatusKey);
+  else if (action.type === "callback") await notify([setterUserId], `${lead.kunde}: ${text}`, "eingereicht");
 }

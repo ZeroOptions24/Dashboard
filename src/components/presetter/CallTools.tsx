@@ -5,7 +5,7 @@ import { claimLeadAction, releaseLeadsAction } from "@/app/actions/workspace";
 import { TryChip } from "@/components/ui/Chips";
 import Icon from "@/components/ui/Icon";
 import { fmtHour, pad } from "@/lib/format";
-import { callbackDue, callbackLate, isOverdue, telFull, telHref } from "@/lib/leads";
+import { callbackDue, callbackLate, isOverdue, isStoredLeadId, telFull, telHref } from "@/lib/leads";
 import { LIVE } from "@/lib/source";
 import type { Lead } from "@/lib/types";
 import { callLead, changeStatus } from "@/lib/ui";
@@ -166,7 +166,7 @@ export function FilteredCallQueue({ queue }: { queue: Lead[] }) {
 export function LeadLockBanner({ leadId, onNext }: { leadId: string; onNext?: () => void }) {
   const [other, setOther] = useState<{ name: string; since: string } | null>(null);
   useEffect(() => {
-    if (!LIVE || !/^PD-\d+$/.test(leadId)) return;
+    if (!LIVE || !isStoredLeadId(leadId)) return;
     let off = false;
     const claim = (force = false) =>
       claimLeadAction(leadId, force).then((res) => {

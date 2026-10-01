@@ -11,7 +11,10 @@ import {
   setBannedAction,
   updateMemberAction,
   importAssignmentsAction,
+  ensurePipelineAction,
   listAuditAction,
+  pipelineStatusAction,
+  retryOwnLeadSyncAction,
   listUnsentMailAction,
   previewAssignmentsAction,
   logMailLinkCopiedAction,
@@ -728,6 +731,84 @@ function AssignCard() {
   );
 }
 
+/* ---------- Dashboard-Pipeline in Pipedrive (Quelle der Wahrheit für neue Leads) ---------- */
+function PipelineCard() {
+  const { toast } = useDashboard();
+  const [st, setSt] = useState<{ name: string; config: { pipelineId: number; createdAt: string } | null; leads: { total: number; inPipedrive: number; fehler: number } } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const res = await pipelineStatusAction();
+    if (res.ok) setSt(res.data);
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Status beim Öffnen laden
+    void load();
+  }, [load]);
+  if (!st) return null;
+  return (
+    <section className="ee-card" data-component="PipelineCard">
+      <h2>Pipedrive-Pipeline fürs Dashboard</h2>
+      <p className="muted" style={{ fontSize: ".88rem", margin: "6px 0 10px" }}>
+        Neue Leads aus „Lead erfassen“ landen in der Pipeline <b>{st.name}</b>. Dort ist das Dashboard die Quelle der Wahrheit: Status, Termin, Presetter,
+        Closer, Vorqualifizierung und Notizen werden automatisch nach Pipedrive geschrieben. Die bisherige Pipeline wird nur gelesen.
+      </p>
+      {st.config ? (
+        <div className="stack" style={{ gap: 6 }}>
+          <span>
+            <ToneChip label="eingerichtet" tone="ok" /> Pipeline-ID <span className="mono">{st.config.pipelineId}</span> · seit{" "}
+            {new Date(st.config.createdAt).toLocaleDateString("de-DE")}
+          </span>
+          <span className="muted" style={{ fontSize: ".88rem" }}>
+            {st.leads.total} Leads im Dashboard erfasst · {st.leads.inPipedrive} in Pipedrive
+            {st.leads.fehler ? ` · ${st.leads.fehler} noch nicht übertragen` : ""}
+          </span>
+        </div>
+      ) : (
+        <div className="ee-alert ee-alert--warn">Noch nicht eingerichtet – bis dahin gehen neue Leads wie bisher über n8n in die alte Pipeline.</div>
+      )}
+      {report && <p className="ee-hint" style={{ whiteSpace: "pre-line" }}>{report}</p>}
+      <div className="row" style={{ marginTop: 10 }}>
+        <button
+          className={st.config ? "ee-btn ee-btn--sm" : "ee-btn ee-btn--primary ee-btn--sm"}
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm(st.config ? "Pipeline, Stufen und Felder in Pipedrive prüfen und Fehlendes ergänzen?" : `Pipeline „${st.name}“ mit Stufen und Feldern jetzt in Pipedrive anlegen?`)) return;
+            setBusy(true);
+            const res = await ensurePipelineAction();
+            setBusy(false);
+            if (!res.ok) return toast(res.error, "info");
+            setReport(
+              `Angelegt: ${res.data.created.length ? res.data.created.join(", ") : "nichts"}\nVorhanden: ${res.data.reused.length}${res.data.missingVq.length ? `\nFehlt in Pipedrive: ${res.data.missingVq.join(", ")}` : ""}`,
+            );
+            toast("Pipedrive-Pipeline ist eingerichtet", "check");
+            void load();
+          }}
+        >
+          {st.config ? "Prüfen & ergänzen" : "Pipeline in Pipedrive anlegen"}
+        </button>
+        {st.config && st.leads.total > st.leads.inPipedrive + 0 && (
+          <button
+            className="ee-btn ee-btn--ghost ee-btn--sm"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              const res = await retryOwnLeadSyncAction();
+              setBusy(false);
+              if (!res.ok) return toast(res.error, "info");
+              toast(`${res.data.ok} übertragen${res.data.fehler.length ? ` · ${res.data.fehler.length} Fehler` : ""}`, res.data.fehler.length ? "info" : "check");
+              if (res.data.fehler.length) setReport(res.data.fehler.join("\n"));
+              void load();
+            }}
+          >
+            Übertragung nachholen
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function TeamView() {
   const { toast } = useDashboard();
   const [rows, setRows] = useState<OnboardingRow[] | null>(null);
@@ -800,6 +881,7 @@ export default function TeamView() {
         </section>
         <div className="stack" style={{ gap: 18 }}>
           <OutboxCard version={mailVersion} />
+          <PipelineCard />
           <InviteForm onDone={load} />
           <ImportCard onDone={load} />
           <AssignCard />

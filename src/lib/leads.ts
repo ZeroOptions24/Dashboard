@@ -121,3 +121,6 @@ export function receivedAt(l: Lead): number {
 
 /** Sortierung „neueste zuerst“ nach Eingang (nicht nach Lead-Nummer). */
 export const newestFirst = (a: Lead, b: Lead) => receivedAt(b) - receivedAt(a) || b.id.localeCompare(a.id);
+
+/** Lead, der dauerhaft gespeichert werden kann: aus Pipedrive („PD-123“) oder im Dashboard erfasst („MB-…“) */
+export const isStoredLeadId = (id: string) => /^(PD-\d+|MB-[a-f0-9]{10})$/.test(id);
