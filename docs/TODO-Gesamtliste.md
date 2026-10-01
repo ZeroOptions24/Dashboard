@@ -41,7 +41,7 @@ Stand: 01.10.2026. Ergänzt [`TODO-EnergyEngel.md`](TODO-EnergyEngel.md) (Platzh
 | 2.6 | 🧑 | P1 | Standard-Presetterin als Konto anlegen und ihre E-Mail in `STANDARD_PRESETTER_EMAIL` | Alle Leads ohne Dashboard-Aktion zählen dann zu ihr |
 | 2.7 | 🧑 | P1 | Alle Admins richten Zwei-Faktor ein, danach Pflicht einschalten | Mein Konto → Sicherheit; danach `ADMIN_2FA_PFLICHT = true` (Entwicklung) |
 | 2.8 | 🧑 | P1 | Jede Person füllt ihre Stammdaten aus (IBAN für Auszahlungen) | Kommt mit dem Einladungslink |
-| 2.9 | 🤝 | P2 | Kurze Einweisung je Rolle (15 Min.) | Entwicklung schreibt eine 1-Seiten-Anleitung je Rolle |
+| 2.9 ✅ docs/ANLEITUNG.md | 🤝 | P2 | Kurze Einweisung je Rolle (15 Min.) | Entwicklung schreibt eine 1-Seiten-Anleitung je Rolle |
 | 2.10 | 🧑 | P2 | Feedback-Kanal festlegen (z. B. WhatsApp-Gruppe „Dashboard“) | Fehler mit Screenshot + Uhrzeit melden |
 
 ## 3. Pipedrive & n8n
@@ -59,7 +59,7 @@ Stand: 01.10.2026. Ergänzt [`TODO-EnergyEngel.md`](TODO-EnergyEngel.md) (Platzh
 | 3.9 | 🧑 | P2 | Eigenen Pipedrive-Nutzer „Dashboard/API“ für den Token | Heute hängt der Token an einer Person – fällt weg, wenn sie geht |
 | 3.10 | 🧑 | P2 | Pipedrive-Firmen-Domain nennen | für den Knopf „In Pipedrive öffnen“ |
 | 3.11 | 🤖 | P2 | Vorqualifizierung zusätzlich in die Pipedrive-VQ-Felder schreiben (wie `wp-vorqual`) | erst mit Freigabe 3.7 |
-| 3.12 | 🤖 | P2 | Dublettenprüfung bei „Lead erfassen“ (Telefon/E-Mail schon vorhanden?) | Warnung vor dem Absenden |
+| 3.12 ✅ erledigt 01.10. | 🤖 | P2 | Dublettenprüfung bei „Lead erfassen“ (Telefon/E-Mail schon vorhanden?) | Warnung vor dem Absenden |
 | 3.13 | 🤖 | P3 | Pipedrive-Webhook → Dashboard aktualisiert sofort (statt alle 60 Sek.) | – |
 | 3.14 | 🤖 | P3 | Setter-Link-Codes im Dashboard verwalten statt fest im n8n-Code | – |
 | 3.15 | 🧑 | P3 | Prüfen, ob n8n auf den eigenen Server umzieht (Datenschutz, Kosten) | n8n-Cloud: AV-Vertrag + Serverstandort prüfen |
@@ -71,7 +71,7 @@ Stand: 01.10.2026. Ergänzt [`TODO-EnergyEngel.md`](TODO-EnergyEngel.md) (Platzh
 |---|---|---|---|
 | 4.1 | 🤝 | P1 | Jeder Setter testet einmal: Login am Handy, Lead erfassen, Standort-Button, Tagesziel |
 | 4.2 | 🧑 | P1 | Ziele bestätigen: 5 Leads/Tag (Tagesziel), Monatsziel Verdienst (Standard 3.000 €) |
-| 4.3 | 🤖 | P2 | Dashboard als App auf den Homescreen (PWA, eigenes Icon) |
+| 4.3 ✅ erledigt 01.10. | 🤖 | P2 | Dashboard als App auf den Homescreen (PWA, eigenes Icon) |
 | 4.4 | 🤖 | P2 | Erfassen ohne Netz an der Haustür (zwischenspeichern, später senden) |
 | 4.5 | 🤖 | P2 | Hinweis an Setter, wenn sein Lead einen Termin bekommt/verkauft ist (gibt es in der Glocke – zusätzlich per WhatsApp/E-Mail? siehe 9.x) |
 | 4.6 | 🤖 | P3 | Eigene Statistik-Seite (Verlauf über Monate) |
@@ -83,9 +83,9 @@ Stand: 01.10.2026. Ergänzt [`TODO-EnergyEngel.md`](TODO-EnergyEngel.md) (Platzh
 | 5.1 | 🤝 | P1 | Testlauf mit der Presetterin: 10 echte Anrufe im Dashboard (Nicht erreicht, Rückruf, Termin direkt, Absage) |
 | 5.2 | 🧑 | P1 | Regeln für Anrufversuche: wie viele, welche Abstände, danach automatisch absagen? (heute: 1 → in 2 Std., 2 → morgen, 3–4 → in 2 Tagen, 5 → letzter Versuch) |
 | 5.3 | 🧑 | P2 | Leitfaden-Texte, Einwände und Vorqualifizierungsfragen (TMVT) durchsehen |
-| 5.4 | 🤖 | P2 | Anrufliste filtern/suchen (Ort, Alter, Setter), „Falsche Nummer“/„Mailbox“ als Ergebnis |
-| 5.5 | 🤖 | P2 | Erinnerung zur Rückrufzeit (Glocke/Push) |
-| 5.6 | 🤖 | P2 | „Wird gerade bearbeitet“, wenn zwei Presetter denselben Lead öffnen |
+| 5.4 ✅ erledigt 01.10. | 🤖 | P2 | Anrufliste filtern/suchen (Ort, Alter, Setter), „Falsche Nummer“/„Mailbox“ als Ergebnis |
+| 5.5 ✅ erledigt 01.10. (Hinweis im Leitfaden/Übersicht) | 🤖 | P2 | Erinnerung zur Rückrufzeit (Glocke/Push) |
+| 5.6 ✅ erledigt 01.10. | 🤖 | P2 | „Wird gerade bearbeitet“, wenn zwei Presetter denselben Lead öffnen |
 | 5.7 | 🤖 | P3 | WhatsApp-/SMS-Vorlage an Kunden („Wir haben Sie nicht erreicht …“) |
 | 5.8 | 🧑 | P3 | Telefonie-Anbindung (z. B. sipgate) – Anrufe direkt aus dem Browser zählen |
 
@@ -105,8 +105,8 @@ Stand: 01.10.2026. Ergänzt [`TODO-EnergyEngel.md`](TODO-EnergyEngel.md) (Platzh
 |---|---|---|---|
 | 7.1 | 🧑 | P1 | Zielwerte bestätigen (Terminquote 42 %, Checks 65 %, Verkauf 70 %, 65 Verkäufe/Monat, 30 Anrufe/Tag, Erstanruf ≤ 2 Std.) |
 | 7.2 | 🧑 | P2 | Wärmepumpen-Cup: Prämienstufen und Teamziel festlegen (heute Prototyp-Werte) |
-| 7.3 | 🤖 | P2 | „Neuen Wettbewerb starten“ (alten archivieren) |
-| 7.4 | 🤖 | P2 | Protokoll-Ansicht für Admins (wer hat wann IBAN gesehen, Vertrag gesendet …) |
+| 7.3 ✅ erledigt 01.10. | 🤖 | P2 | „Neuen Wettbewerb starten“ (alten archivieren) |
+| 7.4 ✅ erledigt 01.10. | 🤖 | P2 | Protokoll-Ansicht für Admins (wer hat wann IBAN gesehen, Vertrag gesendet …) |
 | 7.5 | 🤖 | P2 | Export (CSV) für Leads/Quoten je Setter |
 | 7.6 | 🤖 | P3 | Monats-Report automatisch per E-Mail an Admins |
 
@@ -150,7 +150,7 @@ Stand: 01.10.2026. Ergänzt [`TODO-EnergyEngel.md`](TODO-EnergyEngel.md) (Platzh
 | 11.4 | 🧑 | P1 | Kundeninfo/Einwilligung an der Haustür prüfen (Daten + Standort gehen nach Pipedrive/n8n; Adresssuche über OpenStreetMap) |
 | 11.5 | 🧑 | P2 | Löschkonzept: Fristen für ausgeschiedene MAs, abgesagte/alte Leads, Protokolle |
 | 11.6 | 🤖 | P2 | Löschfristen automatisch umsetzen |
-| 11.7 | 🤖 | P2 | Datenauskunft je MA (DSGVO-Export) |
+| 11.7 ✅ erledigt 01.10. | 🤖 | P2 | Datenauskunft je MA (DSGVO-Export) |
 | 11.8 | 🧑 | P2 | TOMs (technisch-organisatorische Maßnahmen) dokumentieren – Entwicklung liefert die technischen Punkte |
 | 11.9 | 🧑 | P2 | Wer ist Ansprechpartner für Datenschutz-Anfragen? |
 
@@ -158,9 +158,9 @@ Stand: 01.10.2026. Ergänzt [`TODO-EnergyEngel.md`](TODO-EnergyEngel.md) (Platzh
 
 | # | Wann | To-do |
 |---|---|---|
-| 12.1 | P1 | Sicherheits-Header (CSP, HSTS) und Login-Rate-Limit prüfen |
+| 12.1 ✅ erledigt 01.10. | P1 | Sicherheits-Header (CSP, HSTS) und Login-Rate-Limit prüfen |
 | 12.2 | P1 | `npm audit` durchgehen, kritische Pakete aktualisieren |
-| 12.3 | P1 | Dockerfile/Coolify-Konfiguration ins Repo (Migrationen laufen beim Start) |
+| 12.3 ✅ erledigt 01.10. (Dockerfile, docs/HOSTING.md) | P1 | Dockerfile/Coolify-Konfiguration ins Repo (Migrationen laufen beim Start) |
 | 12.4 | P2 | Automatische Paket-Updates (Dependabot) + CI |
 | 12.5 | P2 | Ende-zu-Ende-Tests im Browser für Login, Lead erfassen, Anruf, Termin, Rückmeldung |
 | 12.6 | P2 | Alle Ansichten am Handy (375 px) durchtesten |
