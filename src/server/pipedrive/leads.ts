@@ -3,8 +3,9 @@ import { STATUS } from "@/lib/domain";
 import { isAdmin } from "@/lib/roles";
 import type { HistoryEntry, Lead, Role, StatusKey } from "@/lib/types";
 import { applyActivities, type ActivityRow } from "@/lib/lead-activity";
-import { getDeals, getPersons, type PdDeal, type PdPerson } from "./client";
-import { DEAL_FIELDS, PIPEDRIVE_PIPELINE_ID, STAGE_ATTEMPTS, STAGE_TO_STATUS, WP_TITLE_PREFIXES } from "./config";
+import { getDeals, getPersons, getRecentNotes, type PdDeal, type PdPerson } from "./client";
+import { isLeadNote, parseLeadNote, type LeadNote } from "./note";
+import { DEAL_FIELDS, PIPEDRIVE_PIPELINE_ID, STAGE_ATTEMPTS, STAGE_TO_STATUS, VQ_DEAL_FIELDS, WP_TITLE_PREFIXES } from "./config";
 
 /* Pipedrive-Deals → Dashboard-Leads. */
 
@@ -51,11 +52,25 @@ export function statusOf(deal: PdDeal): StatusKey {
   return s;
 }
 
-export function dealToLead(deal: PdDeal, person: PdPerson | undefined): Lead {
+/** Vorqualifizierung aus den Pipedrive-Feldern (von n8n wp-vorqual) */
+function vqFromDeal(deal: PdDeal): Record<string, string> | undefined {
+  const cf = deal.custom_fields ?? {};
+  const vq: Record<string, string> = {};
+  for (const [name, key] of Object.entries(VQ_DEAL_FIELDS)) {
+    const v = cf[key];
+    const s = v && typeof v === "object" && "label" in v ? String((v as { label: unknown }).label) : v == null ? "" : String(v);
+    if (s.trim()) vq[name] = s.trim();
+  }
+  return Object.keys(vq).length ? vq : undefined;
+}
+
+export function dealToLead(deal: PdDeal, person: PdPerson | undefined, note?: LeadNote): Lead {
   const status = statusOf(deal);
   const [, kundeAusTitel] = deal.title.split(/\s+[–-]\s+/, 2);
   const kunde = person?.name || kundeAusTitel || deal.title;
-  const phone = person?.phones?.find((p) => p.primary)?.value || person?.phones?.[0]?.value || "";
+  const phone = person?.phones?.find((p) => p.primary)?.value || person?.phones?.[0]?.value || note?.telefon || "";
+  /* Rückrufwunsch mit Datum wird zum vereinbarten Rückruf (erscheint in der Anrufliste zur richtigen Zeit) */
+  const wunschMitDatum = note?.rueckruf && /\d{1,2}\.\d{1,2}\./.test(note.rueckruf) ? note.rueckruf : null;
   const hist: HistoryEntry[] = [["Lead eingereicht", stamp(deal.add_time)]];
   const changed = deal.lost_time || deal.won_time || deal.stage_change_time;
   if (status !== "eingereicht" && changed)
@@ -68,16 +83,23 @@ export function dealToLead(deal: PdDeal, person: PdPerson | undefined): Lead {
     tel: phone ? maskPhone(phone) : "–",
     /* volle Nummer – loadLeadsForUser gibt sie nur an Rollen weiter, die anrufen */
     telFull: phone ? phone.replace(/\s+/g, " ").trim() : undefined,
-    ort: person?.postal_address?.locality || "",
+    ort: person?.postal_address?.locality || note?.ort || "",
+    adresse: person?.postal_address?.value || note?.adresse,
+    email: person?.emails?.find((e) => e.primary)?.value || person?.emails?.[0]?.value || note?.email,
+    entscheider: note?.entscheider,
+    themen: note?.thema ? note.thema.split(/,\s*/) : undefined,
+    rueckrufWunsch: note?.rueckruf,
+    gps: note?.gps,
+    vq: vqFromDeal(deal),
     produkt: "wp",
     status,
     setter: setterKey(deal.custom_fields?.[DEAL_FIELDS.setter]),
     datum: date(deal.add_time),
-    setNote: "",
+    setNote: note?.setterNotiz ?? "",
     preNote: "",
     hist,
     attempts: STAGE_ATTEMPTS[deal.stage_id] ?? 0,
-    nextTry: null,
+    nextTry: status === "eingereicht" && wunschMitDatum ? `Rückruf ${wunschMitDatum}` : null,
     reason: deal.lost_reason,
     reasonNote: "",
     eigenlead: true,
@@ -91,23 +113,49 @@ const utc = (iso: string) => new Date(iso.includes("T") ? iso : iso.replace(" ",
 
 /** Alle Wärmepumpen-Leads der Pipeline, neueste zuerst. */
 async function fetchAllLeads(): Promise<Lead[]> {
-  const deals = (await getDeals(PIPEDRIVE_PIPELINE_ID, Object.values(DEAL_FIELDS))).filter((d) =>
+  const deals = (await getDeals(PIPEDRIVE_PIPELINE_ID)).filter((d) =>
     WP_TITLE_PREFIXES.some((p) => d.title.startsWith(p)),
   );
   const personIds = [...new Set(deals.map((d) => d.person_id).filter((id): id is number => !!id))];
-  const persons = new Map((await getPersons(personIds)).map((p) => [p.id, p]));
+  const [personList, notes] = await Promise.all([getPersons(personIds), loadLeadNotes()]);
+  const persons = new Map(personList.map((p) => [p.id, p]));
   return deals
     .sort((a, b) => b.add_time.localeCompare(a.add_time))
-    .map((d) => dealToLead(d, d.person_id ? persons.get(d.person_id) : undefined));
+    .map((d) => dealToLead(d, d.person_id ? persons.get(d.person_id) : undefined, notes.get(d.id)));
 }
 
 /* Kurzer Zwischenspeicher: nicht bei jedem Seitenaufruf alle Deals aus Pipedrive laden. */
+/* Lead-Notizen (von n8n) ändern sich nicht mehr – länger zwischenspeichern als die Deals */
+const NOTES_CACHE_MS = 5 * 60_000;
+let notesCache: { at: number; notes: Promise<Map<number, LeadNote>> } | null = null;
+
+/** Deal-ID → zerlegte Lead-Notiz (die erste „NEUER LEAD“-Notiz je Deal). Fehler → leer, Leads laden trotzdem. */
+function loadLeadNotes(): Promise<Map<number, LeadNote>> {
+  if (!notesCache || Date.now() - notesCache.at > NOTES_CACHE_MS) {
+    const notes = Promise.resolve()
+      .then(() => getRecentNotes())
+      .then((list) => {
+        const map = new Map<number, LeadNote>();
+        for (const n of list) if (n.deal_id && !map.has(n.deal_id) && isLeadNote(n.content)) map.set(n.deal_id, parseLeadNote(n.content));
+        return map;
+      })
+      .catch((e) => {
+        console.error("Pipedrive-Notizen nicht geladen:", e);
+        notesCache = null;
+        return new Map<number, LeadNote>();
+      });
+    notesCache = { at: Date.now(), notes };
+  }
+  return notesCache.notes;
+}
+
 const CACHE_MS = 60_000;
 let cache: { at: number; leads: Promise<Lead[]> } | null = null;
 
 /** Nach dem Schreiben nach Pipedrive: beim nächsten Laden frisch holen */
 export const invalidateLeadCache = () => {
   cache = null;
+  notesCache = null;
 };
 
 export function loadLeadsFromPipedrive(): Promise<Lead[]> {

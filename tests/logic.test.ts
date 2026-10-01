@@ -114,3 +114,14 @@ describe("Kennzahlen aus Leads", () => {
     expect(s.monatsende).toBe("30.09.2026");
   });
 });
+
+describe("Rückruf-Fälligkeit", () => {
+  it("berücksichtigt das Jahr im Rückrufwunsch", async () => {
+    const { callbackDue, callbackLate } = await import("@/lib/leads");
+    const now = new Date(2026, 9, 2, 10, 0);
+    const l = { nextTry: "Rückruf Mo. 01.03.2027, 09:39 Uhr" } as Parameters<typeof callbackDue>[0];
+    expect(callbackDue(l, now)?.getFullYear()).toBe(2027);
+    expect(callbackLate(l, now)).toBe(false);
+    expect(callbackLate({ ...l, nextTry: "Rückruf 01.10. 18:00" }, now)).toBe(true);
+  });
+});

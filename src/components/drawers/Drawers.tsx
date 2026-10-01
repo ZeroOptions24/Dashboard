@@ -170,6 +170,24 @@ function LeadDrawer({ id }: { id: string }) {
             <dt>Telefon</dt>
             <dd className="mono">{role === "setter" ? l.tel : telFull(l)}</dd>
           </div>
+          {l.adresse && (
+            <div style={{ gridColumn: "1/-1" }}>
+              <dt>Adresse</dt>
+              <dd>{l.adresse}</dd>
+            </div>
+          )}
+          {l.email && (
+            <div>
+              <dt>E-Mail</dt>
+              <dd style={{ wordBreak: "break-all" }}>{l.email}</dd>
+            </div>
+          )}
+          {l.rueckrufWunsch && (
+            <div>
+              <dt>Rückrufwunsch</dt>
+              <dd>{l.rueckrufWunsch}</dd>
+            </div>
+          )}
           <div>
             <dt>Setter</dt>
             <dd>

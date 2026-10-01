@@ -26,6 +26,15 @@ const person = (id: number): PdPerson => ({ id, name: `Kunde ${id}`, phones: [{ 
 vi.mock("@/server/pipedrive/client", () => ({
   getDeals: vi.fn(async () => [deal(1, "Max"), deal(2, "Florian", 183), deal(3, "", 184, "won"), { ...deal(4, "Max"), title: "PV – Kunde 4" }, { ...deal(5, "Florian", 249), title: "Enpal – Kunde 5" }]),
   getPersons: vi.fn(async (ids: number[]) => ids.map(person)),
+  getRecentNotes: vi.fn(async () => [
+    {
+      id: 1,
+      deal_id: 1,
+      add_time: "2026-09-28 08:00:00",
+      content:
+        "<b>WÄRMEPUMPE – NEUER LEAD (Türgeschäft)</b><br><b>── KONTAKT ──</b><br><b>Adresse:</b> Teststraße 1, 04109 Leipzig<br><b>── RÜCKRUF / TERMINWUNSCH ──</b><br><b>Wunsch:</b> Do. 01.10.2026, 18:00 Uhr<br><b>── NOTIZEN DES SETTERS ──</b><br>Hund im Garten",
+    },
+  ]),
 }));
 
 describe("Pipedrive-Leads", () => {
@@ -44,6 +53,13 @@ describe("Pipedrive-Leads", () => {
     expect(leads.some((l) => l.id === "PD-4")).toBe(false);
     expect(leads.find((l) => l.id === "PD-5")).toMatchObject({ kunde: "Kunde 5", setter: "florian", attempts: 2 });
     expect(leads.find((l) => l.id === "PD-1")!.tel).toBe("0170 •••• 4501");
+    /* aus der Lead-Notiz: Adresse, Setter-Notiz, Rückrufwunsch */
+    expect(leads.find((l) => l.id === "PD-1")).toMatchObject({
+      adresse: "Teststraße 1, 04109 Leipzig",
+      setNote: "Hund im Garten",
+      rueckrufWunsch: "Do. 01.10.2026, 18:00 Uhr",
+      nextTry: "Rückruf Do. 01.10.2026, 18:00 Uhr",
+    });
   });
 
   it("Setter sehen nur eigene Leads und nie die volle Nummer", async () => {

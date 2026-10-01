@@ -33,6 +33,7 @@ export interface PdPerson {
   id: number;
   name: string;
   phones?: { value: string; primary?: boolean; label?: string }[];
+  emails?: { value: string; primary?: boolean; label?: string }[];
   postal_address?: { value?: string; locality?: string } | null;
 }
 
@@ -64,12 +65,42 @@ async function pdGetAll<T>(path: string, params: Record<string, string | number 
   return out;
 }
 
-export function getDeals(pipelineId: number, customFields: string[]) {
+/** Deals einer Pipeline mit allen eigenen Feldern (Setter, Vorqualifizierung …) */
+export function getDeals(pipelineId: number) {
   return pdGetAll<PdDeal>("/deals", {
     pipeline_id: pipelineId,
     status: "open,won,lost",
-    custom_fields: customFields.join(","),
   });
+}
+
+export interface PdNote {
+  id: number;
+  deal_id: number | null;
+  content: string;
+  add_time: string;
+}
+
+/** Notizen der letzten `days` Tage (API v1, seitenweise) – daraus liest das Dashboard die Lead-Notiz von n8n. */
+export async function getRecentNotes(days = 200): Promise<PdNote[]> {
+  const token = process.env.PIPEDRIVE_API_TOKEN;
+  if (!token) throw new PipedriveNotConfigured();
+  const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  const out: PdNote[] = [];
+  for (let start = 0, page = 0; page < 40; page++) {
+    const url = new URL(`${BASE.replace(/\/v2$/, "/v1")}/notes`);
+    url.searchParams.set("start", String(start));
+    url.searchParams.set("limit", "500");
+    url.searchParams.set("start_date", since);
+    url.searchParams.set("sort", "add_time ASC");
+    const res = await fetch(url, { headers: { "x-api-token": token, accept: "application/json" }, cache: "no-store" });
+    if (!res.ok) throw new Error(`Pipedrive /notes: HTTP ${res.status}`);
+    const body = (await res.json()) as { data: PdNote[] | null; additional_data?: { pagination?: { more_items_in_collection?: boolean; next_start?: number } } };
+    out.push(...(body.data ?? []));
+    const pg = body.additional_data?.pagination;
+    if (!pg?.more_items_in_collection || pg.next_start == null) break;
+    start = pg.next_start;
+  }
+  return out;
 }
 
 /** Personen zu den IDs, in Blöcken zu je 100 (API-Limit). */

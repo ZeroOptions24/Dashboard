@@ -80,7 +80,13 @@ export interface Lead {
   /** volle Nummer – liefert der Server nur an Rollen, die anrufen (Admin, zuständiger Closer) */
   telFull?: string;
   ort: string;
+  /** „Straße Nr, PLZ Ort“ */
   adresse?: string;
+  email?: string;
+  /** Rückruf-/Terminwunsch von der Haustür (Text, z. B. „Abends (18–20 Uhr)“) */
+  rueckrufWunsch?: string;
+  /** Standort beim Erfassen an der Haustür */
+  gps?: { lat: number; lon: number };
   produkt: ProductKey;
   status: StatusKey;
   setter: PersonKey;

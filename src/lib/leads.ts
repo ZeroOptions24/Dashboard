@@ -46,9 +46,10 @@ export const isOverdue = (l: Lead, now: Date) =>
 function dueAt(l: Lead, now: Date): Date | null {
   const t = l.nextTry || "";
   if (!t) return null;
-  const d = t.match(/(\d{2})\.(\d{2})\./),
+  /* „01.03.2027“ mit Jahr, sonst „24.09.“ im laufenden Jahr */
+  const d = t.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})?/),
     h = t.match(/(\d{1,2}):(\d{2})/);
-  const day = d ? new Date(now.getFullYear(), +d[2] - 1, +d[1]) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = d ? new Date(d[3] ? +d[3] : now.getFullYear(), +d[2] - 1, +d[1]) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
   day.setHours(h ? +h[1] : /vormittag/.test(t) ? 10 : 17, h ? +h[2] : 0);
   return day;
 }

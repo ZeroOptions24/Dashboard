@@ -171,7 +171,30 @@ export default function LeitfadenView() {
               {l.adresse && (
                 <div style={{ gridColumn: "1/-1" }}>
                   <dt>Adresse</dt>
-                  <dd>{l.adresse}</dd>
+                  <dd>
+                    {l.adresse}{" "}
+                    <a className="ee-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresse)}`} target="_blank" rel="noopener">
+                      Karte
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {l.rueckrufWunsch && (
+                <div style={{ gridColumn: "1/-1" }}>
+                  <dt>Rückrufwunsch von der Tür</dt>
+                  <dd>{l.rueckrufWunsch}</dd>
+                </div>
+              )}
+              {l.themen?.length ? (
+                <div>
+                  <dt>Thema</dt>
+                  <dd>{l.themen.join(", ")}</dd>
+                </div>
+              ) : null}
+              {l.email && (
+                <div>
+                  <dt>E-Mail</dt>
+                  <dd style={{ wordBreak: "break-all" }}>{l.email}</dd>
                 </div>
               )}
             </dl>
