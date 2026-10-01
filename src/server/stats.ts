@@ -2,8 +2,8 @@ import "server-only";
 import { computeStats, type LeadStats } from "@/lib/stats";
 import type { AdminKpi, MbStats, PersonKey } from "@/lib/types";
 import { isAdmin } from "@/lib/roles";
-import { applyActivities, presetterStats, type ActivityRow, type PresetterStats } from "@/lib/lead-activity";
-import { loadLeadsFromPipedrive, withSetterIds, type LeadUser } from "./pipedrive/leads";
+import { presetterStats, type PresetterStats } from "@/lib/lead-activity";
+import { enrichLeads, loadLeadsFromPipedrive, type LeadContext, type LeadUser } from "./pipedrive/leads";
 
 /* Kennzahlen je Rolle: berechnet über ALLE Leads, ausgeliefert nur das Erlaubte.
    - Admin: alles
@@ -23,9 +23,10 @@ export interface StatsForUser {
   presetter?: PresetterStats;
 }
 
-export async function statsForUser(user: LeadUser, setterIds: Map<string, string>, activities: ActivityRow[] = [], defaultPresetter: string | null = null): Promise<StatsForUser> {
+export async function statsForUser(user: LeadUser, ctx: LeadContext): Promise<StatsForUser> {
   const now = new Date();
-  const leads = applyActivities(withSetterIds(await loadLeadsFromPipedrive(), setterIds), activities, defaultPresetter);
+  const activities = ctx.activities ?? [];
+  const leads = enrichLeads(await loadLeadsFromPipedrive(), ctx);
   const s = computeStats(leads, now);
   const base: StatsForUser = { monat: s.adminKpi.monat, monatsende: s.monatsende };
   /* Presetter (auch Admins mit Presetter-Rolle): eigene Anrufe, Ø bis Erstanruf, Terminquote + Teamschnitt */

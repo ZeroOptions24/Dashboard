@@ -8,7 +8,8 @@ import type { Role, StatusKey } from "@/lib/types";
 import { vqSummary } from "@/lib/vq";
 import { db, schema } from "./db";
 import { addDealNote, pipedriveWriteMode, updateDeal, type DealUpdate } from "./pipedrive/client";
-import { invalidateLeadCache, loadLeadsFromPipedrive } from "./pipedrive/leads";
+import { invalidateLeadCache, loadLeadsFromPipedrive, withAssignments } from "./pipedrive/leads";
+import { loadSetterAssignments } from "./setter-assignment";
 import { leadIdsForCloser, notify, setterIdMap, type Viewer } from "./workspace";
 
 /* Aktionen an Pipedrive-Leads aus dem Dashboard (Presetter-Pool, Closer, Admin):
@@ -54,8 +55,10 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
   /* Rolle muss zur Person gehören; Admins dürfen jede Ansicht nutzen */
   if (!isAdmin(v.roles) && !v.roles.includes(role)) throw new Error("Keine Berechtigung");
   if (!/^PD-\d+$/.test(leadId)) throw new Error("Lead ist noch nicht in Pipedrive");
-  const lead = (await loadLeadsFromPipedrive()).find((l) => l.id === leadId);
-  if (!lead) throw new Error("Lead nicht gefunden");
+  const raw = (await loadLeadsFromPipedrive()).find((l) => l.id === leadId);
+  if (!raw) throw new Error("Lead nicht gefunden");
+  /* Setter aus Pipedrive oder – wenn dort leer – aus der Zuweisung im Dashboard */
+  const [lead] = withAssignments([raw], await loadSetterAssignments());
   /* Setter: nur an eigenen Leads – Vorqualifizierung/Notiz an der Tür und Absage (K.-o.-Kriterium) */
   if (role === "setter") {
     const own = (await setterIdMap()).get(lead.setter) === v.id;

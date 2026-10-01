@@ -4,7 +4,8 @@ import { and, desc, eq, gte, inArray, isNull, isNotNull } from "drizzle-orm";
 import { isAdmin, parseRoles } from "@/lib/roles";
 import type { Appointment, Board, BoardArchiveEntry, Notification, Payout, PayoutLine, PayoutStatusKey, Person, PersonKey, Role, Slot, StatusKey, TeamEvent } from "@/lib/types";
 import { db, schema } from "./db";
-import { loadLeadsFromPipedrive, setterKey } from "./pipedrive/leads";
+import { loadLeadsFromPipedrive, setterKey, withAssignments } from "./pipedrive/leads";
+import { loadSetterAssignments } from "./setter-assignment";
 
 /* Team-Alltag aus der Datenbank: Personen, Benachrichtigungen, Events, Closer-Kalender,
    Wettbewerb, Auszahlungen. Jede Funktion bekommt die angemeldete Person (Viewer) und
@@ -358,8 +359,10 @@ export async function removeSlot(v: Viewer, slotId: string) {
 /** Setter-Nutzer-ID eines Pipedrive-Leads (für Benachrichtigungen) */
 async function setterOfLead(leadId: string): Promise<string | null> {
   try {
-    const lead = (await loadLeadsFromPipedrive()).find((l) => l.id === leadId);
-    return lead ? ((await setterIdMap()).get(lead.setter) ?? null) : null;
+    const raw = (await loadLeadsFromPipedrive()).find((l) => l.id === leadId);
+    if (!raw) return null;
+    const [lead] = withAssignments([raw], await loadSetterAssignments());
+    return (await setterIdMap()).get(lead.setter) ?? null;
   } catch {
     return null; /* ohne Pipedrive (Entwicklung) keine Setter-Benachrichtigung */
   }

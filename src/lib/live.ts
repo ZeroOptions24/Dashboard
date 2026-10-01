@@ -6,7 +6,8 @@
 
 import { contractSummaryAction } from "@/app/actions/contracts";
 import { loadWorkspaceAction } from "@/app/actions/workspace";
-import { applyWorkspace, LIVE, notify, store } from "./store";
+import { applyLiveLeads, applyLiveStats, applyWorkspace, LIVE, notify, store } from "./store";
+import type { Lead, Role } from "./types";
 import { toast } from "./ui";
 
 export async function refreshContractSummary() {
@@ -24,6 +25,21 @@ export async function reloadWorkspace(): Promise<boolean> {
   }
   applyWorkspace(res.data);
   return true;
+}
+
+async function getJson<T>(url: string): Promise<T> {
+  const r = await fetch(url);
+  const body = await r.json();
+  if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+  return body as T;
+}
+
+/** Leads und Kennzahlen (Pipedrive + Dashboard) neu laden; liefert den Hinweistext */
+export async function reloadLeads(): Promise<string> {
+  const { leads, keys, note } = await getJson<{ leads: Lead[]; keys: Partial<Record<Role, string>>; note?: string }>("/api/leads");
+  applyLiveLeads(leads, keys);
+  applyLiveStats(await getJson<Parameters<typeof applyLiveStats>[0]>("/api/stats"));
+  return note ? `Pipedrive: ${note}` : `Pipedrive · ${leads.length} Leads`;
 }
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };

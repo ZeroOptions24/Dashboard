@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { reloadWorkspace } from "@/lib/live";
-import { applyLiveLeads, applyLiveStats, LIVE } from "@/lib/store";
-import type { Lead, Role } from "@/lib/types";
+import { reloadLeads, reloadWorkspace } from "@/lib/live";
+import { LIVE } from "@/lib/store";
 
 /* Datenquelle: NEXT_PUBLIC_DATA_SOURCE=pipedrive lädt echte Daten – Leads und Kennzahlen aus
    Pipedrive (auf dem Server nach angemeldeter Person gefiltert) und den Team-Alltag aus der
@@ -15,19 +14,8 @@ export default function DataSource() {
   useEffect(() => {
     if (!LIVE) return;
     let cancelled = false;
-    const get = async <T,>(url: string): Promise<T> => {
-      const r = await fetch(url);
-      const body = await r.json();
-      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
-      return body as T;
-    };
-    const pipedrive = (async () => {
-      const { leads, keys, note } = await get<{ leads: Lead[]; keys: Partial<Record<Role, string>>; note?: string }>("/api/leads");
-      if (cancelled) return "";
-      applyLiveLeads(leads, keys);
-      applyLiveStats(await get<Parameters<typeof applyLiveStats>[0]>("/api/stats"));
-      return note ? `Pipedrive: ${note}` : `Pipedrive · ${leads.length} Leads`;
-    })();
+    const pipedrive = reloadLeads();
+    pipedrive.catch(() => {}); /* Fehler wird unten angezeigt */
     (async () => {
       await reloadWorkspace();
       let msg: string;

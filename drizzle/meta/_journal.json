@@ -57,6 +57,13 @@
       "when": 1790880766718,
       "tag": "0007_setter_code",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790883756675,
+      "tag": "0008_setter_zuweisung",
+      "breakpoints": true
     }
   ]
 }

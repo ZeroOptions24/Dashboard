@@ -4,7 +4,9 @@ import { headers } from "next/headers";
 import { ALL_ROLES } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 import { requireAdmin } from "@/server/auth";
+import * as sa from "@/server/setter-assignment";
 import * as team from "@/server/team";
+import { setterIdMap } from "@/server/workspace";
 
 /* Team-Verwaltung – jede Aktion prüft selbst, dass ein Admin angemeldet ist. */
 
@@ -70,4 +72,23 @@ export async function previewImportAction(text: string) {
 
 export async function importMembersAction(text: string, skipContract: boolean) {
   return asAdmin((adminId, h) => team.importMembers(text, skipContract, adminId, h));
+}
+
+/* ---------- Setter-Zuweisung im Dashboard (Pipedrive bleibt unverändert) ---------- */
+
+const knownSetters = async () => new Set((await setterIdMap()).keys());
+
+export async function assignSetterAction(leadId: string, name: string) {
+  return asAdmin(async (adminId) => {
+    await sa.assignSetter(leadId, name, adminId);
+    return null;
+  });
+}
+
+export async function previewAssignmentsAction(text: string) {
+  return asAdmin(async () => sa.parseAssignments(text, await knownSetters()));
+}
+
+export async function importAssignmentsAction(text: string) {
+  return asAdmin(async (adminId) => sa.importAssignments(text, await knownSetters(), adminId));
 }

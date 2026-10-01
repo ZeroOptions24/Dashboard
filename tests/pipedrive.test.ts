@@ -47,28 +47,41 @@ describe("Pipedrive-Leads", () => {
 
   it("Setter sehen nur eigene Leads und nie die volle Nummer", async () => {
     const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
-    const r = await loadLeadsForUser({ id: "user-max", roles: ["setter"] }, new Map([["max", "user-max"]]));
+    const r = await loadLeadsForUser({ id: "user-max", roles: ["setter"] }, { setterIds: new Map([["max", "user-max"]]) });
     expect(r.keys.setter).toBe("user-max");
     expect(r.leads.map((l) => l.id)).toEqual(["PD-1"]);
     expect(r.leads[0].setter).toBe("user-max");
     expect(r.leads[0].telFull).toBeUndefined();
   });
 
+  it("Zuweisung im Dashboard gilt nur, wenn in Pipedrive kein Setter steht", async () => {
+    const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
+    const assignments = new Map([
+      ["PD-3", "Max"] /* in Pipedrive leer → gilt */,
+      ["PD-2", "Max"] /* in Pipedrive „Florian“ → Pipedrive hat Vorrang */,
+    ]);
+    const r = await loadLeadsForUser({ id: "user-max", roles: ["setter"] }, { setterIds: new Map([["max", "user-max"]]), assignments });
+    expect(r.leads.map((l) => [l.id, l.setterFromDashboard ?? false])).toEqual([
+      ["PD-1", false],
+      ["PD-3", true],
+    ]);
+  });
+
   it("Closer sehen Leads mit Termin bei ihnen – mit voller Nummer", async () => {
     const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
-    const r = await loadLeadsForUser({ id: "user-jana", roles: ["closer"] }, new Map(), new Set(["PD-2"]));
+    const r = await loadLeadsForUser({ id: "user-jana", roles: ["closer"] }, { setterIds: new Map(), closerLeadIds: new Set(["PD-2"]) });
     expect(r.leads.map((l) => [l.id, l.telFull])).toEqual([["PD-2", "0170 1234502"]]);
   });
 
   it("Admins sehen alles", async () => {
     const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
-    const r = await loadLeadsForUser({ id: "a", roles: ["admin"] }, new Map());
+    const r = await loadLeadsForUser({ id: "a", roles: ["admin"] }, { setterIds: new Map() });
     expect(r.leads).toHaveLength(3);
   });
 
   it("Presetter: gemeinsamer Pool aller offenen Leads mit voller Nummer", async () => {
     const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
-    const r = await loadLeadsForUser({ id: "p", roles: ["presetter"] }, new Map());
+    const r = await loadLeadsForUser({ id: "p", roles: ["presetter"] }, { setterIds: new Map() });
     expect(r.keys.presetter).toBe("p");
     expect(r.leads.map((l) => [l.id, l.telFull])).toEqual([["PD-1", "0170 1234501"]]); /* nur „eingereicht“ */
   });

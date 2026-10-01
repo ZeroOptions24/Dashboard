@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { assignSetterAction } from "@/app/actions/team";
+import { reloadLeads } from "@/lib/live";
 import AppointmentCard from "@/components/closer/AppointmentCard";
 import CustomerBrief from "@/components/leads/CustomerBrief";
 import Icon from "@/components/ui/Icon";
@@ -41,6 +43,59 @@ function advanceIfGuide(id: string) {
   if (store.ui.view !== "leitfaden") return;
   const next = guideAdvance(id);
   if (next) toast(`Nächster Anruf: ${next}`, "phone");
+}
+
+/** Admin: Setter für einen Deal ohne Setter in Pipedrive zuweisen (nur im Dashboard) */
+function SetterAssign({ leadId, current }: { leadId: string; current: string }) {
+  const { data } = useDashboard();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(current);
+  const [busy, setBusy] = useState(false);
+  /* Vorschläge: Setter-Namen, die im Dashboard bekannt sind */
+  const names = [...new Set(Object.values(data.PEOPLE).filter((p) => p.role === "setter" && p.key !== "unbekannt").map((p) => p.first))].sort();
+  if (!open)
+    return (
+      <button className="ee-btn ee-btn--ghost ee-btn--sm" style={{ marginLeft: 6 }} onClick={() => setOpen(true)}>
+        {current ? "ändern" : "Setter zuweisen"}
+      </button>
+    );
+  const save = async (value: string) => {
+    setBusy(true);
+    const res = await assignSetterAction(leadId, value);
+    setBusy(false);
+    if (!res.ok) return toast(res.error, "info");
+    toast(value ? `Setter zugewiesen: ${value}` : "Zuweisung entfernt", "check");
+    setOpen(false);
+    void reloadLeads().catch(() => {});
+  };
+  return (
+    <form
+      className="row"
+      style={{ gap: 6, marginTop: 6 }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save(name.trim());
+      }}
+    >
+      <label className="sr" htmlFor={`assign-${leadId}`}>
+        Setter (Name wie im Pipedrive-Feld)
+      </label>
+      <input className="ee-input" id={`assign-${leadId}`} list={`assign-names-${leadId}`} value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 160, minHeight: 34 }} autoFocus />
+      <datalist id={`assign-names-${leadId}`}>
+        {names.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
+      <button className="ee-btn ee-btn--primary ee-btn--sm" type="submit" disabled={busy || !name.trim()}>
+        Speichern
+      </button>
+      {current && (
+        <button className="ee-btn ee-btn--ghost ee-btn--sm" type="button" disabled={busy} onClick={() => void save("")}>
+          Entfernen
+        </button>
+      )}
+    </form>
+  );
 }
 
 /* ---------- Lead-Details ---------- */
@@ -117,7 +172,13 @@ function LeadDrawer({ id }: { id: string }) {
           </div>
           <div>
             <dt>Setter</dt>
-            <dd>{person(l.setter).name}</dd>
+            <dd>
+              {l.setter === "unbekannt" ? "– in Pipedrive leer –" : person(l.setter).name}
+              {l.setterFromDashboard ? <span className="faint"> (im Dashboard zugewiesen)</span> : null}
+              {LIVE && role === "admin" && /^PD-\d+$/.test(l.id) && (l.setter === "unbekannt" || l.setterFromDashboard) ? (
+                <SetterAssign leadId={l.id} current={l.setterFromDashboard ? person(l.setter).first : ""} />
+              ) : null}
+            </dd>
           </div>
           <div>
             <dt>Presetter</dt>

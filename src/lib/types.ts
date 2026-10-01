@@ -84,6 +84,8 @@ export interface Lead {
   produkt: ProductKey;
   status: StatusKey;
   setter: PersonKey;
+  /** Setter kommt aus einer Zuweisung im Dashboard (in Pipedrive leer) */
+  setterFromDashboard?: boolean;
   presetter?: PersonKey;
   closer?: PersonKey;
   /** Eingangsdatum „TT.MM.JJJJ“ */

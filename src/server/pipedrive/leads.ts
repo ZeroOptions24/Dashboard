@@ -135,20 +135,38 @@ export interface LeadUser {
 /** Setter-Namen aus Pipedrive durch Nutzer-IDs ersetzen (unbekannte Namen bleiben stehen) */
 export const withSetterIds = (leads: Lead[], ids: Map<string, string>) => leads.map((l) => (ids.has(l.setter) ? { ...l, setter: ids.get(l.setter)! } : l));
 
+/** Setter-Zuweisungen aus dem Dashboard (Deal-ID → Setter-Name) für Deals ohne Setter in Pipedrive.
+ *  Ein Setter aus Pipedrive hat immer Vorrang. */
+export const withAssignments = (leads: Lead[], assignments: Map<string, string>) =>
+  leads.map((l) => (l.setter === "unbekannt" && assignments.has(l.id) ? { ...l, setter: setterKey(assignments.get(l.id)), setterFromDashboard: true } : l));
+
+/** Alles, was zusätzlich zu Pipedrive in die Leads einfließt (aus der Dashboard-Datenbank) */
+export interface LeadContext {
+  /** Pipedrive-Setter-Name (Schlüssel) → Nutzer-ID */
+  setterIds: Map<string, string>;
+  /** Setter-Zuweisungen im Dashboard: Lead-ID → Setter-Name */
+  assignments?: Map<string, string>;
+  /** Leads mit Termin bei dieser Person (Closer) */
+  closerLeadIds?: Set<string>;
+  activities?: ActivityRow[];
+  /** Standard-Presetter für Leads ohne Dashboard-Aktion */
+  defaultPresetter?: string | null;
+}
+
+/** Pipedrive-Leads mit allen Dashboard-Ergänzungen (Zuweisung → Konto → Aktionen) */
+export const enrichLeads = (leads: Lead[], ctx: LeadContext) =>
+  applyActivities(withSetterIds(withAssignments(leads, ctx.assignments ?? new Map()), ctx.setterIds), ctx.activities ?? [], ctx.defaultPresetter ?? null);
+
 /** Nur die Leads, die diese Person sehen darf – die Filterung passiert hier auf dem Server.
- *  Personen-Schlüssel = Nutzer-ID. Dashboard-Aktionen (activities) werden vorher angewendet.
+ *  Personen-Schlüssel = Nutzer-ID. Dashboard-Aktionen werden vorher angewendet.
  *  - Admin: alle
- *  - Setter: eigene (Pipedrive-Feld „Setter“), Nummer maskiert
+ *  - Setter: eigene (Pipedrive-Feld „Setter“ bzw. Zuweisung im Dashboard), Nummer maskiert
  *  - Presetter: gemeinsamer Pool aller offenen Leads + Leads, die sie selbst bearbeitet haben – volle Nummer
  *  - Closer: Leads mit Termin bei ihnen – volle Nummer */
-export async function loadLeadsForUser(
-  user: LeadUser,
-  setterIds: Map<string, string>,
-  closerLeadIds: Set<string> = new Set(),
-  activities: ActivityRow[] = [],
-  defaultPresetter: string | null = null,
-): Promise<LeadsForUser> {
-  const all = applyActivities(withSetterIds(await loadLeadsFromPipedrive(), setterIds), activities, defaultPresetter);
+export async function loadLeadsForUser(user: LeadUser, ctx: LeadContext): Promise<LeadsForUser> {
+  const all = enrichLeads(await loadLeadsFromPipedrive(), ctx);
+  const closerLeadIds = ctx.closerLeadIds ?? new Set<string>();
+  const activities = ctx.activities ?? [];
   const keys: Partial<Record<Role, string>> = {};
   if (user.roles.includes("setter")) keys.setter = user.id;
   if (user.roles.includes("presetter")) keys.presetter = user.id;

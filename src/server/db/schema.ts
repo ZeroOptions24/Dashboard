@@ -301,6 +301,15 @@ export const leadActivity = pgTable(
   (t) => [index("lead_activity_lead_idx").on(t.leadId, t.createdAt), index("lead_activity_user_idx").on(t.userId, t.createdAt)],
 );
 
+/** Setter-Zuweisung im Dashboard für Deals ohne Setter in Pipedrive (Pipedrive selbst bleibt unverändert).
+ *  setter_name wie im Pipedrive-Feld „Setter“ – wird wie dieses dem Konto zugeordnet. */
+export const setterAssignment = pgTable("setter_assignment", {
+  leadId: text("lead_id").primaryKey(),
+  setterName: text("setter_name").notNull(),
+  assignedBy: text("assigned_by").references(() => user.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+});
+
 /** Protokoll sensibler Zugriffe und Aktionen (z. B. IBAN angezeigt, Vertrag gesendet). */
 export const auditLog = pgTable("audit_log", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

@@ -10,7 +10,9 @@ import {
   revealIbanAction,
   setBannedAction,
   updateMemberAction,
+  importAssignmentsAction,
   listUnsentMailAction,
+  previewAssignmentsAction,
   logMailLinkCopiedAction,
 } from "@/app/actions/team";
 import Icon from "@/components/ui/Icon";
@@ -20,7 +22,9 @@ import { ALL_ROLES, ROLE_NAMES } from "@/lib/roles";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Role } from "@/lib/types";
 import type { OnboardingRow, OnboardingStatus } from "@/server/onboarding";
+import type { AssignmentLine } from "@/server/setter-assignment";
 import type { ImportLine, MemberDetails, UnsentMail } from "@/server/team";
+import { reloadLeads } from "@/lib/live";
 
 const STATUS: Record<OnboardingStatus, { label: string; tone: string; next: string }> = {
   eingeladen: { label: "Eingeladen", tone: "info", next: "wartet auf Daten" },
@@ -576,6 +580,94 @@ function OutboxCard({ version }: { version: number }) {
   );
 }
 
+/* ---------- Setter-Zuweisung für Deals ohne Setter (Pipedrive bleibt unverändert) ---------- */
+function AssignCard() {
+  const { toast } = useDashboard();
+  const [text, setText] = useState("");
+  const [preview, setPreview] = useState<AssignmentLine[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const valid = preview?.filter((l) => !l.error && !l.pipedriveSetter).length ?? 0;
+  return (
+    <section className="ee-card" data-component="AssignCard">
+      <h2>Setter zuweisen</h2>
+      <p className="muted" style={{ fontSize: ".88rem", margin: "6px 0 12px" }}>
+        Für Deals, bei denen in Pipedrive kein Setter steht. Eine Zeile je Deal: <span className="mono">Deal-ID – Setter</span> (z. B. „1036 – Florian“, auch der
+        Pipedrive-Link geht). Pipedrive selbst bleibt unverändert; steht dort später ein Setter, hat der Vorrang.
+      </p>
+      <div className="stack" style={{ gap: 10 }}>
+        <textarea
+          className="ee-textarea"
+          id="assignList"
+          aria-label="Liste der Zuweisungen"
+          rows={5}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setPreview(null);
+          }}
+          placeholder={"1036 – Florian\n1041 – Max\n…"}
+        />
+        {preview && (
+          <div className="ee-list">
+            {preview.map((l, i) => (
+              <div key={i} className="ee-list__row">
+                <div className="ee-list__main">
+                  <div className="ee-list__title">
+                    {l.leadId ? <span className="mono">{l.leadId.replace("PD-", "#")}</span> : l.line} {l.kunde}
+                  </div>
+                  <div className="ee-list__sub">
+                    → {l.setter || "–"}
+                    {l.ohneKonto ? " · noch kein Konto mit diesem Pipedrive-Namen (greift, sobald es angelegt ist)" : ""}
+                    {l.pipedriveSetter ? ` · in Pipedrive steht schon „${l.pipedriveSetter}“ – der gilt` : ""}
+                  </div>
+                </div>
+                {l.error ? (
+                  <ToneChip label={l.error} tone="bad" />
+                ) : l.pipedriveSetter ? (
+                  <ToneChip label="wird übersprungen" tone="warn" />
+                ) : (
+                  <ToneChip label="ok" tone="ok" />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="row">
+          <button
+            className="ee-btn"
+            disabled={!text.trim() || busy}
+            onClick={async () => {
+              setBusy(true);
+              const res = await previewAssignmentsAction(text);
+              setBusy(false);
+              if (res.ok) setPreview(res.data);
+              else toast(res.error, "info");
+            }}
+          >
+            Vorschau
+          </button>
+          <button
+            className="ee-btn ee-btn--primary"
+            disabled={!preview || !valid || busy}
+            onClick={async () => {
+              setBusy(true);
+              const res = await importAssignmentsAction(text);
+              setBusy(false);
+              if (!res.ok) return toast(res.error, "info");
+              toast(`${res.data.ok} Zuweisung(en) gespeichert${res.data.skipped ? ` · ${res.data.skipped} übersprungen` : ""}`, "check");
+              setPreview(null);
+              setText("");
+              void reloadLeads().catch(() => {});
+            }}
+          >
+            {valid ? `${valid} übernehmen` : "Übernehmen"}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function TeamView() {
   const { toast } = useDashboard();
   const [rows, setRows] = useState<OnboardingRow[] | null>(null);
@@ -650,6 +742,7 @@ export default function TeamView() {
           <OutboxCard version={mailVersion} />
           <InviteForm onDone={load} />
           <ImportCard onDone={load} />
+          <AssignCard />
         </div>
       </div>
     </>
