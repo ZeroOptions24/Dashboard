@@ -5,7 +5,7 @@ import { STATUS } from "@/lib/domain";
 import type { HistoryEntry, Lead, StatusKey } from "@/lib/types";
 import type { FormValues } from "@/lib/vq";
 import { db, schema } from "./db";
-import { createDeal, createPerson, patchDeal } from "./pipedrive/client";
+import { createDeal, createPerson, deleteDeal, patchDeal } from "./pipedrive/client";
 import { getPipelineConfig, type PipelineConfig } from "./pipedrive/dashboard-pipeline";
 import { maskPhone } from "./pipedrive/leads";
 
@@ -237,4 +237,17 @@ export async function getOwnLead(id: string) {
 export async function ownLeadStats() {
   const rows = await db.select({ dealId: schema.ownLead.pdDealId, err: schema.ownLead.syncError }).from(schema.ownLead);
   return { total: rows.length, inPipedrive: rows.filter((r) => r.dealId).length, fehler: rows.filter((r) => r.err).length };
+}
+
+/** Im Dashboard erfassten Lead löschen (z. B. Testlauf oder Fehleingabe): Deal in Pipedrive in den Papierkorb,
+ *  Lead samt Aktionen und Terminen im Dashboard entfernen. Nur Admins (Aufrufer prüft). */
+export async function deleteOwnLead(id: string, adminId: string) {
+  const [row] = await db.select().from(schema.ownLead).where(eq(schema.ownLead.id, id));
+  if (!row) throw new Error("Lead nicht gefunden");
+  if (row.pdDealId) await deleteDeal(row.pdDealId);
+  await db.delete(schema.appointment).where(eq(schema.appointment.leadId, id));
+  await db.delete(schema.leadActivity).where(eq(schema.leadActivity.leadId, id));
+  await db.delete(schema.leadLock).where(eq(schema.leadLock.leadId, id));
+  await db.delete(schema.ownLead).where(eq(schema.ownLead.id, id));
+  await db.insert(schema.auditLog).values({ actorId: adminId, action: "lead.deleted", detail: `${id} (${row.vorname} ${row.nachname})${row.pdDealId ? ` · Deal ${row.pdDealId}` : ""}` });
 }

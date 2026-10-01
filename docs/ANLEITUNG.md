@@ -18,12 +18,16 @@ Eine Seite je Rolle. Wer mehrere Rollen hat, wechselt oben rechts unter „Rolle
 
 ## Setter
 
-**Lead an der Tür erfassen** → Menü „Lead erfassen“
-1. Notizen, Terminabsprache, Kontaktdaten eintragen. „Adresse per Standort ausfüllen“ füllt Straße/PLZ/Ort per GPS – Hausnummer prüfen.
-2. „Lead erstellen“ → der Lead geht direkt nach Pipedrive (wie bisher über deinen Setter-Link).
+**Lead an der Tür erfassen** → Menü „Lead erfassen“ (ersetzt das bisherige Formular)
+1. **Kontaktdaten**: Anrede, Vor- und Nachname, Telefon, E-Mail (Pflicht). „Adresse per Standort ausfüllen“ füllt Straße, PLZ und Ort per GPS – **Hausnummer immer prüfen**.
+2. **Termin & Rückruf**: Thema, sind alle Entscheider dabei, Rückrufwunsch (Datum/Uhrzeit oder Zeitfenster).
+3. **Notizen aus dem Gespräch**: alles, was das Presetting wissen muss (Heizung, Hund, „Frau entscheidet mit“ …).
+4. **„Lead erstellen“** → der Lead ist sofort im Dashboard und als Deal in Pipedrive (Pipeline „MB-Dashboard Wärmepumpe“) – mit dir als Setter, ohne Setter-Link.
    - Warnt das Dashboard „Diesen Kunden gibt es vermutlich schon“: nur „Trotzdem anlegen“, wenn es wirklich ein anderes Haus ist.
-3. Optional „Direkt an der Tür vorqualifizieren“ – die Antworten sieht das Presetting im Leitfaden.
-4. Optional Termin legen: freien Slot wählen oder „Termin direkt eintragen“ (Datum, Uhrzeit, Closer).
+5. Optional **„Direkt an der Tür vorqualifizieren“**: Fragen zum Haus, zur Heizung, zum Eigentum. Teilweise reicht – den Rest klärt das Presetting am Telefon.
+6. Optional **Termin legen**: freien Closer-Slot wählen oder „Termin direkt eintragen“ (Datum, Uhrzeit, Closer).
+
+Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und Closer sehen Adresse, Rückrufwunsch, Notizen und Vorqualifizierung direkt.
 
 **Übersicht**: Dein Geld (Monat), Tagesziel (5 Leads), deine Quote im Vergleich zum Team, Setter-Rangliste, letzte Leads.
 **Pipeline**: alle deine Leads mit Stand. Lead antippen → Verlauf (auch, wann das Presetting angerufen hat).

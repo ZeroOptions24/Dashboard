@@ -46,7 +46,7 @@ Coolify → New Resource → **GitHub (privates Repo `ZeroOptions24/Dashboard`)*
 | `CRON_SECRET` | `openssl rand -hex 24` | 🤖 |
 | `PIPEDRIVE_API_TOKEN` | aus Pipedrive → Persönliche Einstellungen → API | 🧑 selbst eintragen |
 | `PIPEDRIVE_WRITE` | `false` (in Pipedrive wird nichts verschoben) | 🤖 |
-| `N8N_WP_LEAD_URL` | bisheriger wp-lead-Webhook | 🤖 |
+| `N8N_WP_LEAD_URL` | bisheriger wp-lead-Webhook – nur Rückfall, solange die Dashboard-Pipeline noch nicht eingerichtet ist | 🤖 |
 | `STANDARD_PRESETTER_EMAIL` | E-Mail der Standard-Presetterin | 🤖 |
 | `SIGNING_PROVIDER` | leer (Test) – später `yousign` + `YOUSIGN_API_KEY`, `YOUSIGN_WEBHOOK_SECRET` | 🧑 |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | `smtp.strato.de`, `465`, Postfach-Zugang | 🧑 selbst eintragen |
@@ -56,7 +56,9 @@ Coolify → New Resource → **GitHub (privates Repo `ZeroOptions24/Dashboard`)*
 1. 🤖 Deploy auslösen, `https://dashboard.<domain>/api/health` muss `{"ok":true}` zeigen.
 2. 🧑 **Sofort** `/setup` öffnen und das erste Admin-Konto anlegen.
 3. 🧑 Team importieren (Team → „Bestehende MAs übernehmen“), Rollen prüfen, Setter-Namen und Setter-Link-Codes eintragen, Links per „E-Mails ohne Versand“ verschicken.
-4. 🤖 Setter-Zuweisungen eintragen (Team → „Setter zuweisen“).
+4. 🤝 Team → „Pipedrive-Pipeline fürs Dashboard“ → „Pipeline in Pipedrive anlegen“ (neue Leads landen ab dann dort, das Dashboard ist Quelle der Wahrheit).
+5. 🤖 Setter-Zuweisungen eintragen (Team → „Setter zuweisen“).
+6. 🤝 Testlauf nach [TESTLAUF-LIVEGANG.md](TESTLAUF-LIVEGANG.md).
 
 ## 6. Betrieb 🤖
 

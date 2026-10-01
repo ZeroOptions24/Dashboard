@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { ALL_ROLES } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 import { requireAdmin } from "@/server/auth";
-import { ownLeadStats, retryOwnLeadSync } from "@/server/own-leads";
+import { deleteOwnLead, ownLeadStats, retryOwnLeadSync } from "@/server/own-leads";
 import { ensurePipeline, getPipelineConfig, PIPELINE_NAME } from "@/server/pipedrive/dashboard-pipeline";
 import * as sa from "@/server/setter-assignment";
 import * as team from "@/server/team";
@@ -114,5 +114,13 @@ export async function retryOwnLeadSyncAction() {
   return asAdmin(async () => {
     const r = await retryOwnLeadSync();
     return { ok: r.filter((x) => !x.error).length, fehler: r.filter((x) => x.error).map((x) => `${x.id}: ${x.error}`) };
+  });
+}
+
+/** Im Dashboard erfassten Lead löschen (Testlauf, Fehleingabe) – auch den Deal in Pipedrive */
+export async function deleteOwnLeadAction(leadId: string) {
+  return asAdmin(async (adminId) => {
+    await deleteOwnLead(leadId, adminId);
+    return null;
   });
 }

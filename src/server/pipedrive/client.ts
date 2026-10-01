@@ -152,7 +152,7 @@ export const addDealNote = (dealId: number, content: string) => pdSend("POST", `
 
 const V1 = () => BASE.replace(/\/v2$/, "/v1");
 
-async function pdCall<T>(method: "GET" | "POST" | "PATCH", url: string, body?: unknown): Promise<T> {
+async function pdCall<T>(method: "GET" | "POST" | "PATCH" | "DELETE", url: string, body?: unknown): Promise<T> {
   const token = process.env.PIPEDRIVE_API_TOKEN;
   if (!token) throw new PipedriveNotConfigured();
   const res = await fetch(url, {
@@ -215,3 +215,6 @@ export async function createDeal(d: { title: string; personId: number; pipelineI
 
 /** Deal ändern inkl. eigener Felder (API v2) */
 export const patchDeal = (id: number, patch: DealUpdate & { custom_fields?: Record<string, unknown> }) => pdCall("PATCH", `${BASE}/deals/${id}`, patch);
+
+/** Deal löschen (landet in Pipedrive 30 Tage im Papierkorb) */
+export const deleteDeal = (id: number) => pdCall("DELETE", `${V1()}/deals/${id}`);

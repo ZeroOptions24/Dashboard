@@ -220,7 +220,9 @@ const AUDIT_LABELS: Record<string, string> = {
   "payout.release": "Auszahlung freigegeben",
   "board.archived": "Wettbewerb abgeschlossen",
   "lead.setter_assigned": "Setter zugewiesen",
-  "lead.submitted": "Lead an Pipedrive übertragen",
+  "lead.submitted": "Lead erfasst",
+  "lead.deleted": "Lead gelöscht",
+  "pipedrive.setup": "Pipedrive-Pipeline eingerichtet",
   "outbox.link_copied": "Link aus E-Mail kopiert",
 };
 

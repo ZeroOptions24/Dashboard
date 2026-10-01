@@ -13,6 +13,7 @@ const pd = {
   createDeal: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => 9001),
   patchDeal: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({})),
   addDealNote: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({})),
+  deleteDeal: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({})),
 };
 vi.mock("@/server/pipedrive/client", () => ({
   PipedriveNotConfigured: class extends Error {},
@@ -39,6 +40,7 @@ vi.mock("@/server/pipedrive/client", () => ({
   patchDeal: (...a: unknown[]) => pd.patchDeal(...a),
   addDealNote: (...a: unknown[]) => pd.addDealNote(...a),
   updateDeal: async () => ({}),
+  deleteDeal: (...a: unknown[]) => pd.deleteDeal(...a),
 }));
 
 const { db, schema } = await import("@/server/db");
@@ -143,5 +145,14 @@ describe("Dashboard-Pipeline", () => {
     pd.createDeal.mockResolvedValueOnce(9002);
     const retry = await own.retryOwnLeadSync();
     expect(retry.find((x) => x.id === r.leadId)).toMatchObject({ dealId: 9002, error: null });
+  });
+
+  it("Admin löscht einen Test-Lead: Deal in den Papierkorb, Lead + Aktionen weg, protokolliert", async () => {
+    const [lead] = await own.loadOwnLeads();
+    await own.deleteOwnLead(lead.id, "u-admin");
+    expect(pd.deleteDeal).toHaveBeenCalledWith(lead.pd);
+    expect(await own.getOwnLead(lead.id)).toBeNull();
+    expect((await db.select().from(schema.leadActivity)).some((a) => a.leadId === lead.id)).toBe(false);
+    expect((await db.select().from(schema.auditLog)).some((a) => a.action === "lead.deleted")).toBe(true);
   });
 });

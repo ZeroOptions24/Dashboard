@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { assignSetterAction } from "@/app/actions/team";
+import { assignSetterAction, deleteOwnLeadAction } from "@/app/actions/team";
 import { reloadLeads } from "@/lib/live";
 import AppointmentCard from "@/components/closer/AppointmentCard";
 import CustomerBrief from "@/components/leads/CustomerBrief";
@@ -254,6 +254,21 @@ function LeadDrawer({ id }: { id: string }) {
             ))}
           </ul>
         </div>
+        {LIVE && role === "admin" && l.id.startsWith("MB-") && (
+          <button
+            className="ee-btn ee-btn--ghost ee-btn--sm ee-btn--danger"
+            onClick={async () => {
+              if (!window.confirm(`„${l.kunde}“ löschen? Der Lead verschwindet aus dem Dashboard und der Deal in Pipedrive kommt in den Papierkorb. Nur für Tests und Fehleingaben.`)) return;
+              const res = await deleteOwnLeadAction(l.id);
+              if (!res.ok) return toast(res.error, "info");
+              toast("Lead gelöscht", "check");
+              closeOverlays();
+              void reloadLeads().catch(() => {});
+            }}
+          >
+            Lead löschen (Test/Fehleingabe)
+          </button>
+        )}
       </div>
     </>
   );
