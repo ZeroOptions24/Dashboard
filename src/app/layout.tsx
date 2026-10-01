@@ -26,12 +26,15 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "EnergyEngel MB-Dashboard",
   description: "Dashboard für Setter, Presetter, Closer und Admins",
+  /* iPhone: als App vom Home-Bildschirm öffnen */
+  appleWebApp: { capable: true, title: "EnergyEngel", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#1D4C37",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
