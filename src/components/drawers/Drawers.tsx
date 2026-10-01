@@ -175,7 +175,7 @@ function LeadDrawer({ id }: { id: string }) {
             <dd>
               {l.setter === "unbekannt" ? "– in Pipedrive leer –" : person(l.setter).name}
               {l.setterFromDashboard ? <span className="faint"> (im Dashboard zugewiesen)</span> : null}
-              {LIVE && role === "admin" && /^PD-\d+$/.test(l.id) && (l.setter === "unbekannt" || l.setterFromDashboard) ? (
+              {LIVE && role === "admin" && /^PD-\d+$/.test(l.id) ? (
                 <SetterAssign leadId={l.id} current={l.setterFromDashboard ? person(l.setter).first : ""} />
               ) : null}
             </dd>

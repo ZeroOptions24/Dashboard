@@ -586,13 +586,13 @@ function AssignCard() {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState<AssignmentLine[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const valid = preview?.filter((l) => !l.error && !l.pipedriveSetter).length ?? 0;
+  const valid = preview?.filter((l) => !l.error).length ?? 0;
   return (
     <section className="ee-card" data-component="AssignCard">
       <h2>Setter zuweisen</h2>
       <p className="muted" style={{ fontSize: ".88rem", margin: "6px 0 12px" }}>
-        Für Deals, bei denen in Pipedrive kein Setter steht. Eine Zeile je Deal: <span className="mono">Deal-ID – Setter</span> (z. B. „1036 – Florian“, auch der
-        Pipedrive-Link geht). Pipedrive selbst bleibt unverändert; steht dort später ein Setter, hat der Vorrang.
+        Für Deals ohne Setter oder mit falschem Setter in Pipedrive. Eine Zeile je Deal: <span className="mono">Deal-ID – Setter</span> (z. B. „1036 – Florian“, auch
+        der Pipedrive-Link geht). Die Zuweisung gilt im ganzen Dashboard; Pipedrive selbst bleibt unverändert.
       </p>
       <div className="stack" style={{ gap: 10 }}>
         <textarea
@@ -618,13 +618,13 @@ function AssignCard() {
                   <div className="ee-list__sub">
                     → {l.setter || "–"}
                     {l.ohneKonto ? " · noch kein Konto mit diesem Pipedrive-Namen (greift, sobald es angelegt ist)" : ""}
-                    {l.pipedriveSetter ? ` · in Pipedrive steht schon „${l.pipedriveSetter}“ – der gilt` : ""}
+                    {l.pipedriveSetter ? ` · ersetzt „${l.pipedriveSetter}“ aus Pipedrive (nur im Dashboard)` : ""}
                   </div>
                 </div>
                 {l.error ? (
                   <ToneChip label={l.error} tone="bad" />
                 ) : l.pipedriveSetter ? (
-                  <ToneChip label="wird übersprungen" tone="warn" />
+                  <ToneChip label="ersetzt Pipedrive" tone="warn" />
                 ) : (
                   <ToneChip label="ok" tone="ok" />
                 )}

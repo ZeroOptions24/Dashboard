@@ -135,10 +135,10 @@ export interface LeadUser {
 /** Setter-Namen aus Pipedrive durch Nutzer-IDs ersetzen (unbekannte Namen bleiben stehen) */
 export const withSetterIds = (leads: Lead[], ids: Map<string, string>) => leads.map((l) => (ids.has(l.setter) ? { ...l, setter: ids.get(l.setter)! } : l));
 
-/** Setter-Zuweisungen aus dem Dashboard (Deal-ID → Setter-Name) für Deals ohne Setter in Pipedrive.
- *  Ein Setter aus Pipedrive hat immer Vorrang. */
+/** Setter-Zuweisungen aus dem Dashboard (Deal-ID → Setter-Name). Haben Vorrang vor dem Pipedrive-Feld
+ *  (entschieden 01.10.2026 – z. B. Leads, die über den Link eines anderen Setters kamen). Pipedrive bleibt unverändert. */
 export const withAssignments = (leads: Lead[], assignments: Map<string, string>) =>
-  leads.map((l) => (l.setter === "unbekannt" && assignments.has(l.id) ? { ...l, setter: setterKey(assignments.get(l.id)), setterFromDashboard: true } : l));
+  leads.map((l) => (assignments.has(l.id) ? { ...l, setter: setterKey(assignments.get(l.id)), setterFromDashboard: true } : l));
 
 /** Alles, was zusätzlich zu Pipedrive in die Leads einfließt (aus der Dashboard-Datenbank) */
 export interface LeadContext {

@@ -55,15 +55,16 @@ describe("Pipedrive-Leads", () => {
     expect(r.leads[0].telFull).toBeUndefined();
   });
 
-  it("Zuweisung im Dashboard gilt nur, wenn in Pipedrive kein Setter steht", async () => {
+  it("Zuweisung im Dashboard hat Vorrang vor dem Pipedrive-Feld", async () => {
     const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
     const assignments = new Map([
       ["PD-3", "Max"] /* in Pipedrive leer → gilt */,
-      ["PD-2", "Max"] /* in Pipedrive „Florian“ → Pipedrive hat Vorrang */,
+      ["PD-2", "Max"] /* in Pipedrive „Florian“ → Zuweisung ersetzt ihn */,
     ]);
     const r = await loadLeadsForUser({ id: "user-max", roles: ["setter"] }, { setterIds: new Map([["max", "user-max"]]), assignments });
     expect(r.leads.map((l) => [l.id, l.setterFromDashboard ?? false])).toEqual([
       ["PD-1", false],
+      ["PD-2", true],
       ["PD-3", true],
     ]);
   });

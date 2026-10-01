@@ -3,8 +3,8 @@ import { eq, inArray } from "drizzle-orm";
 import { db, schema } from "./db";
 import { loadLeadsFromPipedrive, setterKey } from "./pipedrive/leads";
 
-/* Setter-Zuweisung im Dashboard: Deals ohne Setter in Pipedrive bekommen hier ihren Setter.
-   Pipedrive bleibt unverändert; steht dort später ein Setter, hat der Vorrang. Aufrufer prüfen requireAdmin(). */
+/* Setter-Zuweisung im Dashboard: für Deals ohne oder mit falschem Setter in Pipedrive.
+   Die Zuweisung hat Vorrang vor dem Pipedrive-Feld; Pipedrive selbst bleibt unverändert. Aufrufer prüfen requireAdmin(). */
 
 /** Lead-ID („PD-1036“) → Setter-Name */
 export async function loadSetterAssignments(): Promise<Map<string, string>> {
@@ -36,7 +36,7 @@ export interface AssignmentLine {
   setter: string;
   /** Setter hat (noch) kein Dashboard-Konto mit diesem Pipedrive-Namen */
   ohneKonto: boolean;
-  /** In Pipedrive steht schon ein Setter – die Zuweisung würde nicht greifen */
+  /** In Pipedrive steht ein anderer Setter – die Zuweisung ersetzt ihn im Dashboard */
   pipedriveSetter: string | null;
   error?: string;
 }
@@ -62,7 +62,7 @@ export async function parseAssignments(text: string, knownSetterKeys: Set<string
         kunde: lead?.kunde ?? "",
         setter,
         ohneKonto: !!setter && !knownSetterKeys.has(setterKey(setter)),
-        pipedriveSetter: lead && lead.setter !== "unbekannt" ? lead.setter : null,
+        pipedriveSetter: lead && lead.setter !== "unbekannt" && lead.setter !== setterKey(setter) ? lead.setter : null,
         error,
       };
     });
@@ -72,7 +72,7 @@ export async function importAssignments(text: string, knownSetterKeys: Set<strin
   const lines = await parseAssignments(text, knownSetterKeys);
   let ok = 0;
   for (const l of lines) {
-    if (l.error || l.pipedriveSetter) continue; /* Pipedrive hat Vorrang – Zuweisung würde nicht greifen */
+    if (l.error) continue;
     await assignSetter(l.leadId, l.setter, adminId);
     ok++;
   }
