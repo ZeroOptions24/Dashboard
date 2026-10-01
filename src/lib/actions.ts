@@ -152,8 +152,15 @@ const demoNextTry = (n: number) => (n === 1 ? "heute ab 17:00" : n === 2 ? "Do 2
 /** Im Live-Modus: Aktion an einem Pipedrive-Lead speichern (und ggf. nach Pipedrive schreiben) */
 function persistLead(id: string, action: LeadAction) {
   const role = store.ui.role;
-  if (!/^PD-\d+$/.test(id) || role === "setter") return;
+  if (!/^PD-\d+$/.test(id)) return;
   persist(() => leadAction(role, id, action));
+}
+
+/** Vorqualifizierung an der Tür (Setter) am Lead speichern – Presetter sehen sie im Leitfaden */
+export function saveDoorVq(id: string, answers: Record<string, string>, note: string) {
+  if (!LIVE) return;
+  persistLead(id, { type: "vq", answers });
+  persistLead(id, { type: "note", text: note });
 }
 
 /** Eingaben im Leitfaden gebündelt speichern (nicht bei jedem Tastendruck) */
@@ -345,7 +352,7 @@ export function bookDirect(l: Lead, date: string, start: number, closer: PersonK
 }
 
 /** Lead aus dem Setting-Formular anlegen (Prototyp: lokal; echt: n8n-Webhook → Pipedrive) */
-export function createLead(v: FormValues): Lead {
+export function createLead(v: FormValues, fromPipedrive?: { dealId: number | null }): Lead {
   const s = (k: string) => String(v[k] ?? "").trim();
   const n = d().NOW;
   const tel = s("telefon").replace(/\s+/g, " ");
@@ -355,8 +362,9 @@ export function createLead(v: FormValues): Lead {
   const note = [s("notizen"), s("alle_entscheider"), rueck && `Rückruf: ${rueck}`, zf.length && `Erreichbar: ${zf.join(", ")}`].filter(Boolean).join(" · ");
   const count = d().LEADS.length;
   const l: Lead = {
-    id: `L-${2450 + count}`,
-    pd: 48400 + count,
+    /* echte Daten: Deal-ID aus n8n/Pipedrive; ohne Rückmeldung vorläufige ID bis zum nächsten Laden */
+    id: fromPipedrive ? (fromPipedrive.dealId ? `PD-${fromPipedrive.dealId}` : `NEU-${rnd()}`) : `L-${2450 + count}`,
+    pd: fromPipedrive ? fromPipedrive.dealId : 48400 + count,
     kunde: `${s("vorname") ? s("vorname") + " " : ""}${s("nachname")}`,
     anrede: `${s("anrede") || "Familie"} ${s("nachname")}`,
     tel: telMasked,
@@ -367,7 +375,7 @@ export function createLead(v: FormValues): Lead {
     eigenlead: true,
     status: "eingereicht",
     setter: currentUser(),
-    presetter: "inan" /* Prototyp: fester Presetter */,
+    presetter: LIVE ? undefined : "inan" /* Prototyp: fester Presetter */,
     datum: `${pad(n.getDate())}.${pad(n.getMonth() + 1)}.${n.getFullYear()}`,
     setNote: note,
     preNote: "",
@@ -379,7 +387,7 @@ export function createLead(v: FormValues): Lead {
     themen: ((v.thema as string[] | undefined) ?? []).slice(),
   };
   d().LEADS.unshift(l);
-  pushNotif("inan", `Neuer Lead von ${first(currentUser())}: ${l.kunde}${rueck ? " – Rückruf " + rueck : ""}`, "eingereicht");
+  if (!LIVE) pushNotif("inan", `Neuer Lead von ${first(currentUser())}: ${l.kunde}${rueck ? " – Rückruf " + rueck : ""}`, "eingereicht");
   rerender();
   return l;
 }

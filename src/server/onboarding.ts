@@ -298,6 +298,8 @@ export interface OnboardingRow {
   remindersSent: number;
   /** Name im Pipedrive-Feld „Setter“ (nur Setter) */
   pipedriveSetterName: string | null;
+  /** Code aus dem Setter-Link (für neue Leads aus dem Dashboard über n8n) */
+  setterCode: string | null;
   /** Stammdaten zur Prüfung vor dem Vertragsversand (IBAN nur maskiert) */
   data: { adresse: string; geburtsdatum: string; iban: string; kontoinhaber: string; steuernummer: string; kleinunternehmer: boolean; gewerbe: boolean } | null;
 }
@@ -322,6 +324,7 @@ export async function listOnboarding(): Promise<OnboardingRow[]> {
     formLinkExpired: ob.status === "eingeladen" && !!ob.formTokenExpiresAt && ob.formTokenExpiresAt < new Date(),
     remindersSent: ob.remindersSent,
     pipedriveSetterName: p?.pipedriveSetterName ?? null,
+    setterCode: p?.setterCode ?? null,
     data:
       p && p.ibanLast4
         ? {
@@ -343,6 +346,14 @@ export async function setPipedriveSetterName(userId: string, name: string, admin
   if (clean.length > 80) throw new Error("Name ist zu lang");
   await db.update(schema.profile).set({ pipedriveSetterName: clean || null, updatedAt: new Date() }).where(eq(schema.profile.userId, userId));
   await audit(adminId, "profile.pipedrive_name", userId, clean);
+}
+
+/** Setter-Link-Code setzen (wie im bisherigen Formular-Link ?setter=…) */
+export async function setSetterCode(userId: string, code: string, adminId: string) {
+  const clean = code.trim();
+  if (clean && !/^[A-Za-z0-9_-]{1,80}$/.test(clean)) throw new Error("Nur Buchstaben, Ziffern, - und _ (wie im Setter-Link)");
+  await db.update(schema.profile).set({ setterCode: clean || null, updatedAt: new Date() }).where(eq(schema.profile.userId, userId));
+  await audit(adminId, "profile.setter_code", userId);
 }
 
 /* ---------- Erinnerungen (täglich per Cron, siehe /api/cron/reminders) ---------- */

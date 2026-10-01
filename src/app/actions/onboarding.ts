@@ -50,6 +50,13 @@ export async function setPipedriveNameAction(userId: string, name: string) {
   });
 }
 
+export async function setSetterCodeAction(userId: string, code: string) {
+  return asAdmin(async (adminId) => {
+    await ob.setSetterCode(userId, code, adminId);
+    return null;
+  });
+}
+
 /** Erinnerungen sofort prüfen (sonst täglich per Cron). */
 export async function runRemindersAction() {
   return asAdmin(() => ob.sendReminders());

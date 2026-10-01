@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
+import { submitLeadAction } from "@/app/actions/workspace";
 import Field from "@/components/forms/Field";
 import Icon from "@/components/ui/Icon";
 import { StatusChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
-import { bookSlot, createLead, pushNotif, setLeadStatus } from "@/lib/actions";
+import { bookSlot, createLead, pushNotif, saveDoorVq, setLeadStatus } from "@/lib/actions";
 import DirectBooking from "@/components/booking/DirectBooking";
 import { bookableSlots } from "@/lib/appointments";
 import { fmtDay, fmtHour, nowStamp } from "@/lib/format";
@@ -77,9 +79,46 @@ function validate(d: FormValues) {
   return e;
 }
 
+/** Adresse aus dem Standort (wie im bisherigen Formular: GPS + OpenStreetMap/Nominatim, kein API-Key) */
+function locateAddress(onDone: (fields: Record<string, string>, standort: Record<string, unknown>) => void, onError: (msg: string) => void) {
+  if (!navigator.geolocation) return onError("Standort wird von diesem Browser nicht unterstützt");
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+      const standort: Record<string, unknown> = { lat, lon, genauigkeit_m: Math.round(accuracy || 0) };
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18&accept-language=de`, {
+          headers: { accept: "application/json" },
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        const a = data.address || {};
+        standort.adresse_roh = data.display_name || "";
+        onDone(
+          {
+            strasse: a.road || a.pedestrian || a.footway || a.residential || a.path || "",
+            hausnummer: a.house_number || "",
+            plz: a.postcode || "",
+            stadt: a.city || a.town || a.village || a.municipality || a.suburb || a.county || "",
+          },
+          standort,
+        );
+      } catch {
+        onError("Adresse konnte nicht geladen werden – bitte manuell eintragen");
+      }
+    },
+    (err) => onError(err.code === 1 ? "Standortfreigabe abgelehnt – bitte im Browser erlauben" : "Standort konnte nicht ermittelt werden"),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+  );
+}
+
+/** Standort des letzten Lead-Formulars (geht mit an n8n, wie im bisherigen Formular) */
+let lastStandort: Record<string, unknown> | null = null;
+
 function Step1() {
   const { toast } = useDashboard();
   const w = store.wiz;
+  const [busy, setBusy] = useState<"" | "geo" | "send">("");
   const onChange = (n: string, v: string | string[]) =>
     setWizard((x) => {
       const errors = { ...x.errors };
@@ -94,11 +133,25 @@ function Step1() {
       setTimeout(() => document.querySelector(".is-invalid")?.scrollIntoView({ block: "center", behavior: "smooth" }), 0);
       return toast("Bitte die markierten Pflichtfelder ausfüllen", "info");
     }
-    const l = createLead(w.data);
-    setWizard({ leadId: l.id });
-    /* TODO(EnergyEngel): Übertragung nach Pipedrive (n8n-Webhook) – bis dahin nur im Dashboard */
-    toast(LIVE ? `${l.kunde} angelegt – Übertragung nach Pipedrive folgt` : `${l.kunde} in Pipedrive angelegt`);
-    go(next === "vq" ? 2 : "created");
+    if (!LIVE) {
+      const l = createLead(w.data);
+      setWizard({ leadId: l.id });
+      toast(`${l.kunde} in Pipedrive angelegt`);
+      return go(next === "vq" ? 2 : "created");
+    }
+    /* echte Daten: über n8n nach Pipedrive (wie das bisherige Setter-Formular) */
+    setBusy("send");
+    submitLeadAction(w.data, lastStandort)
+      .then((res) => {
+        if (!res.ok) return toast(res.error, "info");
+        const l = createLead(w.data, { dealId: res.data.dealId });
+        lastStandort = null;
+        setWizard({ leadId: l.id });
+        toast(`${l.kunde} in Pipedrive angelegt`);
+        go(next === "vq" ? 2 : "created");
+      })
+      .catch(() => toast("Keine Verbindung – Lead wurde nicht angelegt, bitte erneut senden", "info"))
+      .finally(() => setBusy(""));
   };
   return (
     <form className="stack" style={{ gap: 18 }} noValidate data-component="LeadForm" onSubmit={(e) => e.preventDefault()}>
@@ -127,12 +180,28 @@ function Step1() {
           <button
             type="button"
             className="ee-btn ee-btn--sm"
+            disabled={busy === "geo"}
             onClick={() => {
-              setWizard((x) => ({ data: { ...x.data, strasse: "Lützner Straße", hausnummer: "120", plz: "04179", stadt: "Leipzig" } }));
-              toast("Demo: Adresse per Standort gefüllt (im Live-Formular per GPS)", "pin");
+              if (!LIVE) {
+                setWizard((x) => ({ data: { ...x.data, strasse: "Lützner Straße", hausnummer: "120", plz: "04179", stadt: "Leipzig" } }));
+                return toast("Demo: Adresse per Standort gefüllt (im Live-Formular per GPS)", "pin");
+              }
+              setBusy("geo");
+              locateAddress(
+                (fields, standort) => {
+                  lastStandort = standort;
+                  setWizard((x) => ({ data: { ...x.data, ...Object.fromEntries(Object.entries(fields).filter(([, v]) => v)) } }));
+                  toast(fields.hausnummer ? "Adresse übernommen – bitte kurz prüfen" : "Adresse übernommen – Hausnummer bitte ergänzen", "pin");
+                  setBusy("");
+                },
+                (msg) => {
+                  toast(msg, "info");
+                  setBusy("");
+                },
+              );
             }}
           >
-            <Icon name="pin" small /> Adresse per Standort ausfüllen
+            <Icon name="pin" small /> {busy === "geo" ? "Standort wird ermittelt …" : "Adresse per Standort ausfüllen"}
           </button>
         </div>
         <div className="ee-form">
@@ -148,11 +217,11 @@ function Step1() {
         </div>
       </section>
       <div className="ee-wiz__bar" data-component="ActionBar">
-        <button type="button" className="ee-btn" onClick={() => create("vq")}>
+        <button type="button" className="ee-btn" disabled={busy === "send"} onClick={() => create("vq")}>
           <Icon name="check" small /> Direkt an der Tür vorqualifizieren
         </button>
-        <button type="button" className="ee-btn ee-btn--primary" onClick={() => create("created")}>
-          <Icon name="plus" small /> Lead erstellen
+        <button type="button" className="ee-btn ee-btn--primary" disabled={busy === "send"} onClick={() => create("created")}>
+          <Icon name="plus" small /> {busy === "send" ? "Wird angelegt …" : "Lead erstellen"}
         </button>
       </div>
     </form>
@@ -206,11 +275,13 @@ function Step2() {
     if (phone) {
       setWizard({ phone: true });
       l.preNote = `An der Tür vorqualifiziert (${p.done}/${p.total} Fragen): ${sum || "–"}. Rest telefonisch klären.`;
+      saveDoorVq(l.id, l.vq, l.preNote);
       pushNotif(PRESETTER, `${l.kunde}: Vorqualifizierung an der Tür begonnen (${p.done}/${p.total}) – bitte Rest telefonisch klären`, "eingereicht");
       toast(`Teilantworten übertragen – ${LIVE ? "das Presetting" : person(PRESETTER).first} klärt den Rest`);
       return go("done");
     }
     l.preNote = `An der Tür vorqualifiziert: ${sum || "–"}`;
+    saveDoorVq(l.id, l.vq, l.preNote);
     if ((vq.eigentuemer && vq.eigentuemer !== "Ja") || vq.selbst_bewohnt === "Nein") return go("ko");
     l.hist.unshift(["Vorqualifizierung an der Tür übertragen", nowStamp(data.NOW)]);
     toast("Vorqualifizierung übertragen");

@@ -51,6 +51,18 @@ export async function revealIbanAction(userId: string) {
   return asAdmin((adminId) => team.revealIban(userId, adminId));
 }
 
+/** Ohne SMTP: nicht versendete Mails mit Link */
+export async function listUnsentMailAction() {
+  return asAdmin(() => team.listUnsentMail());
+}
+
+export async function logMailLinkCopiedAction(mailId: number) {
+  return asAdmin(async (adminId) => {
+    await team.logMailLinkCopied(mailId, adminId);
+    return null;
+  });
+}
+
 /** Vorschau: wie die eingefügte Liste gelesen wird (nichts wird angelegt) */
 export async function previewImportAction(text: string) {
   return asAdmin(async () => team.parseImport(text));

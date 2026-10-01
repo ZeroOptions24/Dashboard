@@ -50,6 +50,13 @@
       "when": 1790795456153,
       "tag": "0006_lead_aktivitaet",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790880766718,
+      "tag": "0007_setter_code",
+      "breakpoints": true
     }
   ]
 }

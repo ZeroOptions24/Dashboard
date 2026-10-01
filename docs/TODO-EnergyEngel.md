@@ -50,6 +50,8 @@ Stand: 30.09.2026. Nach Umstellung von Verträgen, Team-Alltag (Events, Kalender
 | 2.10 | **Pipedrive-Setter-Namen prüfen**: im Team-Bereich je Setter der Name, den n8n ins Feld „Setter“ schreibt (Standard: Vorname). Bei gleichen Vornamen eindeutige Namen (z. B. „Max M.“) | darüber werden Leads, Kennzahlen, Rangliste und Benachrichtigungen dem Konto zugeordnet | Team-Bereich |
 | 2.11 | **Bestehendes Team übernehmen** – erst auf dem echten Server (Team → „Bestehende MAs übernehmen“, Haken „hat schon einen Vertrag“). Die Liste gehört **nicht** ins Repository | Zugänge | Team-Bereich |
 | 2.12 | **Pipedrive-Firmen-Domain** (`<firma>.pipedrive.com`) | Knopf „In Pipedrive öffnen“ (heute nur Meldung) | `src/components/drawers/Drawers.tsx` |
+| 2.14 | **Setter-Link-Codes** je Setter im Team-Bereich eintragen (der `?setter=…`-Teil aus dem bisherigen Link) | sonst legt „Lead erfassen“ keine Leads an bzw. ohne Setter | Team-Bereich |
+| 2.15 | Server-Einstellungen: `N8N_WP_LEAD_URL` (= bisheriger wp-lead-Webhook), `STANDARD_PRESETTER_EMAIL` (Aimée), `PIPEDRIVE_WRITE=false` | Lead erfassen, Presetter-Zuordnung | `.env.example` |
 | 2.13 | **Maskottchen „Chibi-Engel“ + Logo** | Platzhalter in Seitenleiste und „Weitere Funktion“; Logo ist nur ein „E“ | `AppShell.tsx`, `NeuView.tsx` |
 
 ---
@@ -58,9 +60,9 @@ Stand: 30.09.2026. Nach Umstellung von Verträgen, Team-Alltag (Events, Kalender
 
 | # | Frage | Warum wichtig |
 | --- | --- | --- |
-| 3.1 | **Woran erkennt man Presetter in Pipedrive?** (Deal-Owner? eigenes Feld?) – Closer sind jetzt über die im Dashboard gebuchten Termine zugeordnet | Ohne das bekommen Presetter im echten Betrieb **keine Leads** (Anrufliste leer, Kennzahlen „–“) |
-| 3.2 | **Status-Änderungen zurück nach Pipedrive?** Statuswechsel, Rückrufe, Vorqualifizierung und Notizen ändern heute nur die Anzeige im Browser. Termine und Rückmeldungen werden gespeichert, aber nicht nach Pipedrive geschrieben. Vorschlag: per API/n8n zurückschreiben | Kernfunktion Presetting/Closing |
-| 3.3 | **Ersetzt „Lead erfassen“ das bisherige HTML-Formular?** Dann schickt das Dashboard an dieselben n8n-Webhooks (`wp-lead`, `wp-vorqual`); der Setter ergibt sich aus dem Login | Heute legt der Assistent den Lead **nur im Browser** an (im echten Betrieb steht „Übertragung nach Pipedrive folgt“) |
+| 3.1 | ✅ entschieden 30.09.: gemeinsamer Presetter-Pool, Standard-Presetter Aimée. ~~Woran erkennt man Presetter in Pipedrive?~~ (Deal-Owner? eigenes Feld?) – Closer sind jetzt über die im Dashboard gebuchten Termine zugeordnet | Ohne das bekommen Presetter im echten Betrieb **keine Leads** (Anrufliste leer, Kennzahlen „–“) |
+| 3.2 | ✅ gebaut, aber **aus** (30.09.: in Pipedrive wird vorerst nichts verschoben; `PIPEDRIVE_WRITE` = false / notizen / true). ~~Status-Änderungen zurück nach Pipedrive?~~ Statuswechsel, Rückrufe, Vorqualifizierung und Notizen ändern heute nur die Anzeige im Browser. Termine und Rückmeldungen werden gespeichert, aber nicht nach Pipedrive geschrieben. Vorschlag: per API/n8n zurückschreiben | Kernfunktion Presetting/Closing |
+| 3.3 | ✅ gebaut 01.10.: „Lead erfassen“ sendet an denselben wp-lead-Webhook wie das Formular (Setter-Code je Setter). ~~Ersetzt „Lead erfassen“ das bisherige HTML-Formular?~~ Dann schickt das Dashboard an dieselben n8n-Webhooks (`wp-lead`, `wp-vorqual`); der Setter ergibt sich aus dem Login | Heute legt der Assistent den Lead **nur im Browser** an (im echten Betrieb steht „Übertragung nach Pipedrive folgt“) |
 | 3.4 | **Closer-Kalender:** eigene Slots im Dashboard (so gebaut und gespeichert) oder zusätzlich Outlook/Calendly? | – |
 | 3.5 | **Provision & Auszahlung:** Sätze (Beispiel: Setter/Closer 1.000 € je Verkauf, Presetter 250 € je Termin), Widerrufsfrist, Auszahlung zum 15., Storno-Regeln. **Wer/was erzeugt die Monatsabrechnung?** (Tabelle + Freigabe stehen) | „Dein Geld“, Auszahlungen |
 | 3.6 | **Zielwerte:** Terminquote 42 %, Checks 65 %, Verkauf 70 %, 65 Verkäufe/Monat, 5 Leads/Tag, 30 Anrufe/Tag, Erstanruf in 2 Std. | Einfärbung der Kennzahlen (`src/lib/domain.ts`) |

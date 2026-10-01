@@ -16,7 +16,9 @@ export default function DirectBooking({ lead, onBooked }: { lead: Lead; onBooked
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(dkey(now));
   const [start, setStart] = useState(17);
-  const [closer, setCloser] = useState(closers.includes(me) ? me : (closers[0] ?? ""));
+  const [picked, setCloser] = useState("");
+  /* Auswahl gilt nur, wenn die Person (noch) Closer ist – sonst Vorschlag: ich selbst oder der erste Closer */
+  const closer = closers.includes(picked) ? picked : closers.includes(me) ? me : (closers[0] ?? "");
   if (!open)
     return (
       <button className="ee-btn ee-btn--ghost ee-btn--sm" type="button" onClick={() => setOpen(true)} data-component="DirectBookingOpen">

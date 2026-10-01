@@ -53,10 +53,15 @@ export interface ActionResult {
 export async function recordLeadAction(v: Viewer & { name: string }, role: Role, leadId: string, action: LeadAction): Promise<ActionResult> {
   /* Rolle muss zur Person gehören; Admins dürfen jede Ansicht nutzen */
   if (!isAdmin(v.roles) && !v.roles.includes(role)) throw new Error("Keine Berechtigung");
-  if (!["presetter", "closer", "admin"].includes(role)) throw new Error("Nur Presetter, Closer und Admins bearbeiten Leads");
   if (!/^PD-\d+$/.test(leadId)) throw new Error("Lead ist noch nicht in Pipedrive");
   const lead = (await loadLeadsFromPipedrive()).find((l) => l.id === leadId);
   if (!lead) throw new Error("Lead nicht gefunden");
+  /* Setter: nur an eigenen Leads – Vorqualifizierung/Notiz an der Tür und Absage (K.-o.-Kriterium) */
+  if (role === "setter") {
+    const own = (await setterIdMap()).get(lead.setter) === v.id;
+    const allowed = action.type === "vq" || action.type === "note" || (action.type === "status" && action.status === "abgesagt");
+    if (!own || !allowed) throw new Error("Nur Presetter, Closer und Admins bearbeiten Leads");
+  } else if (!["presetter", "closer", "admin"].includes(role)) throw new Error("Nur Presetter, Closer und Admins bearbeiten Leads");
   /* Closer nur an Leads mit Termin bei ihnen; Presetter im gemeinsamen Pool (alle Leads der Pipeline) */
   if (role === "closer" && !isAdmin(v.roles) && !(await leadIdsForCloser(v.id)).has(leadId)) throw new Error("Keine Berechtigung für diesen Lead");
 

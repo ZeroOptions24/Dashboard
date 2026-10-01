@@ -1,11 +1,12 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gte, isNull } from "drizzle-orm";
 import { formatIban } from "@/lib/iban";
 import { isAdmin, parseRoles, serializeRoles } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 import { auth } from "./auth";
 import { decrypt } from "./crypto";
 import { db, schema } from "./db";
+import { smtpConfigured } from "./mail";
 import { inviteMember } from "./onboarding";
 
 /* Team-Verwaltung für Admins (echte Nutzer aus der Datenbank).
@@ -151,4 +152,40 @@ export async function importMembers(text: string, skipContract: boolean, adminId
     }
   }
   return results;
+}
+
+/* ---------- Ohne SMTP: nicht versendete E-Mails mit ihrem Link (zum Weiterleiten per WhatsApp) ---------- */
+
+export interface UnsentMail {
+  id: number;
+  to: string;
+  subject: string;
+  at: string;
+  link: string | null;
+}
+
+export async function listUnsentMail(): Promise<{ smtp: boolean; mails: UnsentMail[] }> {
+  if (smtpConfigured()) return { smtp: true, mails: [] };
+  const rows = await db
+    .select()
+    .from(schema.outbox)
+    .where(and(isNull(schema.outbox.sentAt), gte(schema.outbox.createdAt, new Date(Date.now() - 14 * 864e5))))
+    .orderBy(desc(schema.outbox.createdAt))
+    .limit(30);
+  return {
+    smtp: false,
+    mails: rows.map((r) => ({
+      id: r.id,
+      to: r.to,
+      subject: r.subject,
+      at: r.createdAt.toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }),
+      /* erster Button-Link der Mail (Formular, Passwort festlegen, Dashboard …) */
+      link: r.html.match(/href="(https?:[^"]+)"/)?.[1]?.replace(/&amp;/g, "&") ?? null,
+    })),
+  };
+}
+
+/** Link einer nicht versendeten Mail wurde vom Admin kopiert – protokollieren */
+export async function logMailLinkCopied(mailId: number, adminId: string) {
+  await db.insert(schema.auditLog).values({ actorId: adminId, action: "outbox.link_copied", detail: String(mailId) });
 }

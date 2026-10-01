@@ -3,7 +3,9 @@
 import { parseRoles } from "@/lib/roles";
 import { getSession } from "@/server/auth";
 import type { Role } from "@/lib/types";
+import type { FormValues } from "@/lib/vq";
 import { recordLeadAction, type LeadAction } from "@/server/lead-activity";
+import { submitLead } from "@/server/lead-submit";
 import * as ws from "@/server/workspace";
 
 /* Team-Alltag (Events, Kalender, Wettbewerb, Auszahlungen, Benachrichtigungen).
@@ -34,6 +36,9 @@ export const saveFeedbackAction = async (apptId: string, input: Parameters<typeo
 export const publishBoardAction = async (input: Parameters<typeof ws.publishBoard>[1]) => run((v) => ws.publishBoard(v, input));
 export const releasePayoutAction = async (payoutId: string) => run((v) => ws.releasePayout(v, payoutId));
 export const setMoneyGoalAction = async (euro: number) => run((v) => ws.setMoneyGoal(v, euro));
+
+/** Lead an n8n/Pipedrive übertragen (wie das bisherige Setter-Formular) */
+export const submitLeadAction = async (values: FormValues, standort: unknown) => run((v) => submitLead(v, values, standort));
 
 /** Aktion an einem Pipedrive-Lead (Anrufversuch, Status, Rückruf, Notiz, Vorqualifizierung) */
 export const leadAction = async (role: Role, leadId: string, action: LeadAction) => run((v) => recordLeadAction(v, role, leadId, action));

@@ -8,7 +8,7 @@ import { db, schema } from "./db";
    (SMTP_HOST, SMTP_USER, SMTP_PASS, MAIL_FROM), wird sie zusätzlich verschickt –
    sonst nur lokal unter /dev/postfach angezeigt (Entwicklung). */
 
-const smtpConfigured = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+export const smtpConfigured = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
 let transport: Transporter | null = null;
 function getTransport() {

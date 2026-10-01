@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { inviteMemberAction, listOnboardingAction, onboardingStepAction, runRemindersAction, setPipedriveNameAction } from "@/app/actions/onboarding";
+import { inviteMemberAction, listOnboardingAction, onboardingStepAction, runRemindersAction, setPipedriveNameAction, setSetterCodeAction } from "@/app/actions/onboarding";
 import {
   deleteMemberAction,
   importMembersAction,
@@ -10,6 +10,8 @@ import {
   revealIbanAction,
   setBannedAction,
   updateMemberAction,
+  listUnsentMailAction,
+  logMailLinkCopiedAction,
 } from "@/app/actions/team";
 import Icon from "@/components/ui/Icon";
 import { ToneChip } from "@/components/ui/Chips";
@@ -18,7 +20,7 @@ import { ALL_ROLES, ROLE_NAMES } from "@/lib/roles";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Role } from "@/lib/types";
 import type { OnboardingRow, OnboardingStatus } from "@/server/onboarding";
-import type { ImportLine, MemberDetails } from "@/server/team";
+import type { ImportLine, MemberDetails, UnsentMail } from "@/server/team";
 
 const STATUS: Record<OnboardingStatus, { label: string; tone: string; next: string }> = {
   eingeladen: { label: "Eingeladen", tone: "info", next: "wartet auf Daten" },
@@ -207,16 +209,32 @@ function ImportCard({ onDone }: { onDone: () => void }) {
   );
 }
 
-/* ---------- Pipedrive-Setter-Name (Zuordnung der Leads) ---------- */
-function PipedriveName({ row, onSaved }: { row: OnboardingRow; onSaved: () => void }) {
+/* ---------- Setter-Zuordnung: Pipedrive-Name (Leads lesen) und Setter-Link-Code (neue Leads über n8n) ---------- */
+function EditableSetting({
+  id,
+  label,
+  value,
+  placeholder,
+  hint,
+  save,
+  onSaved,
+}: {
+  id: string;
+  label: string;
+  value: string | null;
+  placeholder: string;
+  hint: string;
+  save: (v: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  onSaved: () => void;
+}) {
   const { toast } = useDashboard();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(row.pipedriveSetterName ?? "");
+  const [v, setV] = useState(value ?? "");
   if (!editing)
     return (
       <span className="ee-list__sub">
-        Pipedrive-Setter: <b>{row.pipedriveSetterName || "– nicht hinterlegt –"}</b>{" "}
-        <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={() => setEditing(true)} aria-label="Pipedrive-Namen ändern">
+        {label}: <b>{value || placeholder}</b>{" "}
+        <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={() => setEditing(true)} aria-label={`${label} ändern`}>
           <Icon name="edit" small />
         </button>
       </span>
@@ -227,17 +245,17 @@ function PipedriveName({ row, onSaved }: { row: OnboardingRow; onSaved: () => vo
       style={{ gap: 6 }}
       onSubmit={async (e) => {
         e.preventDefault();
-        const res = await setPipedriveNameAction(row.userId, value);
+        const res = await save(v);
         if (!res.ok) return toast(res.error, "info");
-        toast("Pipedrive-Zuordnung gespeichert");
+        toast(`${label} gespeichert`);
         setEditing(false);
         onSaved();
       }}
     >
-      <label className="sr" htmlFor={`pd-${row.userId}`}>
-        Name im Pipedrive-Feld „Setter“
+      <label className="sr" htmlFor={id}>
+        {hint}
       </label>
-      <input className="ee-input" id={`pd-${row.userId}`} value={value} onChange={(e) => setValue(e.target.value)} style={{ maxWidth: 180, minHeight: 34 }} autoFocus />
+      <input className="ee-input" id={id} value={v} onChange={(e) => setV(e.target.value)} style={{ maxWidth: 180, minHeight: 34 }} autoFocus />
       <button className="ee-btn ee-btn--primary ee-btn--sm" type="submit">
         Speichern
       </button>
@@ -245,6 +263,31 @@ function PipedriveName({ row, onSaved }: { row: OnboardingRow; onSaved: () => vo
         Abbrechen
       </button>
     </form>
+  );
+}
+
+function PipedriveName({ row, onSaved }: { row: OnboardingRow; onSaved: () => void }) {
+  return (
+    <>
+      <EditableSetting
+        id={`pd-${row.userId}`}
+        label="Pipedrive-Setter"
+        value={row.pipedriveSetterName}
+        placeholder="– nicht hinterlegt –"
+        hint="Name im Pipedrive-Feld „Setter“"
+        save={(v) => setPipedriveNameAction(row.userId, v)}
+        onSaved={onSaved}
+      />
+      <EditableSetting
+        id={`sc-${row.userId}`}
+        label="Setter-Link-Code"
+        value={row.setterCode}
+        placeholder="– fehlt (neue Leads ohne Setter) –"
+        hint="Code aus dem bisherigen Setter-Link (?setter=…)"
+        save={(v) => setSetterCodeAction(row.userId, v)}
+        onSaved={onSaved}
+      />
+    </>
   );
 }
 
@@ -483,13 +526,65 @@ function MemberRow({ r, onReload }: { r: OnboardingRow; onReload: () => void }) 
   );
 }
 
+/* ---------- Ohne E-Mail-Versand: Links zum Weiterleiten ---------- */
+function OutboxCard({ version }: { version: number }) {
+  const { toast } = useDashboard();
+  const [data, setData] = useState<{ smtp: boolean; mails: UnsentMail[] } | null>(null);
+  useEffect(() => {
+    let off = false;
+    listUnsentMailAction().then((res) => !off && res.ok && setData(res.data));
+    return () => {
+      off = true;
+    };
+  }, [version]);
+  if (!data || data.smtp || !data.mails.length) return null;
+  return (
+    <section className="ee-card" data-component="UnsentMail">
+      <h2>E-Mails ohne Versand</h2>
+      <p className="ee-hint" style={{ marginTop: 6 }}>
+        Der E-Mail-Versand ist noch nicht eingerichtet. Schickt den Link selbst weiter (z. B. per WhatsApp) – jeder Link ist persönlich und nur einmal gültig.
+      </p>
+      <div className="ee-list" style={{ marginTop: 8 }}>
+        {data.mails.map((m) => (
+          <div key={m.id} className="ee-list__row">
+            <div className="ee-list__main">
+              <div className="ee-list__title">{m.to}</div>
+              <div className="ee-list__sub">
+                {m.subject} · {m.at}
+              </div>
+            </div>
+            {m.link && (
+              <button
+                className="ee-btn ee-btn--sm"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(m.link!);
+                    toast("Link kopiert – jetzt z. B. per WhatsApp schicken", "check");
+                    void logMailLinkCopiedAction(m.id);
+                  } catch {
+                    toast("Kopieren nicht möglich – Link bitte manuell markieren", "info");
+                  }
+                }}
+              >
+                Link kopieren
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function TeamView() {
   const { toast } = useDashboard();
   const [rows, setRows] = useState<OnboardingRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"alle" | "offen" | "aktiv">("alle");
+  const [mailVersion, setMailVersion] = useState(0);
 
   const load = useCallback(async () => {
+    setMailVersion((v) => v + 1);
     const res = await listOnboardingAction();
     if (res.ok) setRows(res.data);
     else setError(res.error);
@@ -552,6 +647,7 @@ export default function TeamView() {
           )}
         </section>
         <div className="stack" style={{ gap: 18 }}>
+          <OutboxCard version={mailVersion} />
           <InviteForm onDone={load} />
           <ImportCard onDone={load} />
         </div>

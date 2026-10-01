@@ -126,6 +126,8 @@ export const profile = pgTable("profile", {
   datenschutzAkzeptiertAt: timestamp("datenschutz_akzeptiert_at"),
   /** Name, den n8n ins Pipedrive-Deal-Feld „Setter“ schreibt (Zuordnung der Leads) */
   pipedriveSetterName: text("pipedrive_setter_name"),
+  /** Code aus dem bisherigen Setter-Link (?setter=…) – darüber ordnet n8n neue Leads dem Setter zu */
+  setterCode: text("setter_code"),
   /** Monatsziel Verdienst in Euro (vom MA selbst eingestellt) */
   moneyGoal: integer("money_goal"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
