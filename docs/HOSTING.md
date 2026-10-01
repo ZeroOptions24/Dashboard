@@ -45,7 +45,7 @@ Coolify → New Resource → **GitHub (privates Repo `ZeroOptions24/Dashboard`)*
 | `DATA_ENCRYPTION_KEY` | `openssl rand -base64 32` – **sicher aufbewahren, sonst sind IBANs verloren** | 🤖 erzeugt, 🧑 sichert |
 | `CRON_SECRET` | `openssl rand -hex 24` | 🤖 |
 | `PIPEDRIVE_API_TOKEN` | aus Pipedrive → Persönliche Einstellungen → API | 🧑 selbst eintragen |
-| `PIPEDRIVE_WRITE` | `false` (in Pipedrive wird nichts verschoben) | 🤖 |
+| `PIPEDRIVE_WRITE` | `false` – gilt nur für die **alte** Pipeline (dort wird nichts verschoben). In der Dashboard-Pipeline schreibt das Dashboard immer. | 🤖 |
 | `N8N_WP_LEAD_URL` | bisheriger wp-lead-Webhook – nur Rückfall, solange die Dashboard-Pipeline noch nicht eingerichtet ist | 🤖 |
 | `STANDARD_PRESETTER_EMAIL` | E-Mail der Standard-Presetterin | 🤖 |
 | `SIGNING_PROVIDER` | leer (Test) – später `yousign` + `YOUSIGN_API_KEY`, `YOUSIGN_WEBHOOK_SECRET` | 🧑 |
