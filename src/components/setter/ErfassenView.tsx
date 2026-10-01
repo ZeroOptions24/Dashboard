@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { submitLeadAction } from "@/app/actions/workspace";
+import { checkDuplicatesAction, submitLeadAction } from "@/app/actions/workspace";
+import type { DuplicateHint } from "@/server/lead-submit";
 import Field from "@/components/forms/Field";
 import Icon from "@/components/ui/Icon";
 import { StatusChip } from "@/components/ui/Chips";
@@ -126,7 +127,8 @@ function Step1() {
       return { data: { ...x.data, [n]: v }, errors };
     });
   const F = (k: keyof typeof STEP1) => <Field f={STEP1[k]} values={w.data} scope="d" error={w.errors[STEP1[k].n]} onChange={onChange} />;
-  const create = (next: "vq" | "created") => {
+  const [dup, setDup] = useState<{ next: "vq" | "created"; hits: DuplicateHint[] } | null>(null);
+  const create = async (next: "vq" | "created", confirmed = false) => {
     const errors = validate(w.data);
     if (Object.keys(errors).length) {
       setWizard({ errors });
@@ -141,6 +143,15 @@ function Step1() {
     }
     /* echte Daten: über n8n nach Pipedrive (wie das bisherige Setter-Formular) */
     setBusy("send");
+    if (!confirmed) {
+      const check = await checkDuplicatesAction(w.data).catch(() => null);
+      if (check?.ok && check.data.length) {
+        setBusy("");
+        setDup({ next, hits: check.data });
+        return;
+      }
+    }
+    setDup(null);
     submitLeadAction(w.data, lastStandort)
       .then((res) => {
         if (!res.ok) return toast(res.error, "info");
@@ -216,6 +227,27 @@ function Step1() {
           {F("stadt")}
         </div>
       </section>
+      {dup && (
+        <section className="ee-alert ee-alert--warn" data-component="DuplicateWarning" role="alert">
+          <div className="stack" style={{ gap: 8, width: "100%" }}>
+            <b>Diesen Kunden gibt es vermutlich schon</b>
+            {dup.hits.map((h, i) => (
+              <span key={i}>
+                Gleiche{h.grund === "Telefon" ? " Telefonnummer" : "r Name"} · eingereicht am {h.datum} · Stand: {h.status}
+              </span>
+            ))}
+            <span style={{ fontWeight: 400 }}>Anderes Haus derselben Familie? Dann trotzdem anlegen. Sonst bitte nicht doppelt erfassen.</span>
+            <div className="row">
+              <button type="button" className="ee-btn ee-btn--sm" disabled={busy === "send"} onClick={() => void create(dup.next, true)}>
+                Trotzdem anlegen
+              </button>
+              <button type="button" className="ee-btn ee-btn--ghost ee-btn--sm" onClick={() => setDup(null)}>
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
       <div className="ee-wiz__bar" data-component="ActionBar">
         <button type="button" className="ee-btn" disabled={busy === "send"} onClick={() => create("vq")}>
           <Icon name="check" small /> Direkt an der Tür vorqualifizieren

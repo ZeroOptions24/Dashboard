@@ -6,7 +6,7 @@ import type { Role } from "@/lib/types";
 import type { FormValues } from "@/lib/vq";
 import { recordLeadAction, type LeadAction } from "@/server/lead-activity";
 import { claimLead, releaseLeads } from "@/server/lead-lock";
-import { submitLead } from "@/server/lead-submit";
+import { findDuplicates, submitLead } from "@/server/lead-submit";
 import * as ws from "@/server/workspace";
 
 /* Team-Alltag (Events, Kalender, Wettbewerb, Auszahlungen, Benachrichtigungen).
@@ -47,3 +47,6 @@ export const leadAction = async (role: Role, leadId: string, action: LeadAction)
 /** Lead im Leitfaden öffnen/halten („wird gerade bearbeitet“) */
 export const claimLeadAction = async (leadId: string, force = false) => run((v) => claimLead(v, leadId, force));
 export const releaseLeadsAction = async () => run((v) => releaseLeads(v));
+
+/** Vor dem Anlegen: gibt es den Kunden schon in Pipedrive? */
+export const checkDuplicatesAction = async (values: FormValues) => run((v) => findDuplicates(v, values));

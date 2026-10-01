@@ -4,10 +4,30 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
    n8n ist durch ein nachgebautes fetch ersetzt – es entstehen keine echten Deals. */
 
 vi.mock("@/server/db", async () => (await import("./db")).createTestDb());
-vi.mock("@/server/pipedrive/client", () => ({ getDeals: async () => [], getPersons: async () => [] }));
+vi.mock("@/server/pipedrive/client", () => ({
+  getDeals: async () => [
+    {
+      id: 77,
+      title: "Wärmepumpe – Erik Beispiel",
+      person_id: 7,
+      stage_id: 180,
+      pipeline_id: 21,
+      status: "open",
+      lost_reason: null,
+      add_time: "2026-09-29 08:00:00",
+      update_time: "2026-09-29 08:00:00",
+      stage_change_time: null,
+      won_time: null,
+      lost_time: null,
+      owner_id: 1,
+      custom_fields: {},
+    },
+  ],
+  getPersons: async () => [{ id: 7, name: "Erik Beispiel", phones: [{ value: "+49 170 1234567", primary: true }] }],
+}));
 
 const { db, schema } = await import("@/server/db");
-const { submitLead, buildLeadPayload } = await import("@/server/lead-submit");
+const { submitLead, buildLeadPayload, findDuplicates } = await import("@/server/lead-submit");
 
 const values = {
   anrede: "Herr",
@@ -62,5 +82,13 @@ describe("Lead an n8n", () => {
   it("n8n-Fehler wird gemeldet", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("", { status: 500 }));
     await expect(submitLead(setter, values, null)).rejects.toThrow(/HTTP 500/);
+  });
+
+  it("Dublettenprüfung: gleiche Telefonnummer (auch mit +49) oder gleicher Name, ohne Kundendaten", async () => {
+    const byPhone = await findDuplicates(setter, { ...values, vorname: "Anna", nachname: "Andere" });
+    expect(byPhone).toEqual([{ datum: "29.09.2026", status: "Lead eingereicht", grund: "Telefon" }]);
+    const byName = await findDuplicates(setter, { ...values, telefon: "0151 999999" });
+    expect(byName[0].grund).toBe("Name");
+    expect(await findDuplicates(setter, { ...values, vorname: "Neu", nachname: "Kunde", telefon: "0151 999999" })).toEqual([]);
   });
 });

@@ -1,9 +1,10 @@
 import "server-only";
 import { eq } from "drizzle-orm";
+import { STATUS } from "@/lib/domain";
 import { isAdmin } from "@/lib/roles";
 import type { FormValues } from "@/lib/vq";
 import { db, schema } from "./db";
-import { invalidateLeadCache } from "./pipedrive/leads";
+import { invalidateLeadCache, loadLeadsFromPipedrive } from "./pipedrive/leads";
 import type { Viewer } from "./workspace";
 
 /* „Lead erfassen“ im Dashboard → derselbe n8n-Webhook wie das bisherige Setter-Formular (wp-lead).
@@ -74,4 +75,39 @@ export async function submitLead(v: Viewer, values: FormValues, standort: unknow
   await db.insert(schema.auditLog).values({ actorId: v.id, action: "lead.submitted", detail: dealId ? `Deal ${dealId}` : "ohne Deal-ID" });
   invalidateLeadCache();
   return { dealId };
+}
+
+export interface DuplicateHint {
+  /** Eingangsdatum des vorhandenen Leads */
+  datum: string;
+  /** Stand im Dashboard, z. B. „Lead eingereicht“ */
+  status: string;
+  /** woran erkannt */
+  grund: "Telefon" | "Name";
+}
+
+const digits = (s: string) => s.replace(/\D/g, "").replace(/^0049|^49/, "0");
+const normName = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** Gibt es den Kunden schon? Vergleich über die letzten 8 Ziffern der Telefonnummer oder den vollen Namen.
+ *  Liefert bewusst keine Kundendaten oder Setter – nur Datum und Stand. */
+export async function findDuplicates(v: Viewer, values: FormValues): Promise<DuplicateHint[]> {
+  if (!v.roles.includes("setter") && !isAdmin(v.roles)) throw new Error("Nur Setter erfassen Leads");
+  const tel = digits(s(values, "telefon")).slice(-8);
+  const name = normName(`${s(values, "vorname")} ${s(values, "nachname")}`);
+  if (tel.length < 6 && name.split(" ").length < 2) return [];
+  const hits: DuplicateHint[] = [];
+  for (const l of await loadLeadsFromPipedrive()) {
+    const lt = digits(l.telFull ?? "").slice(-8);
+    const grund = tel.length >= 6 && lt && lt === tel ? "Telefon" : name && normName(l.kunde) === name ? "Name" : null;
+    if (grund) hits.push({ datum: l.datum, status: STATUS[l.status].label, grund });
+  }
+  return hits.slice(0, 5);
 }
