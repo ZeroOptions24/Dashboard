@@ -17,11 +17,9 @@ const MISSING = "DATABASE_URL fehlt – lokal die App mit `npm run dev` starten 
 function createPool(): Pool {
   const url = process.env.DATABASE_URL;
   if (url) {
-    const pool = new Pool({ connectionString: url, max: Number(process.env.DB_POOL_MAX || 10) });
     /* Zeitstempel ohne Zeitzone sind UTC (so schreibt/liest Drizzle sie). Die Sitzung muss dazu passen,
        sonst verschieben sich Standardwerte wie now() um den Versatz der Server-Zeitzone. */
-    pool.on("connect", (client) => void client.query("SET TIME ZONE 'UTC'"));
-    return pool;
+    return new Pool({ connectionString: url, max: Number(process.env.DB_POOL_MAX || 10), options: "-c TimeZone=UTC" });
   }
   /* Ohne DATABASE_URL (z. B. beim Build): jede Abfrage schlägt mit klarer Meldung fehl */
   const pool = new Pool();

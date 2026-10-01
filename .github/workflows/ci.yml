@@ -20,3 +20,11 @@ jobs:
       - run: npx next typegen && npx tsc --noEmit
       - run: npm test
       - run: npm run build
+
+  docker:
+    # Prüft, dass sich das Server-Image (Coolify) bauen lässt
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t mb-dashboard:ci .
