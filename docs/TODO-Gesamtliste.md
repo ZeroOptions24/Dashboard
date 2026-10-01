@@ -63,7 +63,7 @@ Stand: 01.10.2026. Ergänzt [`TODO-EnergyEngel.md`](TODO-EnergyEngel.md) (Platzh
 | 3.13 | 🤖 | P3 | Pipedrive-Webhook → Dashboard aktualisiert sofort (statt alle 60 Sek.) | – |
 | 3.14 | 🤖 | P3 | Setter-Link-Codes im Dashboard verwalten statt fest im n8n-Code | – |
 | 3.15 | 🧑 | P3 | Prüfen, ob n8n auf den eigenen Server umzieht (Datenschutz, Kosten) | n8n-Cloud: AV-Vertrag + Serverstandort prüfen |
-| 3.16 | 🧑 | P3 | Deal-Titel-Schema beibehalten („Wärmepumpe – Name“) | Danach filtert das Dashboard; PV/Enpal-Deals werden ausgeblendet |
+| 3.16 | 🧑 | P3 | Deal-Titel-Schema beibehalten („Wärmepumpe – Name“ bzw. „Enpal – Name“) | Danach filtert das Dashboard; Enpal zählt wie Wärmepumpe (01.10.), PV wird ausgeblendet |
 
 ## 4. Setter
 

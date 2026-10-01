@@ -38,3 +38,7 @@ export const DEAL_FIELDS = {
 /** Dashboard ist vorerst nur auf Wärmepumpen ausgelegt – Deal-Titel „Wärmepumpe – Name“.
  *  PV und weitere Produkte kommen später dazu (entschieden 25.09.2026). */
 export const PRODUCT_TITLE_PREFIX = { wp: "Wärmepumpe" } as const;
+
+/** Deal-Titel, die als Wärmepumpen-Lead zählen. Enpal-Deals („Enpal – Name“) zählen genauso
+ *  (entschieden 01.10.2026: gleicher Leitfaden, gleiche Provision). */
+export const WP_TITLE_PREFIXES = [PRODUCT_TITLE_PREFIX.wp, "Enpal"] as const;

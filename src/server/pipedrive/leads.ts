@@ -4,7 +4,7 @@ import { isAdmin } from "@/lib/roles";
 import type { HistoryEntry, Lead, Role, StatusKey } from "@/lib/types";
 import { applyActivities, type ActivityRow } from "@/lib/lead-activity";
 import { getDeals, getPersons, type PdDeal, type PdPerson } from "./client";
-import { DEAL_FIELDS, PIPEDRIVE_PIPELINE_ID, PRODUCT_TITLE_PREFIX, STAGE_ATTEMPTS, STAGE_TO_STATUS } from "./config";
+import { DEAL_FIELDS, PIPEDRIVE_PIPELINE_ID, STAGE_ATTEMPTS, STAGE_TO_STATUS, WP_TITLE_PREFIXES } from "./config";
 
 /* Pipedrive-Deals → Dashboard-Leads. */
 
@@ -92,7 +92,7 @@ const utc = (iso: string) => new Date(iso.includes("T") ? iso : iso.replace(" ",
 /** Alle Wärmepumpen-Leads der Pipeline, neueste zuerst. */
 async function fetchAllLeads(): Promise<Lead[]> {
   const deals = (await getDeals(PIPEDRIVE_PIPELINE_ID, Object.values(DEAL_FIELDS))).filter((d) =>
-    d.title.startsWith(PRODUCT_TITLE_PREFIX.wp),
+    WP_TITLE_PREFIXES.some((p) => d.title.startsWith(p)),
   );
   const personIds = [...new Set(deals.map((d) => d.person_id).filter((id): id is number => !!id))];
   const persons = new Map((await getPersons(personIds)).map((p) => [p.id, p]));

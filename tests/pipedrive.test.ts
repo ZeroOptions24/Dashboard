@@ -24,14 +24,14 @@ const deal = (id: number, setter: string, stage = 180, status: PdDeal["status"] 
 const person = (id: number): PdPerson => ({ id, name: `Kunde ${id}`, phones: [{ value: `0170 123450${id}`, primary: true }], postal_address: { locality: "Leipzig" } });
 
 vi.mock("@/server/pipedrive/client", () => ({
-  getDeals: vi.fn(async () => [deal(1, "Max"), deal(2, "Florian", 183), deal(3, "", 184, "won"), { ...deal(4, "Max"), title: "PV – Kunde 4" }]),
+  getDeals: vi.fn(async () => [deal(1, "Max"), deal(2, "Florian", 183), deal(3, "", 184, "won"), { ...deal(4, "Max"), title: "PV – Kunde 4" }, { ...deal(5, "Florian", 249), title: "Enpal – Kunde 5" }]),
   getPersons: vi.fn(async (ids: number[]) => ids.map(person)),
 }));
 
 describe("Pipedrive-Leads", () => {
   beforeEach(() => vi.resetModules());
 
-  it("übersetzt Stufen, maskiert Nummern und nimmt nur Wärmepumpen", async () => {
+  it("übersetzt Stufen, maskiert Nummern und nimmt nur Wärmepumpen und Enpal", async () => {
     const { loadLeadsFromPipedrive } = await import("@/server/pipedrive/leads");
     const leads = await loadLeadsFromPipedrive();
     expect(leads.map((l) => [l.id, l.status, l.setter])).toEqual(
@@ -42,6 +42,7 @@ describe("Pipedrive-Leads", () => {
       ]),
     );
     expect(leads.some((l) => l.id === "PD-4")).toBe(false);
+    expect(leads.find((l) => l.id === "PD-5")).toMatchObject({ kunde: "Kunde 5", setter: "florian", attempts: 2 });
     expect(leads.find((l) => l.id === "PD-1")!.tel).toBe("0170 •••• 4501");
   });
 
@@ -76,14 +77,17 @@ describe("Pipedrive-Leads", () => {
   it("Admins sehen alles", async () => {
     const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
     const r = await loadLeadsForUser({ id: "a", roles: ["admin"] }, { setterIds: new Map() });
-    expect(r.leads).toHaveLength(3);
+    expect(r.leads).toHaveLength(4);
   });
 
   it("Presetter: gemeinsamer Pool aller offenen Leads mit voller Nummer", async () => {
     const { loadLeadsForUser } = await import("@/server/pipedrive/leads");
     const r = await loadLeadsForUser({ id: "p", roles: ["presetter"] }, { setterIds: new Map() });
     expect(r.keys.presetter).toBe("p");
-    expect(r.leads.map((l) => [l.id, l.telFull])).toEqual([["PD-1", "0170 1234501"]]); /* nur „eingereicht“ */
+    expect(r.leads.map((l) => [l.id, l.telFull])).toEqual([
+      ["PD-1", "0170 1234501"],
+      ["PD-5", "0170 1234505"],
+    ]); /* nur „eingereicht“ (Wärmepumpe und Enpal) */
   });
 });
 
