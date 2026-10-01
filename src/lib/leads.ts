@@ -54,6 +54,8 @@ function dueAt(l: Lead, now: Date): Date | null {
 }
 
 export const isCallback = (l: Lead) => /^Rückruf/.test(l.nextTry || "");
+/** Zeitpunkt eines vereinbarten Rückrufs (sonst null) */
+export const callbackDue = (l: Lead, now: Date) => (isCallback(l) ? dueAt(l, now) : null);
 export const callbackLate = (l: Lead, now: Date) => {
   const due = dueAt(l, now);
   return isCallback(l) && !!due && due < now;

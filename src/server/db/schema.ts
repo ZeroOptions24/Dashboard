@@ -310,6 +310,16 @@ export const setterAssignment = pgTable("setter_assignment", {
   assignedAt: timestamp("assigned_at").notNull().defaultNow(),
 });
 
+/** Wer einen Lead gerade im Telefonleitfaden offen hat (kurze, sich verlängernde Sperre) */
+export const leadLock = pgTable("lead_lock", {
+  leadId: text("lead_id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  since: timestamp("since").notNull().defaultNow(),
+  until: timestamp("until").notNull(),
+});
+
 /** Protokoll sensibler Zugriffe und Aktionen (z. B. IBAN angezeigt, Vertrag gesendet). */
 export const auditLog = pgTable("audit_log", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),

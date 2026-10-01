@@ -64,6 +64,13 @@
       "when": 1790883756675,
       "tag": "0008_setter_zuweisung",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790888664802,
+      "tag": "0009_lead_sperre",
+      "breakpoints": true
     }
   ]
 }

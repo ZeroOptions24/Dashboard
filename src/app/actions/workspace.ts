@@ -5,6 +5,7 @@ import { getSession } from "@/server/auth";
 import type { Role } from "@/lib/types";
 import type { FormValues } from "@/lib/vq";
 import { recordLeadAction, type LeadAction } from "@/server/lead-activity";
+import { claimLead, releaseLeads } from "@/server/lead-lock";
 import { submitLead } from "@/server/lead-submit";
 import * as ws from "@/server/workspace";
 
@@ -42,3 +43,7 @@ export const submitLeadAction = async (values: FormValues, standort: unknown) =>
 
 /** Aktion an einem Pipedrive-Lead (Anrufversuch, Status, Rückruf, Notiz, Vorqualifizierung) */
 export const leadAction = async (role: Role, leadId: string, action: LeadAction) => run((v) => recordLeadAction(v, role, leadId, action));
+
+/** Lead im Leitfaden öffnen/halten („wird gerade bearbeitet“) */
+export const claimLeadAction = async (leadId: string, force = false) => run((v) => claimLead(v, leadId, force));
+export const releaseLeadsAction = async () => run((v) => releaseLeads(v));

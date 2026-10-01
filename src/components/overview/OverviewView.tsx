@@ -4,19 +4,20 @@ import { Fragment, type ReactNode } from "react";
 import { RelWhen } from "@/components/closer/AppointmentCard";
 import EventCard from "@/components/events/EventCard";
 import LeadTable, { clickableRow } from "@/components/pipeline/LeadTable";
+import { CallbackAlerts, FilteredCallQueue } from "@/components/presetter/CallTools";
 import { CloserMoneyHero, DailyGoal, MoneyCard, SetterRankCard } from "@/components/overview/Cards";
 import Icon from "@/components/ui/Icon";
-import { StatusChip, ToneChip, TryChip } from "@/components/ui/Chips";
+import { StatusChip, ToneChip } from "@/components/ui/Chips";
 import { Kpi, PageHead, VsTeam } from "@/components/ui/Kpi";
 import { apptEnd, bookableSlots, closerPaused, feedbackDue, kindLabel, pendingFeedback } from "@/lib/appointments";
 import { TARGETS } from "@/lib/domain";
 import { WD, dkey, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
-import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, newestFirst, telFull, telHref, urgencySort } from "@/lib/leads";
+import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, newestFirst, urgencySort } from "@/lib/leads";
 import { perfTone } from "@/lib/ranking";
 import { useStore } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
-import type { Appointment, Lead } from "@/lib/types";
-import { callLead, changeStatus, openDrawer } from "@/lib/ui";
+import type { Appointment } from "@/lib/types";
+import { openDrawer } from "@/lib/ui";
 
 
 /* ======================= Setter ======================= */
@@ -97,39 +98,6 @@ function SetterOverview() {
 }
 
 /* ======================= Presetter ======================= */
-function CallQueue({ queue }: { queue: Lead[] }) {
-  const { now, person, openLead } = useDashboard();
-  if (!queue.length) return <div className="ee-empty">Alle Leads sind angerufen.</div>;
-  return (
-    <div className="ee-calls">
-      {queue.map((l) => (
-        <div key={l.id} className={isOverdue(l, now) || callbackLate(l, now) ? "ee-call is-over" : "ee-call"}>
-          <button className="ee-call__who" onClick={() => openLead(l.id)}>
-            <b>{l.kunde}</b>
-            <span>
-              {[l.ort, l.setter === "unbekannt" ? "ohne Setter" : `von ${person(l.setter).first}`].filter(Boolean).join(" · ")}
-            </span>
-            <span className="mono">{telFull(l)}</span>
-          </button>
-          <div className="ee-call__meta">
-            <TryChip lead={l} now={now} />
-            <span className="faint">{l.attempts ? `${l.attempts}. Versuch` : "noch nicht angerufen"}</span>
-          </div>
-          <div className="ee-call__actions">
-            <button className="ee-btn ee-btn--sm" onClick={() => changeStatus(l.id, "nicht_erreicht")}>
-              Nicht erreicht
-            </button>
-            {/* href="tel:" wählt parallel die Nummer, der Klick öffnet den Leitfaden */}
-            <a className="ee-btn ee-btn--primary ee-btn--sm" href={telHref(l)} onClick={() => callLead(l.id)}>
-              <Icon name="phone" small /> Anrufen
-            </a>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function PresetterOverview() {
   const { data, role, me, now, person, firstName } = useDashboard();
   const L = leadsForUser(data.LEADS, role, me);
@@ -140,6 +108,7 @@ function PresetterOverview() {
   return (
     <>
       <PageHead title={`Hallo ${firstName}`} />
+      <CallbackAlerts leads={queue} />
       <div className="ee-grid g-main" style={{ alignItems: "start" }}>
         <div className="stack" style={{ gap: 18 }}>
           <div className="ee-grid g-kpi4">
@@ -203,7 +172,7 @@ function PresetterOverview() {
               <h2>Anrufliste</h2>
               <span className={queue.length ? "ee-chip ee-chip--info" : "ee-chip ee-chip--pos"}>{queue.length} offen</span>
             </div>
-            <CallQueue queue={queue} />
+            <FilteredCallQueue queue={queue} />
           </section>
         </div>
         <div className="stack" style={{ gap: 18 }}>

@@ -536,6 +536,8 @@ fieldset.is-invalid .ee-opt{border-color:var(--bad)}
 .ee-fb-done{display:flex;align-items:center;gap:6px;font-size:.84rem;font-weight:600;color:var(--ok)}
 .ee-alert{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;font-size:.88rem;font-weight:600}
 .ee-alert--bad{background:var(--bad-soft);color:var(--bad)}
+.ee-alert--warn{background:var(--warn-soft);color:var(--warn)}
+.ee-alert--warn b{color:inherit}
 h2.is-bad{color:var(--bad)}
 .ee-reason--fb:has(input:checked){border-color:var(--forest);background:var(--forest-soft)}
 .ee-reason--fb input{accent-color:var(--forest)}

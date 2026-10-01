@@ -5,7 +5,8 @@ import CustomerBrief from "@/components/leads/CustomerBrief";
 import Icon from "@/components/ui/Icon";
 import { TryChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
-import { bookSlot, setLeadPreNote, setLeadVq } from "@/lib/actions";
+import { bookSlot, setLeadPreNote, setLeadStatus, setLeadVq } from "@/lib/actions";
+import { CallbackAlerts, LeadLockBanner } from "@/components/presetter/CallTools";
 import DirectBooking from "@/components/booking/DirectBooking";
 import { bookableSlots } from "@/lib/appointments";
 import { GUIDES } from "@/lib/domain";
@@ -82,6 +83,16 @@ export default function LeitfadenView() {
     updateUi({ guideLead: id, guideSlot: null });
     window.scrollTo({ top: 0 });
   };
+  /* Anrufversuch mit Angabe (z. B. Mailbox) und weiter zum nächsten Anruf */
+  const attempt = (detail: string) => {
+    toast(setLeadStatus(l.id, "nicht_erreicht", detail));
+    advance();
+  };
+  /* Falsche Nummer = Absage mit festem Grund, ohne Nachfrage */
+  const wrongNumber = () => {
+    toast(setLeadStatus(l.id, "abgesagt", "Falsche Kontaktdaten"));
+    advance();
+  };
   const book = () => {
     if (!sel) return;
     bookSlot(l, sel);
@@ -105,6 +116,8 @@ export default function LeitfadenView() {
           </span>
         }
       />
+      <CallbackAlerts leads={queue.filter((x) => x.id !== l.id)} onCall={pick} />
+      <LeadLockBanner leadId={l.id} onNext={next ? () => pick(next.id) : undefined} />
       <section className="ee-callbar" data-component="CallBar">
         <div className="ee-callbar__who">
           <b>{l.kunde}</b>
@@ -119,11 +132,17 @@ export default function LeitfadenView() {
           <button className="ee-btn ee-btn--sm" onClick={() => changeStatus(l.id, "nicht_erreicht")}>
             Nicht erreicht
           </button>
+          <button className="ee-btn ee-btn--sm" title="Nicht erreicht – Mailbox" onClick={() => attempt("Mailbox")}>
+            Mailbox
+          </button>
           <button className="ee-btn ee-btn--sm" onClick={() => openDrawer({ kind: "callback", id: l.id })}>
             <Icon name="clock" small /> Rückruf vereinbaren
           </button>
           <button className="ee-btn ee-btn--sm ee-btn--danger" onClick={() => changeStatus(l.id, "abgesagt")}>
             Abgesagt
+          </button>
+          <button className="ee-btn ee-btn--sm ee-btn--ghost" title="Absage mit Grund „Falsche Kontaktdaten“" onClick={wrongNumber}>
+            Falsche Nummer
           </button>
           {next && (
             <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={() => pick(next.id)}>

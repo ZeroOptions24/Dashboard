@@ -198,7 +198,8 @@ export function setLeadStatus(id: string, status: StatusKey | "nicht_erreicht", 
     if (st === "termin" || st === "checks") l.nextTry = null;
   }
   l.status = st;
-  if (reason) {
+  /* beim Anrufversuch ist „reason“ nur eine Angabe wie „Mailbox“, kein Absagegrund */
+  if (reason && !attempt) {
     l.reason = reason;
     l.reasonNote = note || "";
   }

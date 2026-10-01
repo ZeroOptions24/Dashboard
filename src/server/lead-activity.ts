@@ -79,9 +79,10 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
 
   if (action.type === "status" && action.status === "nicht_erreicht") {
     const n = Math.max(lead.attempts, ...past.filter((a) => a.kind === "attempt").map((a) => Number(a.data.attempt) || 0)) + 1;
+    const detail = clean(action.reason, 40);
     kind = "attempt";
-    text = `Nicht erreicht (Versuch ${n})`;
-    data = { attempt: n };
+    text = `Nicht erreicht (Versuch ${n})${detail ? ` – ${detail}` : ""}`;
+    data = { attempt: n, detail };
     patch = { stage_id: n === 1 ? STAGE.kontaktieren : STAGE.kontaktieren2 };
     pdNote = `${text} – ${first} (MB-Dashboard)`;
     result.attempts = n;

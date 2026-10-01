@@ -135,8 +135,9 @@ describe("Lead-Aktionen auf dem Server", () => {
 
   it("ohne PIPEDRIVE_WRITE wird nur im Dashboard gespeichert", async () => {
     vi.stubEnv("PIPEDRIVE_WRITE", "");
-    const r = await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "nicht_erreicht" });
+    const r = await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "nicht_erreicht", reason: "Mailbox" });
     expect(r).toMatchObject({ attempts: 1, nextTry: "in 2 Std. erneut anrufen" });
+    expect((await la.loadActivities()).at(-1)?.text).toBe("Nicht erreicht (Versuch 1) – Mailbox");
     expect(pd.updateDeal).not.toHaveBeenCalled();
   });
 
