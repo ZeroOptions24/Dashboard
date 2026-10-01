@@ -11,6 +11,7 @@ import {
   setBannedAction,
   updateMemberAction,
   importAssignmentsAction,
+  listAuditAction,
   listUnsentMailAction,
   previewAssignmentsAction,
   logMailLinkCopiedAction,
@@ -23,7 +24,7 @@ import { useDashboard } from "@/lib/useDashboard";
 import type { Role } from "@/lib/types";
 import type { OnboardingRow, OnboardingStatus } from "@/server/onboarding";
 import type { AssignmentLine } from "@/server/setter-assignment";
-import type { ImportLine, MemberDetails, UnsentMail } from "@/server/team";
+import type { AuditEntry, ImportLine, MemberDetails, UnsentMail } from "@/server/team";
 import { reloadLeads } from "@/lib/live";
 
 const STATUS: Record<OnboardingStatus, { label: string; tone: string; next: string }> = {
@@ -365,7 +366,66 @@ function MemberDetailsBox({ userId }: { userId: string }) {
           </span>
         </div>
       )}
+      <div className="row" style={{ marginTop: 8 }}>
+        {/* Datenauskunft nach DSGVO: alle im Dashboard gespeicherten Daten der Person als Datei */}
+        <a className="ee-btn ee-btn--ghost ee-btn--sm" href={`/api/team/${userId}/export`} download>
+          <Icon name="doc" small /> Datenauskunft (JSON)
+        </a>
+      </div>
     </div>
+  );
+}
+
+/* ---------- Protokoll ---------- */
+function AuditCard() {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<AuditEntry[] | null>(null);
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    if (!open || rows) return;
+    let off = false;
+    listAuditAction().then((res) => !off && res.ok && setRows(res.data));
+    return () => {
+      off = true;
+    };
+  }, [open, rows]);
+  const needle = q.trim().toLowerCase();
+  const list = (rows ?? []).filter((r) => !needle || `${r.actor} ${r.label} ${r.target} ${r.detail}`.toLowerCase().includes(needle));
+  return (
+    <section className="ee-card" data-component="AuditCard">
+      <details onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+        <summary style={{ cursor: "pointer" }}>
+          <h2 style={{ display: "inline" }}>Protokoll</h2> <span className="muted">wer hat wann was getan (IBAN angesehen, Vertrag gesendet …)</span>
+        </summary>
+        <div className="stack" style={{ gap: 10, marginTop: 12 }}>
+          <input className="ee-input" type="search" id="auditSearch" placeholder="Suchen: Person, Aktion" aria-label="Protokoll durchsuchen" value={q} onChange={(e) => setQ(e.target.value)} />
+          {!rows ? (
+            <div className="ee-empty">Lade …</div>
+          ) : (
+            <div className="ee-list" style={{ maxHeight: 420, overflowY: "auto" }}>
+              {list.slice(0, 200).map((r, i) => (
+                <div key={i} className="ee-list__row">
+                  <div className="ee-list__main">
+                    <div className="ee-list__title">
+                      {r.label}
+                      {r.target ? ` · ${r.target}` : ""}
+                    </div>
+                    <div className="ee-list__sub">
+                      {r.actor}
+                      {r.detail ? ` · ${r.detail}` : ""}
+                    </div>
+                  </div>
+                  <span className="faint" style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>
+                    {new Date(r.at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+              {!list.length && <div className="ee-empty">Keine Einträge.</div>}
+            </div>
+          )}
+        </div>
+      </details>
+    </section>
   );
 }
 
@@ -743,6 +803,7 @@ export default function TeamView() {
           <InviteForm onDone={load} />
           <ImportCard onDone={load} />
           <AssignCard />
+          <AuditCard />
         </div>
       </div>
     </>

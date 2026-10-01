@@ -92,3 +92,7 @@ export async function previewAssignmentsAction(text: string) {
 export async function importAssignmentsAction(text: string) {
   return asAdmin(async (adminId) => sa.importAssignments(text, await knownSetters(), adminId));
 }
+
+export async function listAuditAction() {
+  return asAdmin(() => team.listAudit());
+}

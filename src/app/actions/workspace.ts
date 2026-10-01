@@ -35,6 +35,7 @@ export const bookDirectAction = async (lead: { id: string; kunde: string; ort: s
 export const bookSlotAction = async (slotId: string, lead: { id: string; kunde: string; ort: string }) => run((v) => ws.bookSlot(v, slotId, lead));
 export const saveFeedbackAction = async (apptId: string, input: Parameters<typeof ws.saveFeedback>[2]) => run((v) => ws.saveFeedback(v, apptId, input));
 export const publishBoardAction = async (input: Parameters<typeof ws.publishBoard>[1]) => run((v) => ws.publishBoard(v, input));
+export const archiveBoardAction = async () => run((v) => ws.archiveBoard(v));
 export const releasePayoutAction = async (payoutId: string) => run((v) => ws.releasePayout(v, payoutId));
 export const setMoneyGoalAction = async (euro: number) => run((v) => ws.setMoneyGoal(v, euro));
 

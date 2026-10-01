@@ -5,7 +5,9 @@ import Icon from "@/components/ui/Icon";
 import { PageHead } from "@/components/ui/Kpi";
 import { publishBoard } from "@/lib/actions";
 import { ranked } from "@/lib/ranking";
-import { LIVE } from "@/lib/store";
+import { LIVE, store } from "@/lib/store";
+import { archiveBoardAction } from "@/app/actions/workspace";
+import { reloadWorkspace } from "@/lib/live";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Board, PersonKey } from "@/lib/types";
 
@@ -194,6 +196,21 @@ function BoardEditor({ B, boardKey }: { B: Board; boardKey: BoardKey }) {
         <button className="ee-btn ee-btn--accent" type="submit">
           <Icon name="trophy" small /> Rangliste veröffentlichen
         </button>
+        {LIVE && boardKey === "cup" && store.live.boardId && (
+          <button
+            className="ee-btn ee-btn--ghost"
+            type="button"
+            onClick={async () => {
+              if (!window.confirm(`„${B.title}“ abschließen und ins Archiv legen? Danach startet ein neuer Wettbewerb für den aktuellen Monat.`)) return;
+              const res = await archiveBoardAction();
+              if (!res.ok) return toast(res.error, "info");
+              toast(`„${res.data}“ abgeschlossen – neuer Wettbewerb als Entwurf angelegt`, "trophy");
+              void reloadWorkspace();
+            }}
+          >
+            Wettbewerb abschließen &amp; neuen starten
+          </button>
+        )}
       </form>
     </section>
   );

@@ -495,6 +495,15 @@ export async function publishBoard(v: Viewer, input: { id: string | null; title:
   return id;
 }
 
+/** Laufenden Wettbewerb abschließen (ins Archiv); danach startet ein neuer Entwurf für den aktuellen Monat */
+export async function archiveBoard(v: Viewer) {
+  must(isAdmin(v.roles));
+  const rows = await db.update(schema.board).set({ archivedAt: new Date() }).where(isNull(schema.board.archivedAt)).returning({ id: schema.board.id, title: schema.board.title });
+  must(rows.length > 0, "Es läuft gerade kein veröffentlichter Wettbewerb");
+  await db.insert(schema.auditLog).values({ actorId: v.id, action: "board.archived", detail: rows.map((r) => r.title).join(", ") });
+  return rows[0].title;
+}
+
 /* ---------- Auszahlungen ---------- */
 
 export async function releasePayout(v: Viewer, payoutId: string) {

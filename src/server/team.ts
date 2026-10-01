@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { formatIban } from "@/lib/iban";
 import { isAdmin, parseRoles, serializeRoles } from "@/lib/roles";
 import type { Role } from "@/lib/types";
@@ -188,4 +188,94 @@ export async function listUnsentMail(): Promise<{ smtp: boolean; mails: UnsentMa
 /** Link einer nicht versendeten Mail wurde vom Admin kopiert – protokollieren */
 export async function logMailLinkCopied(mailId: number, adminId: string) {
   await db.insert(schema.auditLog).values({ actorId: adminId, action: "outbox.link_copied", detail: String(mailId) });
+}
+
+/* ---------- Protokoll (Admins) ---------- */
+
+const AUDIT_LABELS: Record<string, string> = {
+  "profile.iban_viewed": "IBAN angesehen",
+  "profile.pipedrive_name": "Pipedrive-Setter-Name geändert",
+  "profile.setter_code": "Setter-Link-Code geändert",
+  "team.update": "Rollen/Name geändert",
+  "team.ban": "Zugang gesperrt",
+  "team.unban": "Zugang entsperrt",
+  "team.delete": "Person gelöscht",
+  "team.data_export": "Datenauskunft erstellt",
+  "onboarding.invite": "Eingeladen",
+  "onboarding.resend": "Formular-Link erneut gesendet",
+  "onboarding.data_submitted": "Stammdaten eingereicht",
+  "onboarding.contract_sent": "Vertrag gesendet",
+  "onboarding.signed": "Vertrag unterschrieben",
+  "onboarding.activate_directly": "Direkt freigeschaltet",
+  "onboarding.skip_contract": "Ohne Vertragsschritt",
+  "onboarding.withdraw": "Einladung zurückgezogen",
+  "onboarding.access_resent": "Zugangslink erneut gesendet",
+  "onboarding.reminder_form": "Erinnerung: Formular",
+  "onboarding.reminder_access": "Erinnerung: Zugang",
+  "contract.sent": "Vertrag gesendet",
+  "contract.signed": "Vertrag unterschrieben",
+  "contract.pdf_viewed": "Vertrags-PDF angesehen",
+  "contract.question_resolved": "Rückfrage geklärt",
+  "contract.reminded": "An Vertrag erinnert",
+  "payout.release": "Auszahlung freigegeben",
+  "board.archived": "Wettbewerb abgeschlossen",
+  "lead.setter_assigned": "Setter zugewiesen",
+  "lead.submitted": "Lead an Pipedrive übertragen",
+  "outbox.link_copied": "Link aus E-Mail kopiert",
+};
+
+export interface AuditEntry {
+  at: string;
+  actor: string;
+  action: string;
+  label: string;
+  target: string;
+  detail: string;
+}
+
+export async function listAudit(limit = 200): Promise<AuditEntry[]> {
+  const rows = await db.select().from(schema.auditLog).orderBy(desc(schema.auditLog.at)).limit(Math.min(500, limit));
+  const ids = [...new Set(rows.flatMap((r) => [r.actorId, r.targetUserId]).filter((x): x is string => !!x))];
+  const names = new Map(
+    ids.length ? (await db.select({ id: schema.user.id, name: schema.user.name }).from(schema.user).where(inArray(schema.user.id, ids))).map((u) => [u.id, u.name]) : [],
+  );
+  const who = (id: string | null) => (id ? (names.get(id) ?? "gelöschte Person") : "System");
+  return rows.map((r) => ({
+    at: r.at.toISOString(),
+    actor: who(r.actorId),
+    action: r.action,
+    label: AUDIT_LABELS[r.action] ?? r.action,
+    target: r.targetUserId ? who(r.targetUserId) : "",
+    /* keine sensiblen Inhalte im Protokoll – nur kurze Angaben */
+    detail: (r.detail ?? "").slice(0, 160),
+  }));
+}
+
+/* ---------- Datenauskunft (DSGVO Art. 15) ---------- */
+
+/** Alle im Dashboard gespeicherten Daten zu einer Person – als JSON für die Auskunft. Wird protokolliert. */
+export async function exportMember(userId: string, adminId: string) {
+  const [u] = await db.select().from(schema.user).where(eq(schema.user.id, userId));
+  if (!u) throw new Error("Nicht gefunden");
+  const [p] = await db.select().from(schema.profile).where(eq(schema.profile.userId, userId));
+  const [ob] = await db.select().from(schema.onboarding).where(eq(schema.onboarding.userId, userId));
+  const strip = <T extends Record<string, unknown>>(o: T | undefined, drop: string[]) =>
+    o ? Object.fromEntries(Object.entries(o).filter(([k]) => !drop.includes(k))) : null;
+  const data = {
+    erstellt: new Date().toISOString(),
+    hinweis: "Datenauskunft aus dem EnergyEngel MB-Dashboard. Leads/Kundendaten liegen in Pipedrive und sind hier nur als Verweise enthalten.",
+    konto: { name: u.name, email: u.email, rollen: parseRoles(u.role), angelegt: u.createdAt, gesperrt: !!u.banned, zweiFaktor: !!u.twoFactorEnabled },
+    stammdaten: p ? { ...strip(p, ["ibanEnc", "ibanLast4", "userId"]), iban: p.ibanEnc ? formatIban(decrypt(p.ibanEnc)) : null } : null,
+    onboarding: strip(ob, ["formTokenHash", "userId"]),
+    vertraege: (await db.select().from(schema.contract).where(eq(schema.contract.userId, userId))).map((c) => strip(c, ["pdfBase64", "signatureRequestId", "userId"])),
+    auszahlungen: (await db.select().from(schema.payout).where(eq(schema.payout.userId, userId))).map((x) => strip(x, ["userId"])),
+    benachrichtigungen: (await db.select().from(schema.notification).where(eq(schema.notification.userId, userId))).map((x) => strip(x, ["userId", "id"])),
+    eventZusagen: (await db.select().from(schema.eventRsvp).where(eq(schema.eventRsvp.userId, userId))).map((x) => x.eventId),
+    freieSlots: (await db.select().from(schema.closerSlot).where(eq(schema.closerSlot.closerId, userId))).map((x) => strip(x, ["closerId"])),
+    termineAlsCloser: (await db.select().from(schema.appointment).where(eq(schema.appointment.closerId, userId))).map((x) => strip(x, ["closerId"])),
+    leadAktionen: (await db.select().from(schema.leadActivity).where(eq(schema.leadActivity.userId, userId))).map((x) => strip(x, ["userId", "id"])),
+    protokoll: (await db.select().from(schema.auditLog).where(eq(schema.auditLog.targetUserId, userId))).map((x) => ({ at: x.at, aktion: AUDIT_LABELS[x.action] ?? x.action })),
+  };
+  await db.insert(schema.auditLog).values({ actorId: adminId, action: "team.data_export", targetUserId: userId });
+  return data;
 }
