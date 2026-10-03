@@ -43,7 +43,7 @@ export function mailLayout({ title, intro, button, url, outro }: { title: string
 /** Textfassung zur HTML-Mail (für Programme ohne HTML und gegen Spam-Filter): Absätze behalten, Links ausschreiben */
 export function htmlToText(html: string) {
   return html
-    .replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gis, (_, href, label) => `${label.replace(/<[^>]+>/g, "")}: ${href}`)
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href, label) => `${label.replace(/<[^>]+>/g, "")}: ${href}`)
     .replace(/<(br|\/p|\/h1|\/div)[^>]*>/gi, "\n")
     .replace(/<[^>]+>/g, "")
     .replace(/&amp;/g, "&")
