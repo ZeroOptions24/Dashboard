@@ -176,6 +176,8 @@ p{margin:0}
 
 /* ===== StatusChip ===== */
 .ee-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 8px;border-radius:99px;font-size:.76rem;font-weight:650;white-space:nowrap;background:var(--mute-soft);color:var(--mute)}
+/* lange Hinweise (z. B. „Rückruf überfällig (Mo. 01.03.2027, 09:39 Uhr)“) dürfen auf schmalen Bildschirmen umbrechen statt die Seite zu verbreitern */
+.ee-chip{max-width:100%;min-height:24px;height:auto;white-space:normal;line-height:1.25;padding-block:3px}
 .ee-chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .ee-chip--ok{background:var(--ok-soft);color:var(--ok)}
 .ee-chip--info{background:var(--info-soft);color:var(--info)}

@@ -29,7 +29,8 @@ function SetterOverview() {
   const q = L.filter((l) => hadTermin(l.status)).length;
   const nextEvent = data.EVENTS.slice().sort((a, b) => a.date.localeCompare(b.date))[0];
   const m = data.MB_STATS.find((x) => x.key === me) || { leads: inMonth.length, termin: q };
-  const qq = Math.round((m.termin / m.leads) * 100);
+  /* ohne Leads im Monat gibt es noch keine Quote */
+  const qq = m.leads ? Math.round((m.termin / m.leads) * 100) : null;
   const notifs = data.NOTIFS[me] || [];
   const unread = notifs.filter((n) => n.unread).length;
   /* Reihenfolge nach Priorität: Geld · Heute · Eingereicht · Quote · Setter-Rangliste · Letzte Leads · (Event, Verlauf) */
@@ -48,12 +49,16 @@ function SetterOverview() {
             meta={<VsTeam v={m.leads} bench={data.BENCH.setterLeads} />}
             tone={perfTone(m.leads, data.BENCH.setterLeads)}
           />
-          <Kpi
-            label="Terminquote"
-            value={`${qq} %`}
-            meta={<VsTeam v={qq} bench={data.BENCH.setterTermin} unit=" %" />}
-            tone={perfTone(qq, data.BENCH.setterTermin)}
-          />
+          {qq == null ? (
+            <Kpi label="Terminquote" value="–" meta={`noch keine Leads im ${data.ADMIN_KPI.monat}`} />
+          ) : (
+            <Kpi
+              label="Terminquote"
+              value={`${qq} %`}
+              meta={<VsTeam v={qq} bench={data.BENCH.setterTermin} unit=" %" />}
+              tone={perfTone(qq, data.BENCH.setterTermin)}
+            />
+          )}
         </div>
         <SetterRankCard />
       </div>
