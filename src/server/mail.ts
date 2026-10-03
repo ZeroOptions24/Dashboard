@@ -40,6 +40,25 @@ export function mailLayout({ title, intro, button, url, outro }: { title: string
   </div></body></html>`;
 }
 
+/** Textfassung zur HTML-Mail (für Programme ohne HTML und gegen Spam-Filter): Absätze behalten, Links ausschreiben */
+export function htmlToText(html: string) {
+  return html
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gis, (_, href, label) => `${label.replace(/<[^>]+>/g, "")}: ${href}`)
+    .replace(/<(br|\/p|\/h1|\/div)[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l, i, arr) => l || (arr[i - 1] ?? "").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function sendMail(to: string, subject: string, html: string) {
   const [row] = await db.insert(schema.outbox).values({ to, subject, html }).returning({ id: schema.outbox.id });
   if (!smtpConfigured()) {
@@ -47,7 +66,7 @@ export async function sendMail(to: string, subject: string, html: string) {
     return;
   }
   try {
-    await getTransport().sendMail({ from: process.env.MAIL_FROM || process.env.SMTP_USER, to, subject, html });
+    await getTransport().sendMail({ from: process.env.MAIL_FROM || process.env.SMTP_USER, to, subject, html, text: htmlToText(html) });
     await db.update(schema.outbox).set({ sentAt: new Date() }).where(eq(schema.outbox.id, row.id));
   } catch (e) {
     await db.update(schema.outbox).set({ error: String(e) }).where(eq(schema.outbox.id, row.id));

@@ -125,3 +125,14 @@ describe("Rückruf-Fälligkeit", () => {
     expect(callbackLate({ ...l, nextTry: "Rückruf 01.10. 18:00" }, now)).toBe(true);
   });
 });
+
+describe("E-Mail-Textfassung", () => {
+  it("macht aus dem HTML-Layout lesbaren Text mit ausgeschriebenem Link", async () => {
+    const { mailLayout, htmlToText } = await import("@/server/mail");
+    const t = htmlToText(mailLayout({ title: "Passwort zurücksetzen", intro: "Über den Button legst du es fest.", button: "Neues Passwort festlegen", url: "https://x.test/a?b=1&c=2", outro: "48 Stunden gültig." }));
+    expect(t).toContain("Passwort zurücksetzen");
+    expect(t).toContain("Neues Passwort festlegen: https://x.test/a?b=1&c=2");
+    expect(t.match(/Passwort zurücksetzen/g)).toHaveLength(1);
+    expect(t).not.toMatch(/<|&amp;/);
+  });
+});
