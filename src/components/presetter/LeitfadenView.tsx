@@ -15,7 +15,7 @@ import { fmtDay, fmtHour } from "@/lib/format";
 import { inCallPool, isCalling, telFull, telHref, urgencySort } from "@/lib/leads";
 import { store, updateUi } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
-import { VQ_SECTIONS, fieldVisible, heatText, vqProgress, type FormValues } from "@/lib/vq";
+import { VQ_FIELDS, VQ_SECTIONS, fieldVisible, heatText, legacyValue, vqCheck, vqErrors, vqKo, vqProgress, type FormValues } from "@/lib/vq";
 import type { Slot } from "@/lib/types";
 import { changeStatus, openDrawer } from "@/lib/ui";
 
@@ -71,18 +71,28 @@ export default function LeitfadenView() {
       .replace("{closer}", person(s1?.closer ?? closers[0] ?? "").first || "unser Energieberater")
       .replace("{slot1}", s1 ? `${fmtDay(s1.date)} um ${fmtHour(s1.start)} Uhr` : "…")
       .replace("{slot2}", s2 ? `${fmtDay(s2.date)} um ${fmtHour(s2.start)} Uhr` : "…");
-  const vq: FormValues = l.vq || {},
+  /* Adresse aus dem Lead vorbelegen (TMVT fragt sie mit ab; PLZ steuert z. B. die Frage nach der Luftschicht) */
+  const adr = (l.adresse ?? "").match(/^(.*?)\s+(\S+),\s*(\d{5})\s+(.+)$/);
+  const prefill: FormValues = adr ? { strasse: adr[1], hausnummer: adr[2], plz: adr[3], ort: adr[4] } : { ort: l.ort };
+  const vq: FormValues = { ...prefill, ...(l.vq || {}) },
     p = vqProgress(vq);
+  const errs = vqErrors(vq),
+    ko = vqKo(vq);
+  /* Termin erst, wenn alle Angaben in den TMVT-Grenzen liegen – sonst blockiert TMVT die Übergabe */
+  const blocked = errs.length ? `${errs.length} ${errs.length === 1 ? "Angabe liegt" : "Angaben liegen"} außerhalb der TMVT-Grenzen` : "";
   const byDay: Record<string, Slot[]> = {};
   slots.forEach((s) => (byDay[s.date] ??= []).push(s));
   const sel = data.SLOTS.find((s) => s.id === ui.guideSlot);
   const idx = queue.indexOf(l),
     next = queue[idx + 1];
   const door = new Set(l.door ?? []);
-  const isDoor = (n: string) => door.has(n) && vq[n] !== undefined && vq[n] !== "";
+  /* von der Tür, aber mit Fehler oder alter Antwort → trotzdem zeigen, damit der Presetter korrigieren kann */
+  const needsLook = (n: string) => !!VQ_FIELDS[n] && (!!vqCheck(VQ_FIELDS[n], vq) || !!legacyValue(VQ_FIELDS[n], vq[n]));
+  const isDoor = (n: string) => door.has(n) && vq[n] !== undefined && vq[n] !== "" && !needsLook(n);
   const doorCount = [...door].filter(isDoor).length;
   const openIn = (fields: (typeof VQ_SECTIONS)[number]["fields"]) => fields.filter((f) => fieldVisible(f, vq) && !isDoor(f.n));
-  const firstOpen = VQ_SECTIONS.findIndex((s) => openIn(s.fields).some((f) => vq[f.n] === undefined || vq[f.n] === ""));
+  const firstErr = VQ_SECTIONS.findIndex((s) => s.fields.some((f) => fieldVisible(f, vq) && needsLook(f.n)));
+  const firstOpen = firstErr >= 0 ? firstErr : VQ_SECTIONS.findIndex((s) => openIn(s.fields).some((f) => vq[f.n] === undefined || vq[f.n] === ""));
   const reservation = reservationOf(data.APPTS, l.id);
   const secCount = (fields: (typeof VQ_SECTIONS)[number]["fields"]) => {
     const fs = fields.filter((f) => fieldVisible(f, vq));
@@ -269,6 +279,23 @@ export default function LeitfadenView() {
                   ganz am Ende.
                 </span>
               </div>
+              {errs.length ? (
+                <div className="ee-alert ee-alert--bad" data-vq-err>
+                  <Icon name="info" small />
+                  <span>
+                    <b>{blocked}</b> – bitte korrigieren ({errs.map((f) => f.l).join(", ")}). Sonst blockiert TMVT die Übergabe.
+                  </span>
+                </div>
+              ) : null}
+              {ko ? (
+                <div className="ee-alert ee-alert--bad">
+                  <Icon name="lock" small />
+                  <span>
+                    <b>K.-o.-Kriterium:</b> {vq.selbst_bewohnt === "Nein" ? "nicht selbst bewohnt" : "kein Eigentümer und keine notarielle Urkunde"} – kein Termin
+                    möglich. Bitte mit Grund absagen.
+                  </span>
+                </div>
+              ) : null}
               {doorCount ? (
                 <div className="ee-doorbar" data-component="DoorFilter">
                   <span>
@@ -295,10 +322,10 @@ export default function LeitfadenView() {
                           isDoor(f.n) ? (
                             <div key={f.n} className="ee-doorfield">
                               <span className="ee-ftag ee-ftag--door">von der Tür</span>
-                              <Field f={f} values={vq} scope="pq" onChange={(n, v) => setLeadVq(l.id, n, v)} />
+                              <Field f={f} values={vq} scope="pq" error={vqCheck(f, vq)} onChange={(n, v) => setLeadVq(l.id, n, v)} />
                             </div>
                           ) : (
-                            <Field key={f.n} f={f} values={vq} scope="pq" onChange={(n, v) => setLeadVq(l.id, n, v)} />
+                            <Field key={f.n} f={f} values={vq} scope="pq" error={vqCheck(f, vq)} onChange={(n, v) => setLeadVq(l.id, n, v)} />
                           ),
                         )}
                       </div>
@@ -342,6 +369,8 @@ export default function LeitfadenView() {
                     <div className="row">
                       <button
                         className="ee-btn ee-btn--primary"
+                        disabled={!!blocked || ko}
+                        title={blocked || (ko ? "K.-o.-Kriterium" : undefined)}
                         onClick={() => {
                           confirmReservation(l, reservation.id);
                           toast(
@@ -400,10 +429,13 @@ export default function LeitfadenView() {
                       <p className="muted">Keine freien Termine.</p>
                     )}
                   </div>
-                  <button className="ee-btn ee-btn--primary" disabled={!sel} onClick={book}>
+                  {blocked || ko ? (
+                    <p className="ee-hint ee-hint--err">Termin erst möglich, wenn {ko ? "kein K.-o.-Kriterium vorliegt" : "alle Angaben in den TMVT-Grenzen liegen"}.</p>
+                  ) : null}
+                  <button className="ee-btn ee-btn--primary" disabled={!sel || !!blocked || ko} onClick={book}>
                     <Icon name="cal" small /> {sel ? `Termin ${fmtDay(sel.date)} ${fmtHour(sel.start)} eintragen` : "Termin auswählen"}
                   </button>
-                  <DirectBooking key={l.id} lead={l} onBooked={advance} />
+                  <DirectBooking key={l.id} lead={l} onBooked={advance} blocked={blocked || (ko ? "K.-o.-Kriterium" : "")} />
                 </>
               )}
             </div>

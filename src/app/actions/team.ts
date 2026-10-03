@@ -5,7 +5,7 @@ import { ALL_ROLES } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 import { requireAdmin } from "@/server/auth";
 import { deleteOwnLead, ownLeadStats, retryOwnLeadSync } from "@/server/own-leads";
-import { ensurePipeline, getPipelineConfig, PIPELINE_NAME, PIPELINE_STAGES } from "@/server/pipedrive/dashboard-pipeline";
+import { ensurePipeline, getPipelineConfig, OWN_FIELDS, PIPELINE_NAME, PIPELINE_STAGES } from "@/server/pipedrive/dashboard-pipeline";
 import * as sa from "@/server/setter-assignment";
 import { getTargets, setTargets, type Targets } from "@/server/targets";
 import * as team from "@/server/team";
@@ -105,8 +105,8 @@ export async function listAuditAction() {
 export async function pipelineStatusAction() {
   return asAdmin(async () => {
     const config = await getPipelineConfig();
-    /* Einrichtung von vor dem 03.10.2026 (4 Stufen) → muss einmal aktualisiert werden */
-    const veraltet = !!config && PIPELINE_STAGES.some(([k]) => !config.stages[k]);
+    /* ältere Einrichtung (4 Stufen bzw. ohne neue „MB …“-Felder) → muss einmal aktualisiert werden */
+    const veraltet = !!config && (PIPELINE_STAGES.some(([k]) => !config.stages[k]) || Object.keys(OWN_FIELDS).some((k) => !(config.fields as Record<string, string>)[k]));
     return { name: PIPELINE_NAME, config, veraltet, leads: await ownLeadStats() };
   });
 }

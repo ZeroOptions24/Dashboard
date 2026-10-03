@@ -4,7 +4,7 @@ import { desc, eq, gte, isNotNull, isNull, or } from "drizzle-orm";
 import { normStatus, STATUS } from "@/lib/domain";
 import { isCalling } from "@/lib/leads";
 import type { HistoryEntry, Lead, StatusKey } from "@/lib/types";
-import type { FormValues } from "@/lib/vq";
+import { vqText, type FormValues } from "@/lib/vq";
 import { db, schema } from "./db";
 import { createDeal, createPerson, deleteDeal, patchDeal } from "./pipedrive/client";
 import { getPipelineConfig, PIPELINE_STAGES, stageFor, type PipelineConfig } from "./pipedrive/dashboard-pipeline";
@@ -117,7 +117,9 @@ async function dealFields(row: Row, cfg: PipelineConfig) {
     [f.gps]: row.gpsLat != null && row.gpsLon != null ? `${row.gpsLat}, ${row.gpsLon}` : "",
     [f.dashboardId]: row.id,
   };
-  for (const [name, val] of Object.entries(json<Record<string, string>>(row.vq, {}))) if (cfg.vq[name]) custom[cfg.vq[name]] = val;
+  const vq = json<Record<string, string>>(row.vq, {});
+  for (const [name, val] of Object.entries(vq)) if (cfg.vq[name]) custom[cfg.vq[name]] = val;
+  if (f.vqAlle) custom[f.vqAlle] = vqText(vq);
   return custom;
 }
 

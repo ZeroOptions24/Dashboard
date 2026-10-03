@@ -1,6 +1,7 @@
 import "server-only";
 import { AFTER_TERMIN, STATUS } from "@/lib/domain";
 import { isCalling } from "@/lib/leads";
+import { normalizeVq } from "@/lib/vq";
 import { isAdmin } from "@/lib/roles";
 import type { HistoryEntry, Lead, Role, StatusKey } from "@/lib/types";
 import { applyActivities, type ActivityRow } from "@/lib/lead-activity";
@@ -64,7 +65,8 @@ function vqFromDeal(deal: PdDeal): Record<string, string> | undefined {
     const s = v && typeof v === "object" && "label" in v ? String((v as { label: unknown }).label) : v == null ? "" : String(v);
     if (s.trim()) vq[name] = s.trim();
   }
-  return Object.keys(vq).length ? vq : undefined;
+  /* Antworten aus dem bisherigen Formular auf die TMVT-Optionen übersetzen */
+  return Object.keys(vq).length ? normalizeVq(vq) : undefined;
 }
 
 export function dealToLead(deal: PdDeal, person: PdPerson | undefined, note?: LeadNote): Lead {

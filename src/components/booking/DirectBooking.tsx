@@ -10,7 +10,7 @@ import { useDashboard } from "@/lib/useDashboard";
 const TIMES = Array.from({ length: 27 }, (_, i) => 8 + i * 0.5); /* 08:00 – 21:00 */
 
 /** Termin direkt eintragen, wenn kein passender freier Slot da ist (Datum, Uhrzeit, Closer). */
-export default function DirectBooking({ lead, onBooked }: { lead: Lead; onBooked?: () => void }) {
+export default function DirectBooking({ lead, onBooked, blocked }: { lead: Lead; onBooked?: () => void; blocked?: string }) {
   const { now, person, toast, me, role } = useDashboard();
   /* Setter merken nur vor – der Presetter bestätigt (Zwei-Schritte-System) */
   const verb = role === "setter" ? "vormerken" : "eintragen";
@@ -74,7 +74,7 @@ export default function DirectBooking({ lead, onBooked }: { lead: Lead; onBooked
         </select>
       </div>
       <div className="row">
-        <button className="ee-btn ee-btn--primary" type="submit" disabled={!closers.length}>
+        <button className="ee-btn ee-btn--primary" type="submit" disabled={!closers.length || !!blocked} title={blocked || undefined}>
           <Icon name="cal" small /> Termin {fmtDay(date)} {fmtHour(start)} {verb}
         </button>
         <button className="ee-btn ee-btn--ghost" type="button" onClick={() => setOpen(false)}>

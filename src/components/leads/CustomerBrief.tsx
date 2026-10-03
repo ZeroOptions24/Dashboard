@@ -1,4 +1,4 @@
-import { heatEstimate } from "@/lib/vq";
+import { heatEstimate, verbrauchText } from "@/lib/vq";
 import type { Lead } from "@/lib/types";
 
 /** Kundeninfos aus Setting + Vorqualifizierung für Presetter und Closer. */
@@ -12,8 +12,9 @@ export default function CustomerBrief({ lead: l }: { lead: Lead }) {
       [
         "Heizung",
         q.heizungsart &&
-          `${q.heizungsart}${q.heizung_baujahr ? " · Bj. " + q.heizung_baujahr : ""}${q.heizungsart_2 && q.heizungsart_2 !== "Keine" ? " + " + q.heizungsart_2 : ""}`,
+          `${q.heizungsart}${q.heizung_baujahr ? " · Bj. " + q.heizung_baujahr : ""}${q.heizungsart_2 && !["Keine", "Nicht vorhanden"].includes(q.heizungsart_2) ? " + " + q.heizungsart_2 : ""}`,
       ],
+      ["Verbrauch", verbrauchText(q) && `${verbrauchText(q)}/Jahr`],
       ["Verteilung", q.heizverteilung],
       ["Heizlast", h && `≈ ${h.toLocaleString("de-DE")} kW`],
       ["Eigentümer", q.eigentuemer],

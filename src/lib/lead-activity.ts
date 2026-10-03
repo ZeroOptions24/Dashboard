@@ -3,6 +3,7 @@
 
 import { normStatus } from "./domain";
 import { isCalling } from "./leads";
+import { normalizeVq } from "./vq";
 import type { Lead, PersonKey, Role } from "./types";
 
 export type ActivityKind = "attempt" | "callback" | "status" | "note" | "vq";
@@ -75,7 +76,7 @@ export function applyActivities(leads: Lead[], rows: ActivityRow[], defaultPrese
     const notes = acts.filter((a) => a.kind === "note");
     if (notes.length) l.preNote = String(notes[notes.length - 1].data.text ?? "");
     const vqs = acts.filter((a) => a.kind === "vq");
-    if (vqs.length) l.vq = { ...(vqs[vqs.length - 1].data.answers as Record<string, string>) };
+    if (vqs.length) l.vq = normalizeVq({ ...(vqs[vqs.length - 1].data.answers as Record<string, string>) });
     /* an der Tür beantwortet = Vorqualifizierung, die der Setter gespeichert hat */
     const door = new Set(l.door ?? []);
     for (const a of vqs.filter((x) => x.role === "setter"))

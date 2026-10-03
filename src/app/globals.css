@@ -1003,3 +1003,8 @@ button.ee-todo2:hover{background:var(--surface-2)}
 .ee-doorbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 12px;border-radius:10px;background:var(--forest-soft);color:var(--forest-text);font-size:.88rem}
 .ee-doorfield{display:flex;flex-direction:column;gap:2px}
 .ee-ftag--door{background:var(--forest-soft);color:var(--forest-text);align-self:flex-start;margin-left:0}
+
+/* ---------- Vorqualifizierung (TMVT) ---------- */
+.ee-say{display:flex;gap:6px;align-items:flex-start;font-size:.84rem;font-style:italic;color:var(--forest-text);background:var(--forest-soft);border-radius:8px;padding:6px 9px;margin-top:4px}
+.ee-hint--warn{color:var(--warn)}
+.ee-vqsec__count.is-bad{color:var(--bad)}

@@ -185,3 +185,45 @@ describe("Closer-Kennzahlen und To-Dos", () => {
     expect(alt[0]).toMatchObject({ group: "today", tone: "warn", what: "Wartet auf Anruf" });
   });
 });
+
+describe("Vorqualifizierung nach TMVT", () => {
+  it("Folgefragen erscheinen nur beim passenden Auslöser", async () => {
+    const { VQ_FIELDS, fieldVisible } = await import("@/lib/vq");
+    const vis = (n: string, q: Record<string, string | string[]>) => fieldVisible(VQ_FIELDS[n], q);
+    expect(vis("notar", { eigentuemer: "Ja" })).toBe(false);
+    expect(vis("notar", { eigentuemer: "Nein, aber verwandt" })).toBe(true);
+    expect(vis("bm_anbau_m2", { baumassnahmen: "Ja", bm_welche: ["Anbau"] })).toBe(true);
+    expect(vis("bm_anbau_m2", { baumassnahmen: "Ja", bm_welche: "Fenster, Anbau" })).toBe(true); /* am Lead als Text gespeichert */
+    expect(vis("luftschicht", { fassade_gedaemmt: "Nein", baujahr_haus: "1965", plz: "04109" })).toBe(true);
+    expect(vis("luftschicht", { fassade_gedaemmt: "Nein", baujahr_haus: "1965", plz: "80331" })).toBe(false); /* München: nicht Norddeutschland */
+    expect(vis("oelverbrauch", { heizungsart: "Öl" })).toBe(true);
+    expect(vis("h1_kwh", { heizungsart: "Öl" })).toBe(false);
+    expect(vis("h2_kwh", { heizungsart_2: "Fernwärme" })).toBe(true);
+    expect(vis("haushaltseinkommen", { selbst_bewohnt: "Nein" })).toBe(false);
+  });
+
+  it("Grenzen wie TMVT blockieren; K.-o. bei fehlendem Eigentum ohne Notar oder Fremdnutzung", async () => {
+    const { vqErrors, vqKo, vqProgress } = await import("@/lib/vq");
+    const q = { energiekosten_heizung: "30", stromkosten: "35", baujahr_haus: "1980", fassade_gedaemmt: "Ja", fassade_daemmung_jahr: "1975", wohnflaeche: "12" };
+    expect(vqErrors(q).map((f) => f.n).sort()).toEqual(["energiekosten_heizung", "fassade_daemmung_jahr", "wohnflaeche"]);
+    expect(vqProgress(q).errors).toBe(3);
+    expect(vqKo({ eigentuemer: "Nein", notar: "Urkunde" })).toBe(false);
+    expect(vqKo({ eigentuemer: "Nein", notar: "Nein" })).toBe(true);
+    expect(vqKo({ eigentuemer: "Ja", selbst_bewohnt: "Nein" })).toBe(true);
+  });
+
+  it("alte Antworten aus dem bisherigen Formular werden übersetzt; Text für Pipedrive", async () => {
+    const { normalizeVq, verbrauchText, vqText } = await import("@/lib/vq");
+    expect(normalizeVq({ fenster: "2 Scheiben Wärmeschutzglas", pv_anlage: "Ja, von Enpal", heizungsart_2: "Keine", wohnflaeche: "140" })).toEqual({
+      fenster: "2-fach Wärmeschutz",
+      pv_anlage: "Ja, Enpal",
+      heizungsart_2: "Nicht vorhanden",
+      wohnflaeche: "140",
+    });
+    expect(verbrauchText({ heizungsart: "Öl", oelverbrauch: "2200" })).toBe("2.200 l Öl");
+    const t = vqText({ eigentuemer: "Ja", heizungsart: "Gas", h1_kwh: "21000", oelverbrauch: "999" });
+    expect(t).toContain("— Adresse & Eigentum —\nIm Grundbuch als Eigentümer eingetragen?: Ja");
+    expect(t).toContain("Verbrauch (kWh/Jahr): 21000");
+    expect(t).not.toContain("Öl"); /* Ölverbrauch ist bei Gas keine sichtbare Frage */
+  });
+});

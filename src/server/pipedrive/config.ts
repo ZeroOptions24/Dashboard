@@ -67,6 +67,7 @@ export const VQ_DEAL_FIELDS: Record<string, string> = {
   heizungsart: "d59714f17a79a27e37dad80a46c865017ca54ac8", // VQ Heizungsart
   heizungsart_2: "b0fdcf8e98238bfe5862a163e914450d917f399f", // VQ Heizungsart 2
   oelverbrauch: "be80b8758916af184bed6354efb923d43f0d252d", // VQ Ölverbrauch Liter
+  h1_kwh: "be3d058e6b76f408f00af5b58d308924af7fb694", // VQ Heizverbrauch kWh Jahr (Gas, Gas-Etage, Fernwärme)
   heizung_baujahr: "401dfb4b9e13253f6f4d297c4c5e509b5370cb0a", // VQ Baujahr Heizung
   heizung_funktionstuechtig: "699e88a7f3ef8472391bf9e5b5a694c816a4eb36", // VQ Heizung funktionstüchtig
   heizraum: "8052bf610756d779389d3daec26e425371f7e239", // VQ Heizraum

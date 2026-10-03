@@ -1,7 +1,7 @@
 "use client";
 
 import Icon from "@/components/ui/Icon";
-import { fieldVisible, type FieldDef, type FormValues } from "@/lib/vq";
+import { fieldVisible, legacyValue, type FieldDef, type FormValues } from "@/lib/vq";
 
 /** Formularfeld aus einer FieldDef (Lead erfassen, Vorqualifizierung, Leitfaden).
  *  scope macht IDs eindeutig, wenn dieselbe Frage mehrfach auf der Seite steht. */
@@ -21,7 +21,9 @@ export default function Field({
   const v = values[f.n];
   const id = `${scope}-${f.n}`;
   const hidden = !fieldVisible(f, values);
-  const cls = ["ee-field", f.half ? "" : "ee-field--full", f.showIf ? "ee-cond" : ""];
+  const cls = ["ee-field", f.half ? "" : "ee-field--full", f.when ? "ee-cond" : ""];
+  /* alte Antwort (vor TMVT), die zu keiner heutigen Option passt */
+  const legacy = legacyValue(f, v);
   const tags = (
     <>
       {f.req && <span className="ee-ftag ee-ftag--req">Pflicht</span>}
@@ -31,6 +33,12 @@ export default function Field({
   );
   const hint = (
     <>
+      {f.say && (
+        <span className="ee-say">
+          <Icon name="msg" small /> {f.say}
+        </span>
+      )}
+      {legacy && <span className="ee-hint ee-hint--warn">Bisherige Angabe: „{legacy}“ – bitte neu auswählen</span>}
       {f.hint && <span className="ee-hint">{f.hint}</span>}
       {f.sensitive && (
         <span className="ee-secure">
@@ -43,7 +51,8 @@ export default function Field({
 
   if (f.t === "radio" || f.t === "check") {
     const multi = f.t === "check";
-    const list = Array.isArray(v) ? v : [];
+    /* Mehrfachauswahl: im Formular als Liste, am Lead als „a, b“ gespeichert */
+    const list = Array.isArray(v) ? v : typeof v === "string" && v ? v.split(", ") : [];
     return (
       <fieldset className={[...cls, error ? "is-invalid" : ""].filter(Boolean).join(" ")} hidden={hidden} data-field={f.n}>
         <legend className="lbl">
@@ -72,7 +81,7 @@ export default function Field({
   let ctrl: React.ReactNode;
   if (f.t === "select")
     ctrl = (
-      <select className="ee-select" id={id} name={f.n} value={value} onChange={(e) => onChange(f.n, e.target.value)}>
+      <select className="ee-select" id={id} name={f.n} value={legacy ? "" : value} onChange={(e) => onChange(f.n, e.target.value)}>
         <option value="">Bitte wählen</option>
         {f.o!.map((o) => (
           <option key={o}>{o}</option>
@@ -90,7 +99,9 @@ export default function Field({
         type={f.t}
         step={f.step}
         inputMode={f.im}
-        maxLength={f.max}
+        maxLength={f.t === "number" ? undefined : f.max}
+        max={f.t === "number" ? f.max : undefined}
+        min={f.t === "number" ? f.min : undefined}
         autoComplete={f.ac}
         placeholder={f.ph || ""}
         value={value}

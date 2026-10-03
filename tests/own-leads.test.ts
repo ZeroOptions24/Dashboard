@@ -141,6 +141,8 @@ describe("Dashboard-Pipeline", () => {
 
     await la.recordLeadAction(aimee, "presetter", lead.id, { type: "vq", answers: { wohnflaeche: "140" } });
     expect(pd.patchDeal).toHaveBeenLastCalledWith(9001, expect.objectContaining({ custom_fields: expect.objectContaining({ a18aeb8b11a681ca6c4222a80306fd59ea94ae43: "140" }) }));
+    /* alle Antworten zusätzlich als Text im Feld „MB Vorqualifizierung“ */
+    expect(pd.patchDeal).toHaveBeenLastCalledWith(9001, expect.objectContaining({ custom_fields: expect.objectContaining({ [cfg.fields.vqAlle!]: "— Gebäude —\nBeheizbare Wohnfläche (m²): 140" }) }));
 
     await ws.bookDirect(aimee, { id: lead.id, kunde: lead.kunde, ort: lead.ort }, { date: tomorrow, start: 17, closerId: "u-carl" });
     await la.recordLeadAction(aimee, "presetter", lead.id, { type: "status", status: "aufmass" });

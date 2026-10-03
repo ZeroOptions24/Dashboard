@@ -26,7 +26,7 @@ Eine Seite je Rolle. Wer mehrere Rollen hat, wechselt oben rechts unter „Rolle
 3. **Notizen aus dem Gespräch**: alles, was das Presetting wissen muss (Heizung, Hund, „Frau entscheidet mit“ …).
 4. **„Lead erstellen“** → der Lead ist sofort im Dashboard und als Deal in Pipedrive (Pipeline „MB-Dashboard Wärmepumpe“) – mit dir als Setter, ohne Setter-Link.
    - Warnt das Dashboard „Diesen Kunden gibt es vermutlich schon“: nur „Trotzdem anlegen“, wenn es wirklich ein anderes Haus ist.
-5. Optional **„Direkt an der Tür vorqualifizieren“**: Fragen zum Haus, zur Heizung, zum Eigentum. Teilweise reicht – den Rest klärt das Presetting am Telefon.
+5. Optional **„Direkt an der Tür vorqualifizieren“**: die Fragen wie im Enpal-Tool TMVT (Eigentum, Gebäude, Baumaßnahmen, Dämmung, Heizung & Verbrauch, Energiekosten). Folgefragen erscheinen nur, wenn sie nötig sind. Werte außerhalb der TMVT-Grenzen (z. B. Heizkosten nur 5–25 ct, Strom 20–50 ct) werden rot markiert und müssen korrigiert werden. Teilweise reicht – den Rest klärt das Presetting am Telefon.
 6. Optional **Termin vormerken**: freien Closer-Slot wählen oder „Termin direkt vormerken“. Der Termin ist damit für den Kunden reserviert, der Closer wird aber erst informiert, wenn das Presetting den Kunden angerufen, durchqualifiziert und den Termin **bestätigt** hat (Zwei-Schritte-System). Unbestätigte Vormerkungen werden 24 Std. vor dem Termin automatisch wieder freigegeben.
 
 Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und Closer sehen Adresse, Rückrufwunsch, Notizen und Vorqualifizierung direkt.
@@ -48,7 +48,7 @@ Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und 
 - **Abgesagt** (mit Grund) · **Falsche Nummer** (sofort abgesagt).
 - **Termin legen**: freien Closer-Slot wählen oder „Termin direkt eintragen“. Setter und Closer werden informiert.
 - **Vom Setter vorgemerkter Termin**: steht im Leitfaden unter „Vorgemerkten Termin bestätigen“ und in den To-Dos (ab 48 Std. vorher rot). Erst qualifizieren, dann „Termin bestätigen“ – oder „Anderen Termin wählen“ (Slot wird wieder frei).
-- **Vorqualifizierung**: Was der Setter schon an der Tür beantwortet hat, ist ausgeblendet – „Alle anzeigen“ holt es zurück.
+- **Vorqualifizierung** (wie TMVT): Was der Setter schon an der Tür beantwortet hat, ist ausgeblendet – „Alle anzeigen“ holt es zurück. Rot = außerhalb der TMVT-Grenzen; solange etwas rot ist, kann kein Termin gelegt oder bestätigt werden. „Bisherige Angabe … bitte neu auswählen“ = Antwort aus dem alten Formular, die es so nicht mehr gibt. K.-o.: kein Eigentümer ohne notarielle Urkunde/Termin oder nicht selbst bewohnt → kein Termin, bitte absagen.
 - **Einwände** (Knopf oben): passende Antworten zum Aufklappen.
 - Notizen und Vorqualifizierung werden automatisch gespeichert.
 - Hinweis „… hat diesen Lead gerade offen“: Kollegin telefoniert vermutlich gerade – lieber den nächsten nehmen.

@@ -14,7 +14,7 @@ import { fmtDay, fmtHour, nowStamp } from "@/lib/format";
 import { leadsForUser } from "@/lib/leads";
 import { newWizard, setWizard, store, type WizardStep, LIVE } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
-import { STEP1, VQ_SECTIONS, heatText, vqProgress, vqSummary, type FormValues } from "@/lib/vq";
+import { STEP1, VQ_SECTIONS, heatText, vqCheck, vqErrors, vqKo, vqProgress, vqSummary, type FormValues } from "@/lib/vq";
 import type { Slot } from "@/lib/types";
 import { toast } from "@/lib/ui";
 
@@ -296,11 +296,20 @@ const reset = () => {
 function Step2() {
   const { data, person, toast } = useDashboard();
   const w = store.wiz;
-  const p = vqProgress(w.vq);
+  /* Adresse aus Schritt 1 übernehmen (TMVT fragt sie mit ab) */
+  const d = w.data as FormValues;
+  const values: FormValues = { strasse: d.strasse, hausnummer: d.hausnummer, plz: d.plz, ort: d.stadt, ...w.vq };
+  const p = vqProgress(values);
+  const errs = vqErrors(values);
   const submit = (phone: boolean) => {
     const l = data.LEADS.find((x) => x.id === w.leadId);
     if (!l) return;
-    const vq = w.vq;
+    if (errs.length) {
+      toast(`Bitte prüfen: ${errs[0].l} – ${vqCheck(errs[0], values)}`, "info");
+      document.querySelector(`[data-field="${errs[0].n}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
+    const vq = values;
     l.vq = Object.fromEntries(Object.entries(vq).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v ?? ""]));
     l.door = Object.keys(l.vq).filter((k) => String(l.vq![k]).trim());
     setWizard({ vqSent: true });
@@ -315,7 +324,7 @@ function Step2() {
     }
     l.preNote = `An der Tür vorqualifiziert: ${sum || "–"}`;
     saveDoorVq(l.id, l.vq, l.preNote);
-    if ((vq.eigentuemer && vq.eigentuemer !== "Ja") || vq.selbst_bewohnt === "Nein") return go("ko");
+    if (vqKo(vq)) return go("ko");
     l.hist.unshift(["Vorqualifizierung an der Tür übertragen", nowStamp(data.NOW)]);
     toast("Vorqualifizierung übertragen");
     go(3);
@@ -336,12 +345,20 @@ function Step2() {
           </div>
           <div>
             <b className="num" id="vqHeat">
-              {heatText(w.vq as Record<string, string>)}
+              {heatText(values as Record<string, string>)}
             </b>
             <span>Heizlast (Schätzung)</span>
           </div>
         </div>
       </section>
+      {errs.length ? (
+        <div className="ee-alert ee-alert--bad" data-vq-err>
+          <Icon name="info" small />
+          <span>
+            <b>{errs.length}</b> {errs.length === 1 ? "Angabe liegt" : "Angaben liegen"} außerhalb der TMVT-Grenzen – sonst blockiert TMVT die Übergabe
+          </span>
+        </div>
+      ) : null}
       <form className="stack" style={{ gap: 18 }} noValidate data-component="VqForm" onSubmit={(e) => e.preventDefault()}>
         {VQ_SECTIONS.map((s, i) => (
           <section key={s.key} className="ee-card">
@@ -353,7 +370,7 @@ function Step2() {
             </div>
             <div className="ee-form">
               {s.fields.map((f) => (
-                <Field key={f.n} f={f} values={w.vq} scope="vq" onChange={(n, v) => setWizard((x) => ({ vq: { ...x.vq, [n]: v } }))} />
+                <Field key={f.n} f={f} values={values} scope="vq" error={vqCheck(f, values)} onChange={(n, v) => setWizard((x) => ({ vq: { ...x.vq, [n]: v } }))} />
               ))}
             </div>
           </section>
@@ -373,7 +390,7 @@ function Step2() {
 
 function Ko() {
   const vq = store.wiz.vq;
-  const why = [vq.eigentuemer && vq.eigentuemer !== "Ja" && `Eigentümer: „${vq.eigentuemer}“`, vq.selbst_bewohnt === "Nein" && "nicht selbst bewohnt"]
+  const why = [vq.notar === "Nein" && vq.eigentuemer !== "Ja" && `Eigentümer: „${vq.eigentuemer}“, keine notarielle Urkunde`, vq.selbst_bewohnt === "Nein" && "nicht selbst bewohnt"]
     .filter(Boolean)
     .join(", ");
   return (

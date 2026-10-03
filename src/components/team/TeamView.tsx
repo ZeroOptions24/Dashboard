@@ -776,8 +776,8 @@ function PipelineCard() {
           </span>
           {st.veraltet && (
             <div className="ee-alert ee-alert--warn">
-              Die Pipeline hat noch die alten 4 Stufen. Bitte einmal „Stufen aktualisieren“ – alte Stufen werden umbenannt, die fehlenden ergänzt und alles
-              in die Reihenfolge des Ablaufs gebracht (9 Stufen). Bis dahin werden neue Leads im Dashboard gespeichert und danach übertragen.
+              In Pipedrive fehlen neue Stufen oder Felder (z. B. „MB Vorqualifizierung“). Bitte einmal „Aktualisieren“ – Fehlendes wird ergänzt, alte Stufen
+              werden umbenannt und sortiert. Vorhandene Deals bleiben unverändert.
             </div>
           )}
         </div>
@@ -802,7 +802,7 @@ function PipelineCard() {
             void load();
           }}
         >
-          {st.veraltet ? "Stufen aktualisieren" : st.config ? "Prüfen & ergänzen" : "Pipeline in Pipedrive anlegen"}
+          {st.veraltet ? "Aktualisieren" : st.config ? "Prüfen & ergänzen" : "Pipeline in Pipedrive anlegen"}
         </button>
         {st.config && st.leads.total > st.leads.inPipedrive + 0 && (
           <button
