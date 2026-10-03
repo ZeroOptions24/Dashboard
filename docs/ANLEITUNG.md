@@ -51,6 +51,7 @@ Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und 
 - **Vom Setter vorgemerkter Termin**: steht im Leitfaden unter „Vorgemerkten Termin bestätigen“ und in den To-Dos (ab 48 Std. vorher rot). Erst qualifizieren, dann „Termin bestätigen“ – oder „Anderen Termin wählen“ (Slot wird wieder frei).
 - **Vorqualifizierung** (wie TMVT): Was der Setter schon an der Tür beantwortet hat, ist ausgeblendet – „Alle anzeigen“ holt es zurück. Rot = außerhalb der TMVT-Grenzen; solange etwas rot ist, kann kein Termin gelegt oder bestätigt werden. „Bisherige Angabe … bitte neu auswählen“ = Antwort aus dem alten Formular, die es so nicht mehr gibt. K.-o.: kein Eigentümer ohne notarielle Urkunde/Termin oder nicht selbst bewohnt → kein Termin, bitte absagen.
 - **Einwände** (Knopf oben): passende Antworten zum Aufklappen.
+- **Nach der Terminbestätigung: Kunde im Enpal-Partnerportal (EPP) anlegen**, einmal an den Closer übertragen und die **EPP-ID** am Lead eintragen (Lead antippen → „Enpal-Partnerportal“). Bis dahin steht es in den To-Dos, ab 24 Std. vor dem Termin rot – und der Admin sieht es.
 - Notizen und Vorqualifizierung werden automatisch gespeichert.
 - Hinweis „… hat diesen Lead gerade offen“: Kollegin telefoniert vermutlich gerade – lieber den nächsten nehmen.
 
@@ -66,6 +67,7 @@ Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und 
 **Kalender** → „Slots eintragen“: Tag, von–bis, optional „4 Wochen wiederholen“. Freie Slots sieht das Presetting zum Buchen. Grau gestrichelt „reserviert“ = vom Setter vorgemerkt, noch nicht bestätigt (ohne Kundendaten).
 **Termine** → anstehende Termine mit Adresse, Route, Telefon, Kundensteckbrief.
 **Rückmeldung nach jedem Termin – Pflicht innerhalb 24 Std.**: Aufmaß fand statt (Checks, mit Verkaufstermin) · Nicht angetroffen (zurück an den Presetter) · Verloren (Grund) · Verkauft. Ohne Rückmeldung bekommst du keine neuen Termine.
+**Weiter im Enpal-Partnerportal** (unter Termine): Kunden nach dem Aufmaß mit EPP-ID. Ab hier arbeitest du im EPP; bis der Stand automatisch kommt, trägst du Verkaufstermin bzw. Ergebnis hier kurz ein. Sobald der Presetter die EPP-ID einträgt, bekommst du eine Nachricht.
 **Wärmepumpen-Cup**: dein Platz im Wettbewerb.
 
 ---

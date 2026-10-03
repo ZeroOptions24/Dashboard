@@ -148,6 +148,12 @@ describe("Dashboard-Pipeline", () => {
     await la.recordLeadAction(aimee, "presetter", lead.id, { type: "status", status: "aufmass" });
     expect(pd.patchDeal).toHaveBeenLastCalledWith(9001, expect.objectContaining({ stage_id: 704, custom_fields: expect.objectContaining({ [cfg.fields.closer]: "Carl", [cfg.fields.termin]: expect.stringMatching(/ 17:00$/) }) }));
     expect((await own.getOwnLead(lead.id))!.status).toBe("aufmass");
+    /* A20: Presetter legt den Kunden im EPP an → EPP-ID in Pipedrive, Closer wird informiert */
+    await expect(la.recordLeadAction(aimee, "presetter", lead.id, { type: "epp", eppId: "48 170!" })).rejects.toThrow(/EPP-ID/);
+    await la.recordLeadAction(aimee, "presetter", lead.id, { type: "epp", eppId: "EPP-48170" });
+    expect(pd.patchDeal).toHaveBeenLastCalledWith(9001, expect.objectContaining({ custom_fields: expect.objectContaining({ [cfg.fields.eppId!]: "EPP-48170" }) }));
+    const n = await db.select().from(schema.notification);
+    expect(n.some((x) => x.userId === "u-carl" && x.text.includes("EPP-ID EPP-48170"))).toBe(true);
   });
 
   it("Closer: Rückmeldung „verloren“ mit Grund → Deal verloren; Setter wird informiert", async () => {

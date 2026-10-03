@@ -37,7 +37,9 @@ export type LeadAction =
   | { type: "status"; status: StatusKey | "nicht_erreicht"; reason?: string; note?: string; silent?: boolean }
   | { type: "callback"; date: string; time: string; note?: string }
   | { type: "vq"; answers: Record<string, string> }
-  | { type: "note"; text: string };
+  | { type: "note"; text: string }
+  /** Kunde im Enpal-Partnerportal angelegt und an den Closer übertragen (Ablauf A20) */
+  | { type: "epp"; eppId: string };
 
 /** Pipedrive-Stufen der bisherigen Pipeline „Empfehlung kommt“ – siehe config.ts (Verkaufstermin gibt es dort nicht → Checks) */
 const STAGE = { kontaktieren: 245, kontaktieren2: 249, uebergeben: 181, checks: 183, verkauf: 184 };
@@ -134,6 +136,13 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
     data = { date: action.date, time: action.time, note, when };
     pdNote = `${text} – ${first} (MB-Dashboard)`;
     result.nextTry = `Rückruf ${when}`;
+  } else if (action.type === "epp") {
+    const eppId = clean(action.eppId, 40);
+    if (eppId && !/^[A-Za-z0-9][A-Za-z0-9._\-/]{1,39}$/.test(eppId)) throw new Error("Die EPP-ID darf nur Buchstaben, Ziffern und - . / enthalten");
+    kind = "epp";
+    text = eppId ? `Im EPP angelegt – EPP-ID ${eppId}` : "EPP-ID entfernt";
+    data = { eppId };
+    pdNote = `${text} – ${first} (MB-Dashboard)`;
   } else if (action.type === "note") {
     kind = "note";
     text = "Notiz";
@@ -151,6 +160,16 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
 
   /* Provisionen (A11): Termin gelegt → Presetter, Verkauf → Setter + Closer, Absage/Verlust → Storno offener Posten */
   const provisionHook = async () => {
+    /* EPP-ID eingetragen → Closer informieren: der Kunde liegt jetzt in seinem EPP */
+    if (kind === "epp" && data.eppId) {
+      const [a] = await db
+        .select({ closerId: schema.appointment.closerId })
+        .from(schema.appointment)
+        .where(and(eq(schema.appointment.leadId, leadId), eq(schema.appointment.reserved, false)))
+        .orderBy(desc(schema.appointment.createdAt))
+        .limit(1);
+      if (a?.closerId && a.closerId !== v.id) await notify([a.closerId], `${lead.kunde}: im Enpal-Partnerportal angelegt (EPP-ID ${String(data.eppId)}) – liegt jetzt in deinem EPP`);
+    }
     if (kind !== "status") return;
     const [appt] = await db
       .select({ closerId: schema.appointment.closerId })

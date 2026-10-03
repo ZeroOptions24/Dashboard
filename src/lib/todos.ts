@@ -101,6 +101,21 @@ export function todoItems(x: TodoInput): Todo[] {
   }
 
   if (role === "presetter") {
+    /* A20: nach der Terminbestätigung Kunde im EPP anlegen, an den Closer übertragen, EPP-ID eintragen – rot ab 24 Std. vor dem Termin */
+    for (const l of eppMissing(x.leads, appts, me)) {
+      const a = appts.filter((y) => y.lead === l.id && y.kind === "erst" && !y.reserved).sort((p, q) => apptStart(q).getTime() - apptStart(p).getTime())[0];
+      const h = a ? (apptStart(a).getTime() - now.getTime()) / 36e5 : 0;
+      T.push({
+        key: `epp-${l.id}`,
+        group: h < 24 ? "over" : "today",
+        tone: h < 24 ? "bad" : "warn",
+        what: "Im EPP anlegen",
+        when: a ? `und an ${person(a.closer).first} übertragen · Termin ${fmtDay(a.date)} ${fmtHour(a.start)}` : "und an den Closer übertragen",
+        who: l.kunde,
+        where: l.ort,
+        act: { kind: "lead", id: l.id },
+      });
+    }
     const mine = leadsForUser(x.leads, role, me).filter((l) => isCalling(l.status));
     for (const l of mine.sort(urgencySort(now))) {
       /* vom Setter vorgemerkt: anrufen, qualifizieren, bestätigen – ab 48 Std. vorher rot (24 Std. vorher wird er freigegeben) */
@@ -158,6 +173,13 @@ export function todoItems(x: TodoInput): Todo[] {
     }
   }
   return T.sort((a, b) => ORDER[a.group] - ORDER[b.group]);
+}
+
+/** Leads mit Aufmaßtermin, aber noch ohne EPP-ID (presetter = nur die eigenen) */
+export function eppMissing(leads: Lead[], appts: Appointment[], presetter?: PersonKey) {
+  return leads.filter(
+    (l) => l.status === "aufmass" && !l.eppId && (!presetter || l.presetter === presetter) && appts.some((a) => a.lead === l.id && a.kind === "erst" && !a.reserved),
+  );
 }
 
 /** Zähler fürs Menü: alles, was überfällig oder heute dran ist (Termine zählen nicht) */

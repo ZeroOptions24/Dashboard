@@ -13,6 +13,9 @@ COPY . .
 # Wird beim Bauen fest eingebaut: "pipedrive" = echter Betrieb
 ARG NEXT_PUBLIC_DATA_SOURCE=pipedrive
 ENV NEXT_PUBLIC_DATA_SOURCE=$NEXT_PUBLIC_DATA_SOURCE
+# Link „Im EPP öffnen“, {id} = EPP-ID (leer = kein Link)
+ARG NEXT_PUBLIC_EPP_URL=
+ENV NEXT_PUBLIC_EPP_URL=$NEXT_PUBLIC_EPP_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

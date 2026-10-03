@@ -82,6 +82,15 @@ describe("Aktivitäten auf Leads", () => {
     expect(s.doneToday.map((d) => [d.leadId, d.time])).toEqual([["PD-2", "12:00"], ["PD-1", "11:00"], ["PD-1", "10:00"]]);
   });
 
+  it("EPP-ID: letzte Eintragung gilt und steht im Verlauf", () => {
+    const [l] = applyActivities(
+      [lead("PD-1")],
+      [act("PD-1", "u-aimee", "epp", "2026-09-30T08:00:00Z", { eppId: "111" }, "Im EPP angelegt – EPP-ID 111"), act("PD-1", "u-aimee", "epp", "2026-09-30T09:00:00Z", { eppId: "222" }, "Im EPP angelegt – EPP-ID 222")],
+    );
+    expect(l.eppId).toBe("222");
+    expect(l.hist[0][0]).toBe("Im EPP angelegt – EPP-ID 222");
+  });
+
   it("Antworten von der Tür: Vorqualifizierung des Setters wird als „door“ markiert", () => {
     const [l] = applyActivities(
       [lead("PD-1")],

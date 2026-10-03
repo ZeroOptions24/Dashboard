@@ -64,7 +64,14 @@ export default function LeadCard({ lead: l, onOpen, ...ctx }: { lead: Lead; onOp
   return (
     <button className="ee-lcard" data-component="LeadCard" onClick={() => onOpen(l.id)}>
       <div className="ee-lcard__top">
-        <b>{l.kunde}</b>
+        <b>
+          {l.kunde}
+          {l.eppId ? (
+            <span className="ee-eppmini" title={`Im Enpal-Partnerportal: ${l.eppId}`}>
+              EPP
+            </span>
+          ) : null}
+        </b>
         {isOverdue(l, ctx.now) && <i className="ee-dot is-bad" title="Überfällig" />}
       </div>
       <div className="ee-lcard__sub">

@@ -24,6 +24,7 @@ Live seit 03.10.2026: **https://dashboard.energyengel.de** (Strato V-Server, Ubu
 | `PIPEDRIVE_WRITE` | `false` – gilt nur für die alte Pipeline; in der Dashboard-Pipeline schreibt das Dashboard immer |
 | `N8N_WP_LEAD_URL` | leer – nur Rückfall ohne Dashboard-Pipeline |
 | `STANDARD_PRESETTER_EMAIL` | Presetterin für Leads ohne Dashboard-Aktion |
+| `EPP_URL` | optional: Adresse eines Kunden im Enpal-Partnerportal mit `{id}` für die EPP-ID – dann erscheint „Im EPP öffnen“ (wird beim Bauen übernommen, also danach `deploy.sh`) |
 | `GUTSCHRIFT_ABSENDER` | 🧑 Absender auf der Gutschrift, Zeilen mit `|` getrennt, z. B. `Firma GmbH|Straße 1|04109 Leipzig|USt-IdNr. DE…` |
 | `SIGNING_PROVIDER` | leer (Unterschrift noch nicht angebunden) – später `yousign` + Schlüssel |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | 🧑 sobald das Absender-Postfach steht (`smtp.strato.de`, 465) |

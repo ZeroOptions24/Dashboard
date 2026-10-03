@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode } from "react";
 import LeadTable, { clickableRow } from "@/components/pipeline/LeadTable";
 import { CallbackAlerts } from "@/components/presetter/CallTools";
+import { eppMissing } from "@/lib/todos";
 import { leadsTodayOf, MonthCard, QuoteCard, RankCard, TodayHero, TodoCard, useTodos, WeekStrip, type QuoteRow } from "@/components/overview/Cards";
 import Icon from "@/components/ui/Icon";
 import { ToneChip } from "@/components/ui/Chips";
@@ -218,7 +219,26 @@ function AdminOverview() {
   /* Beispieldaten: Seitenleiste mit Stammdaten; echte Daten: Team-Verwaltung */
   const teamRow = (key: string) => () => (data.PROFILES[key] ? openDrawer({ kind: "team", key }) : go("team"));
   const closers = [...new Set(data.APPTS.map((a) => a.closer))];
+  /* A17: Termin bestätigt, aber noch keine EPP-ID – kritisch, wenn der Termin in weniger als 24 Std. ist */
+  const eppOpen = eppMissing(data.LEADS, data.APPTS).filter((l) =>
+    data.APPTS.some((a) => a.lead === l.id && a.kind === "erst" && !a.reserved && apptStart(a).getTime() - now.getTime() < 24 * 36e5),
+  );
+  const payQuestions = data.PROVISIONS.filter((x) => x.frage && !x.antwort).length;
   const todo = [
+    ...(eppOpen.length
+      ? [
+          {
+            tone: "bad",
+            chip: "EPP",
+            title: `${eppOpen.length} ${eppOpen.length === 1 ? "Termin" : "Termine"} in weniger als 24 Std. ohne EPP-ID`,
+            sub: eppOpen.map((l) => `${l.kunde}${l.presetter ? ` (${person(l.presetter).first})` : ""}`).join(", "),
+            onClick: () => openLead(eppOpen[0].id),
+          },
+        ]
+      : []),
+    ...(payQuestions
+      ? [{ tone: "warn", chip: "Klären", title: `${payQuestions} ${payQuestions === 1 ? "Rückfrage" : "Rückfragen"} zu Auszahlungen`, sub: "Unter Auszahlungen beantworten", onClick: () => go("auszahlungen") }]
+      : []),
     ...closers
       .filter((k) => pendingFeedback(data.APPTS, k, now).length)
       .map((k) => {

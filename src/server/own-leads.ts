@@ -120,6 +120,8 @@ async function dealFields(row: Row, cfg: PipelineConfig) {
   const vq = json<Record<string, string>>(row.vq, {});
   for (const [name, val] of Object.entries(vq)) if (cfg.vq[name]) custom[cfg.vq[name]] = val;
   if (f.vqAlle) custom[f.vqAlle] = vqText(vq);
+  const epp = acts.find((a) => a.kind === "epp");
+  if (f.eppId && epp) custom[f.eppId] = String(JSON.parse(epp.data).eppId ?? "");
   return custom;
 }
 

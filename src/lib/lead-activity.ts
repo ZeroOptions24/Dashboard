@@ -6,7 +6,7 @@ import { isCalling } from "./leads";
 import { normalizeVq } from "./vq";
 import type { Lead, PersonKey, Role } from "./types";
 
-export type ActivityKind = "attempt" | "callback" | "status" | "note" | "vq";
+export type ActivityKind = "attempt" | "callback" | "status" | "note" | "vq" | "epp";
 
 export interface ActivityRow {
   leadId: string;
@@ -73,6 +73,8 @@ export function applyActivities(leads: Lead[], rows: ActivityRow[], defaultPrese
     }
     /* angerufen, aber noch kein Ergebnis → Terminierung */
     if (l.status === "eingereicht" && (attempts.length || callbacks.length)) l.status = "terminierung";
+    const epp = acts.filter((a) => a.kind === "epp");
+    if (epp.length) l.eppId = String(epp[epp.length - 1].data.eppId ?? "") || undefined;
     const notes = acts.filter((a) => a.kind === "note");
     if (notes.length) l.preNote = String(notes[notes.length - 1].data.text ?? "");
     const vqs = acts.filter((a) => a.kind === "vq");
@@ -86,7 +88,7 @@ export function applyActivities(leads: Lead[], rows: ActivityRow[], defaultPrese
     if (pre.length) l.presetter = pre[pre.length - 1].userId!;
     else if (defaultPresetter && !l.presetter) l.presetter = defaultPresetter;
     /* Verlauf: Aktionen mit sichtbarem Text, neueste oben */
-    const shown = acts.filter((a) => a.kind === "attempt" || a.kind === "callback" || a.kind === "status");
+    const shown = acts.filter((a) => a.kind === "attempt" || a.kind === "callback" || a.kind === "status" || a.kind === "epp");
     for (const a of shown) l.hist.unshift([a.text, stamp(a.createdAt)]);
     return l;
   });

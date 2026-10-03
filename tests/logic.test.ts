@@ -180,6 +180,12 @@ describe("Closer-Kennzahlen und To-Dos", () => {
     const appts = [{ id: "t1", lead: "1", closer: "leo", kind: "erst" as const, date: "2026-10-01", start: 14, dur: 1.5, ort: "", feedback: null, reserved: true }];
     const r = todoItems({ ...base, role: "presetter", me: "pia", leads, appts, openContracts: 0 });
     expect(r[0]).toMatchObject({ group: "over", tone: "bad", what: "Vorgemerkten Termin bestätigen", who: "Kunde 1" });
+    /* A20: Aufmaßtermin bestätigt, EPP-ID fehlt → To-Do, rot ab 24 Std. vor dem Termin */
+    const auf = [mk("4", "aufmass", { hist: [["Aufmaßtermin", "29.09. 10:00"]] })];
+    const termin = (date: string) => [{ id: "t4", lead: "4", closer: "leo", kind: "erst" as const, date, start: 10, dur: 1.5, ort: "", feedback: null }];
+    expect(todoItems({ ...base, role: "presetter", me: "pia", leads: auf, appts: termin("2026-10-01"), openContracts: 0 })[0]).toMatchObject({ what: "Im EPP anlegen", group: "over", tone: "bad" });
+    expect(todoItems({ ...base, role: "presetter", me: "pia", leads: auf, appts: termin("2026-10-05"), openContracts: 0 })[0]).toMatchObject({ what: "Im EPP anlegen", group: "today" });
+    expect(todoItems({ ...base, role: "presetter", me: "pia", leads: [{ ...auf[0], eppId: "48170" }], appts: termin("2026-10-05"), openContracts: 0 })).toEqual([]);
     /* alter Rückrufwunsch (> 7 Tage) ist nicht mehr überfällig */
     const alt = todoItems({ ...base, role: "presetter", me: "pia", leads: [mk("3", "eingereicht", { nextTry: "Rückruf 01.09. 18:00", hist: [["Lead eingereicht", "28.08. 09:00"]] })], openContracts: 0 });
     expect(alt[0]).toMatchObject({ group: "today", tone: "warn", what: "Wartet auf Anruf" });

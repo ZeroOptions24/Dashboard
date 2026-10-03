@@ -9,6 +9,7 @@ import Icon from "@/components/ui/Icon";
 import { PipelineSteps, StatusChip, ToneChip } from "@/components/ui/Chips";
 import { applyFeedback, guideAdvance, saveCallback, setLeadStatus, type FeedbackResult } from "@/lib/actions";
 import { kindLabel, needsFeedback } from "@/lib/appointments";
+import EppBox from "@/components/leads/EppBox";
 import { FEEDBACK_OPTIONS, GUIDES, LOSS_REASONS, STATUS } from "@/lib/domain";
 import { dkey, fmtDay, fmtHour, maskIban, pad } from "@/lib/format";
 import { formatIban } from "@/lib/iban";
@@ -147,6 +148,7 @@ function LeadDrawer({ id }: { id: string }) {
         <div className="row">
           <StatusChip status={l.status} /> <PipelineSteps status={l.status} />
         </div>
+        <EppBox lead={l} />
         {l.reason && (
           <div className="ee-note" style={{ background: "var(--bad-soft)" }}>
             <b>Grund:</b> {l.reason}
@@ -426,6 +428,9 @@ function FeedbackDrawer({ id }: { id: string }) {
               </label>
             ))}
           </fieldset>
+          <div className="ee-alert ee-alert--info" hidden={res !== "checks"}>
+            <Icon name="info" small /> Ab jetzt bearbeitest du den Kunden im Enpal-Partnerportal. Checks, Verkaufstermin und Verkauf trägst du dort ein – hier nur kurz den Verkaufstermin, falls er schon steht.
+          </div>
           <div className="ee-form" hidden={res !== "checks"}>
             <div className="ee-field">
               <label htmlFor="fbDate">Verkaufstermin am (falls schon fest)</label>

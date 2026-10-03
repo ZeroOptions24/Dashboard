@@ -80,6 +80,18 @@ export function releasePayout(who: PersonKey, id: string) {
   return p;
 }
 
+/* ---------- Enpal-Partnerportal (EPP) ---------- */
+
+/** EPP-ID am Lead eintragen (Kunde im EPP angelegt und an den Closer übertragen) */
+export function setEppId(id: string, eppId: string) {
+  const l = leadById(id);
+  if (!l) return;
+  l.eppId = eppId || undefined;
+  l.hist.unshift([eppId ? `Im EPP angelegt – EPP-ID ${eppId}` : "EPP-ID entfernt", nowStamp(d().NOW)]);
+  rerender();
+  persistLead(id, { type: "epp", eppId });
+}
+
 /* ---------- Provisionen (TBK, Storno, Rückfragen) ---------- */
 
 /** Admin: Kunde ist TBK → wartende Provisionen des Leads werden fest */

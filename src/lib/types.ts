@@ -113,6 +113,8 @@ export interface Lead {
   vq?: Record<string, string>;
   /** Fragen der Vorqualifizierung, die der Setter schon an der Haustür beantwortet hat (der Presetter fragt nur den Rest) */
   door?: string[];
+  /** Kunden-ID im Enpal-Partnerportal (EPP) – trägt der Presetter nach der Anlage im EPP ein */
+  eppId?: string;
   themen?: string[];
 }
 

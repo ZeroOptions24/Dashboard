@@ -66,6 +66,8 @@ export const OWN_FIELDS = {
   dashboardId: ["MB Dashboard-ID", "varchar"],
   /** alle Antworten der Vorqualifizierung (TMVT) als Text – auch die ohne eigenes „VQ …“-Feld */
   vqAlle: ["MB Vorqualifizierung", "text"],
+  /** Kunden-ID im Enpal-Partnerportal */
+  eppId: ["MB EPP-ID", "varchar"],
 } as const satisfies Record<string, readonly [string, "varchar" | "text" | "double"]>;
 export type OwnField = keyof typeof OWN_FIELDS;
 
@@ -73,7 +75,7 @@ export interface PipelineConfig {
   pipelineId: number;
   stages: Record<StageStatus, number>;
   /** Felder, die nach der ersten Einrichtung dazukamen, fehlen in älteren Einrichtungen (→ „Prüfen & ergänzen“) */
-  fields: Partial<Record<OwnField, string>> & Record<Exclude<OwnField, "vqAlle">, string> & { setter: string };
+  fields: Partial<Record<OwnField, string>> & Record<Exclude<OwnField, "vqAlle" | "eppId">, string> & { setter: string };
   /** Vorqualifizierung: Dashboard-Feldname → Pipedrive-Feld (nur die, die es in Pipedrive gibt) */
   vq: Record<string, string>;
   createdAt: string;

@@ -1015,3 +1015,10 @@ button.ee-todo2:hover{background:var(--surface-2)}
 @media (max-width:640px){.g-kpi5{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .ee-storno{color:var(--bad);margin-top:3px}
 .ee-ask{margin-top:6px;padding:6px 9px;border-radius:8px;background:var(--surface-2);font-size:.82rem;display:flex;flex-direction:column;gap:2px}
+
+/* ---------- Enpal-Partnerportal (EPP) ---------- */
+.ee-eppbox{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
+.ee-eppbox>div:first-child{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ee-eppbox.is-todo{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+.ee-eppmini{display:inline-block;font-size:.62rem;font-weight:800;letter-spacing:.05em;padding:1px 5px;border-radius:5px;background:var(--info-soft);color:var(--info);vertical-align:1px;margin-left:4px}
+button.ee-link{background:none;border:0;padding:0;cursor:pointer;font:inherit;text-align:left}
