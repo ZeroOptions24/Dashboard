@@ -92,6 +92,13 @@
       "when": 1791063851813,
       "tag": "0012_termin_vormerken",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791066013213,
+      "tag": "0013_provisionen",
+      "breakpoints": true
     }
   ]
 }

@@ -261,7 +261,37 @@ export const board = pgTable("board", {
   archivedAt: timestamp("archived_at"),
 });
 
-/** Monatsabrechnung eines MAs. Positionen als JSON [[Datum, Kunde, Text, Betrag, Status], …] */
+/** Provisionsposten (Ablauf A11): entsteht bei Aufmaßtermin (Presetter) bzw. Verkauf (Setter, Closer),
+ *  wartet auf TBK, wird fest oder storniert und landet dann in einer Abrechnung (payoutId). */
+export const provision = pgTable(
+  "provision",
+  {
+    id: text("id").primaryKey(),
+    userId: userRef("user_id"),
+    /** setter | presetter | closer | korrektur */
+    role: text("role").notNull(),
+    leadId: text("lead_id").notNull(),
+    kunde: text("kunde").notNull().default(""),
+    anlass: text("anlass").notNull(),
+    /** Euro (netto); Korrekturen dürfen negativ sein */
+    betrag: integer("betrag").notNull(),
+    /** tbk (wartet auf TBK) | fest | storno */
+    status: text("status").notNull().default("tbk"),
+    grund: text("grund"),
+    payoutId: text("payout_id"),
+    /** Rückfrage des MAs und Antwort des Admins */
+    frage: text("frage"),
+    frageAt: timestamp("frage_at"),
+    antwort: text("antwort"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    festAt: timestamp("fest_at"),
+    stornoAt: timestamp("storno_at"),
+  },
+  (t) => [index("provision_user_idx").on(t.userId), uniqueIndex("provision_lead_role_unique").on(t.leadId, t.role, t.userId), index("provision_payout_idx").on(t.payoutId)],
+);
+
+/** Abrechnung eines MAs (Stichtag 1. → Auszahlung 10., Stichtag 15. → Auszahlung 25.).
+ *  Positionen als JSON-Schnappschuss (PayoutItem[]), damit die Gutschrift unverändert bleibt. */
 export const payout = pgTable(
   "payout",
   {
@@ -274,6 +304,11 @@ export const payout = pgTable(
     /** geplantes bzw. tatsächliches Auszahlungsdatum „TT.MM.JJJJ“ */
     datum: text("datum").notNull(),
     posten: text("posten").notNull().default("[]"),
+    /** Netto und Umsatzsteuer (0 bei Kleinunternehmern) – betrag = netto + ust */
+    netto: integer("netto"),
+    ust: integer("ust"),
+    /** z. B. „IBAN fehlt“ – Freigabe erst, wenn behoben */
+    hinweis: text("hinweis"),
     releasedBy: text("released_by").references(() => user.id, { onDelete: "set null" }),
     releasedAt: timestamp("released_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),

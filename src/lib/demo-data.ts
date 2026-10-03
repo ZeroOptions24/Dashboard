@@ -9,7 +9,7 @@
 
 import type {
   AdminKpi, Appointment, Board, BoardArchiveEntry, Contract, Lead, MbStats, Notification,
-  Payout, Person, PersonKey, Profile, Role, Slot, TeamEvent, TeamMember,
+  Payout, PayoutItem, Person, PersonKey, Profile, ProvisionItem, Role, Slot, TeamEvent, TeamMember,
 } from "./types";
 import type { DoneItem } from "./lead-activity";
 
@@ -126,25 +126,29 @@ export function createDemoData() {
     { id:'S-7', closer:'leo', date:'2026-09-28', start:17 },
   ];
 
-  /* Auszahlungen je Person (Abrechnung monatlich, Auszahlung zum 15. des Folgemonats) */
+  /* Provisionen (Beispiel): Presetter 250 € je Aufmaßtermin, Setter/Closer je 1.000 € je Verkauf – fest bei TBK */
+  const PROVISIONS: ProvisionItem[] = [
+    { id:'P-1', user:'romy', role:'setter', lead:'L-2418', kunde:'Jörg & Anke Lindner', anlass:'Verkauf', betrag:1000, status:'tbk', datum:'20.09.2026' },
+    { id:'P-2', user:'romy', role:'setter', lead:'L-2401', kunde:'Familie Keller', anlass:'Verkauf', betrag:1000, status:'fest', datum:'04.09.2026', frage:'Die Montage war schon am 28.09. – warum noch nicht abgerechnet?' },
+    { id:'P-3', user:'romy', role:'setter', lead:'L-2390', kunde:'Familie Meier', anlass:'Verkauf', betrag:1000, status:'storno', grund:'Widerruf innerhalb von 14 Tagen', datum:'14.09.2026' },
+    { id:'P-4', user:'inan', role:'presetter', lead:'L-2448', kunde:'Familie Becker', anlass:'Aufmaßtermin gelegt', betrag:250, status:'tbk', datum:'23.09.2026' },
+    { id:'P-5', user:'inan', role:'presetter', lead:'L-2444', kunde:'Familie Richter', anlass:'Aufmaßtermin gelegt', betrag:250, status:'fest', datum:'21.09.2026' },
+    { id:'P-6', user:'leo', role:'closer', lead:'L-2418', kunde:'Jörg & Anke Lindner', anlass:'Verkauf', betrag:1000, status:'tbk', datum:'20.09.2026' },
+    { id:'P-7', user:'leo', role:'closer', lead:'L-2402', kunde:'Petra Hoffmann', anlass:'Verkauf', betrag:1000, status:'fest', datum:'19.09.2026' },
+  ];
+
+  /* Abrechnungen: Stichtag 1. → Auszahlung 10., Stichtag 15. → Auszahlung 25. */
+  const item = (datum: string, kunde: string, anlass: string, betrag: number, status: PayoutItem['status'] = 'fest', grund?: string): PayoutItem => ({ datum, kunde, anlass, betrag, status, grund });
   const PAYOUTS: Record<PersonKey, Payout[]> = {
     romy:[
-      { id:'AZ-2609-RK', periode:'September 2026', betrag:1000, status:'pruefung', datum:'15.10.2026', posten:[
-        ['20.09.','Jörg & Anke Lindner','Verkauf Wärmepumpe',1000,'vorlaeufig:04.10.'],['04.09.','Familie Keller','Verkauf Wärmepumpe',1000,'fest'],['14.09.','Familie Meier (Abschluss August)','Kunde hat innerhalb der Frist widerrufen',-1000,'storno']] },
-      { id:'AZ-2608-RK', periode:'August 2026', betrag:2000, status:'ausgezahlt', datum:'15.09.2026', posten:[] },
-      { id:'AZ-2607-RK', periode:'Juli 2026', betrag:1000, status:'ausgezahlt', datum:'14.08.2026', posten:[] },
-      { id:'AZ-2606-RK', periode:'Juni 2026', betrag:1000, status:'ausgezahlt', datum:'15.07.2026', posten:[] },
+      { id:'AZ-20260915-romy', periode:'Stichtag 15.09.2026', betrag:2000, netto:2000, ust:0, status:'pruefung', datum:'25.09.2026', posten:[item('12.09.2026','Familie Weiß','Verkauf',1000), item('03.09.2026','Familie Busch','Verkauf',1000)] },
+      { id:'AZ-20260901-romy', periode:'Stichtag 01.09.2026', betrag:1000, netto:1000, ust:0, status:'ausgezahlt', datum:'10.09.2026', posten:[item('28.08.2026','Familie Graf','Verkauf',1000)] },
     ],
     inan:[
-      { id:'AZ-2609-IY', periode:'September 2026', betrag:1750, status:'pruefung', datum:'15.10.2026', posten:[
-        ['23.09.','Familie Becker','Termin für Leo gelegt',250,'fest'],['21.09.','Familie Richter','Termin für Leo gelegt',250,'fest'],['20.09.','Familie Zimmermann','Termin für Leo gelegt',250,'fest'],['19.09.','Familie Brandt','Termin für Leo gelegt',250,'fest'],['…','3 weitere Termine','Termin für Leo gelegt',750,'fest']] },
-      { id:'AZ-2608-IY', periode:'August 2026', betrag:2000, status:'ausgezahlt', datum:'15.09.2026', posten:[] },
-      { id:'AZ-2607-IY', periode:'Juli 2026', betrag:1500, status:'ausgezahlt', datum:'14.08.2026', posten:[] },
+      { id:'AZ-20260915-inan', periode:'Stichtag 15.09.2026', betrag:1250, netto:1250, ust:0, status:'freigegeben', datum:'25.09.2026', posten:[item('11.09.2026','5 Aufmaßtermine','Aufmaßtermin gelegt',1250)] },
     ],
     leo:[
-      { id:'AZ-2609-LH', periode:'September 2026', betrag:7400, status:'freigegeben', datum:'15.10.2026', posten:[
-        ['20.09.','Jörg & Anke Lindner','Abschluss Wärmepumpe',1000,'vorlaeufig:04.10.'],['19.09.','Petra Hoffmann','Abschluss Wärmepumpe',1000,'vorlaeufig:03.10.'],['…','5 weitere Abschlüsse','Widerrufsfrist abgelaufen',5000,'fest'],['30.09.','Wärmepumpen-Cup','200 € Gutschein + Platz 1 (vorläufig)',400,'offen']] },
-      { id:'AZ-2608-LH', periode:'August 2026', betrag:6000, status:'ausgezahlt', datum:'15.09.2026', posten:[] },
+      { id:'AZ-20260915-leo', periode:'Stichtag 15.09.2026', betrag:5950, netto:5000, ust:950, status:'pruefung', datum:'25.09.2026', posten:[item('10.09.2026','5 Kunden','Verkauf',5000)] },
     ],
   };
 
@@ -279,7 +283,7 @@ export function createDemoData() {
   /* Monatsziel Verdienst je Person (vom MB selbst einstellbar) */
   const MONEY_GOAL: Record<PersonKey, number> = { romy:3000, inan:2500, leo:8000 };
 
-  return { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, CLOSER_DAY, DAY_GOAL, SETTER_BOARD, PRESETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL, ADMIN_KPI };
+  return { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, PROVISIONS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, CLOSER_DAY, DAY_GOAL, SETTER_BOARD, PRESETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL, ADMIN_KPI };
 }
 
 export type DemoData = ReturnType<typeof createDemoData>;

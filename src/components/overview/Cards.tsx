@@ -205,7 +205,12 @@ export function MonthCard() {
     const d = l.pdChangedAt ? new Date(l.pdChangedAt) : null;
     return !!d && d.getFullYear() === data.NOW.getFullYear() && d.getMonth() === data.NOW.getMonth();
   };
-  const liveEarned = (presetter ? L.filter((l) => l.presetter === me && AFTER_TERMIN.includes(l.status) && thisMonth(l)) : L.filter((l) => ["verkauft", "ausgezahlt"].includes(l.status) && thisMonth(l))).length * rate;
+  /* echte Daten: Provisionen dieses Monats (ohne Storno); ohne Provisionen wie bisher aus dem Lead-Status */
+  const monthKey = `.${String(data.NOW.getMonth() + 1).padStart(2, "0")}.${data.NOW.getFullYear()}`;
+  const myProv = data.PROVISIONS.filter((x) => x.user === me && x.status !== "storno" && x.datum.endsWith(monthKey));
+  const liveEarned = myProv.length
+    ? myProv.reduce((s, x) => s + x.betrag, 0)
+    : (presetter ? L.filter((l) => l.presetter === me && AFTER_TERMIN.includes(l.status) && thisMonth(l)) : L.filter((l) => ["verkauft", "ausgezahlt"].includes(l.status) && thisMonth(l))).length * rate;
   const goal = data.MONEY_GOAL[me] || (role === "closer" ? 8000 : 3000),
     earned = cur ? cur.betrag : LIVE ? liveEarned : 0;
   /* in Aussicht: Presetter = Leads, die gerade angerufen werden; Setter/Closer = Kunden zwischen Aufmaß und Verkauf */

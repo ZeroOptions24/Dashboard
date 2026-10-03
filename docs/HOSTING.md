@@ -24,6 +24,7 @@ Live seit 03.10.2026: **https://dashboard.energyengel.de** (Strato V-Server, Ubu
 | `PIPEDRIVE_WRITE` | `false` – gilt nur für die alte Pipeline; in der Dashboard-Pipeline schreibt das Dashboard immer |
 | `N8N_WP_LEAD_URL` | leer – nur Rückfall ohne Dashboard-Pipeline |
 | `STANDARD_PRESETTER_EMAIL` | Presetterin für Leads ohne Dashboard-Aktion |
+| `GUTSCHRIFT_ABSENDER` | 🧑 Absender auf der Gutschrift, Zeilen mit `|` getrennt, z. B. `Firma GmbH|Straße 1|04109 Leipzig|USt-IdNr. DE…` |
 | `SIGNING_PROVIDER` | leer (Unterschrift noch nicht angebunden) – später `yousign` + Schlüssel |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | 🧑 sobald das Absender-Postfach steht (`smtp.strato.de`, 465) |
 
@@ -33,7 +34,7 @@ Nach Änderungen: `cd /opt/mb-dashboard/app && docker compose --env-file /opt/mb
 
 - **Update ausrollen**: `ssh root@31.70.98.57 /opt/mb-dashboard/app/deploy/deploy.sh` (holt `main`, baut, startet; Migrationen laufen beim Start).
 - **Backup**: täglich 03:00 (`deploy/backup.sh`, Cron `/etc/cron.d/mb-dashboard`), 30 Tage. **Offen:** Kopie außerhalb des Servers (z. B. Strato HiDrive).
-- **Täglicher Lauf** 08:00: Onboarding-Erinnerungen + Pipedrive-Übertragung nachholen (`/api/cron/reminders`).
+- **Täglicher Lauf** 08:00: Onboarding-Erinnerungen, Pipedrive-Übertragung nachholen, unbestätigte Termin-Vormerkungen freigeben, Abrechnung am 1./15., Auszahlung am 10./25. (`/api/cron/reminders`).
 - **Überwachung**: `https://dashboard.energyengel.de/api/health` → `{"ok":true}`. **Offen:** externer Check mit E-Mail-Alarm.
 - **Logs**: `docker compose --env-file /opt/mb-dashboard/secrets.env -f deploy/docker-compose.yml logs -f app`
 

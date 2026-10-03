@@ -8,6 +8,7 @@ import { recordLeadAction, type LeadAction } from "@/server/lead-activity";
 import { claimLead, releaseLeads } from "@/server/lead-lock";
 import { findDuplicates, submitLead } from "@/server/lead-submit";
 import * as ws from "@/server/workspace";
+import * as prov from "@/server/provisions";
 
 /* Team-Alltag (Events, Kalender, Wettbewerb, Auszahlungen, Benachrichtigungen).
    Wer handelt, kommt immer aus der Sitzung; die Rechte prüft src/server/workspace.ts. */
@@ -39,6 +40,16 @@ export const saveFeedbackAction = async (apptId: string, input: Parameters<typeo
 export const publishBoardAction = async (input: Parameters<typeof ws.publishBoard>[1]) => run((v) => ws.publishBoard(v, input));
 export const archiveBoardAction = async () => run((v) => ws.archiveBoard(v));
 export const releasePayoutAction = async (payoutId: string) => run((v) => ws.releasePayout(v, payoutId));
+/* Provisionen: TBK / Storno (Admin), Rückfrage (MB) und Antwort (Admin), Abrechnung von Hand erstellen (Admin) */
+export const markTbkAction = async (leadId: string) => run((v) => prov.markTbk(v, leadId));
+export const stornoAction = async (leadId: string, grund: string) => run((v) => prov.storno(v, leadId, grund));
+export const askProvisionAction = async (provisionId: string, text: string) => run((v) => prov.askProvision(v, provisionId, text));
+export const answerProvisionAction = async (provisionId: string, text: string) => run((v) => prov.answerProvision(v, provisionId, text));
+export const runSettlementAction = async () =>
+  run(async (v) => {
+    if (!ws.isAdminViewer(v)) throw new Error("Keine Berechtigung");
+    return prov.runSettlement();
+  });
 export const setMoneyGoalAction = async (euro: number) => run((v) => ws.setMoneyGoal(v, euro));
 
 /** Lead an n8n/Pipedrive übertragen (wie das bisherige Setter-Formular) */

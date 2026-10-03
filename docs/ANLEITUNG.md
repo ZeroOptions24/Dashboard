@@ -14,7 +14,8 @@ Eine Seite je Rolle. Wer mehrere Rollen hat, wechselt oben rechts unter „Rolle
    - Android (Chrome): Menü ⋮ → „App installieren“ bzw. „Zum Startbildschirm hinzufügen“
 5. **Übersicht** (für Setter, Presetter und Closer gleich aufgebaut): oben „Heute“ (Tagesziel, Woche, Serie) und „Monat“ (Geld, Ziel, nächste Auszahlung), darunter „Zu erledigen“ (die 3 wichtigsten Aufgaben), unten deine Rangliste und deine Quoten im Vergleich zum Team.
 6. **To-Dos**: alles Offene – Überfällig, Heute, Demnächst – und was du heute schon erledigt hast. Die Zahl am Menüpunkt zeigt, was heute dran oder überfällig ist.
-7. Glocke oben rechts = Benachrichtigungen (Aufmaßtermin gelegt, Rückmeldung, Abrechnung …).
+7. **Auszahlungen**: deine Provisionen mit Status – „Wartet auf TBK“ (vorläufig), „Fest · TBK“ (kommt in die nächste Abrechnung) oder „Storno“ mit Grund. Abrechnung am 1. und 15., Auszahlung am 10. bzw. 25. Je Abrechnung eine **Gutschrift** zum Drucken/als PDF. Stimmt etwas nicht: an der Position „Rückfrage“.
+8. Glocke oben rechts = Benachrichtigungen (Aufmaßtermin gelegt, Rückmeldung, Abrechnung …).
 
 ---
 
@@ -79,7 +80,11 @@ Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und 
 - **Verträge**: senden, erinnern, Rückfragen klären.
 - **Ranglisten**: Wärmepumpen-Cup pflegen, veröffentlichen, abschließen & neuen starten.
 - **Events**: posten (Zielgruppe wird benachrichtigt).
-- **Auszahlungen**: Abrechnungen freigeben.
+- **Auszahlungen**:
+  - **Wartet auf TBK**: Ist der Kunde nach der Montagevorbereitung TBK → „TBK“ (alle Provisionen des Kunden werden fest). Widerruf, nicht baubar usw. → „Storno“ mit Grund (bereits abgerechnete werden in der nächsten Abrechnung gegengebucht).
+  - **Rückfragen** der MBs direkt beantworten.
+  - **Abrechnungen** entstehen automatisch am 1. und 15. (oder „Abrechnung jetzt erstellen“), dann **freigeben** – ohne IBAN geht das nicht. Am 10. bzw. 25. werden freigegebene Abrechnungen automatisch „ausgezahlt“ (die Überweisung selbst macht ihr wie bisher über die Bank).
+  - Provisionen entstehen automatisch: Presetter 250 € beim Aufmaßtermin, Setter und Closer je 1.000 € beim Verkauf. Bei MBs ohne Kleinunternehmerregelung kommt 19 % USt dazu.
 - In Lead-Details: **Setter zuweisen**.
 
 ---

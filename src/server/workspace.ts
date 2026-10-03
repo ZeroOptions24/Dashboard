@@ -2,11 +2,12 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, isNotNull } from "drizzle-orm";
 import { isAdmin, parseRoles } from "@/lib/roles";
-import type { Appointment, Board, BoardArchiveEntry, Notification, Payout, PayoutLine, PayoutStatusKey, Person, PersonKey, Role, Slot, StatusKey, TeamEvent } from "@/lib/types";
+import type { Appointment, Board, BoardArchiveEntry, Notification, Payout, ProvisionItem, Person, PersonKey, Role, Slot, StatusKey, TeamEvent } from "@/lib/types";
 import { db, schema } from "./db";
 import { loadLeadsFromPipedrive, setterKey, withAssignments } from "./pipedrive/leads";
 import { getOwnLead, isOwnLeadId, syncOwnLead } from "./own-leads";
 import { getTargets, type Targets } from "./targets";
+import { loadPayouts, loadProvisions } from "./provisions";
 import { loadSetterAssignments } from "./setter-assignment";
 
 /* Team-Alltag aus der Datenbank: Personen, Benachrichtigungen, Events, Closer-Kalender,
@@ -60,6 +61,7 @@ const json = <T>(s: string | null | undefined, fallback: T): T => {
 };
 const clean = (s: unknown, max = 300) => String(s ?? "").trim().slice(0, max);
 const isDateKey = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+export const isAdminViewer = (v: Viewer) => isAdmin(v.roles);
 const can = (v: Viewer, ...roles: Role[]) => isAdmin(v.roles) || roles.some((r) => v.roles.includes(r));
 function must(ok: boolean, msg = "Keine Berechtigung") {
   if (!ok) throw new Error(msg);
@@ -154,6 +156,7 @@ export interface Workspace {
   board: Board & { id: string | null };
   boardArchive: BoardArchiveEntry[];
   payouts: Record<PersonKey, (Payout & { ibanLast4?: string | null })[]>;
+  provisions: ProvisionItem[];
   moneyGoal: number | null;
 }
 
@@ -280,24 +283,9 @@ export async function loadWorkspace(v: Viewer): Promise<Workspace> {
     };
   });
 
-  /* Auszahlungen: eigene; Admin alle (mit maskierter IBAN) */
-  const payRows = await db
-    .select({ p: schema.payout, last4: schema.profile.ibanLast4 })
-    .from(schema.payout)
-    .leftJoin(schema.profile, eq(schema.profile.userId, schema.payout.userId))
-    .where(isAdmin(v.roles) ? undefined : eq(schema.payout.userId, v.id))
-    .orderBy(desc(schema.payout.createdAt));
-  const payouts: Workspace["payouts"] = {};
-  for (const { p, last4 } of payRows)
-    (payouts[p.userId] ??= []).push({
-      id: p.id,
-      periode: p.periode,
-      betrag: p.betrag,
-      status: p.status as PayoutStatusKey,
-      datum: p.datum,
-      posten: json<PayoutLine[]>(p.posten, []),
-      ibanLast4: last4,
-    });
+  /* Auszahlungen und Provisionen: eigene; Admin alle (mit maskierter IBAN) */
+  const payouts = await loadPayouts(v);
+  const provisions = await loadProvisions(v);
 
   const [me] = await db.select({ goal: schema.profile.moneyGoal }).from(schema.profile).where(eq(schema.profile.userId, v.id));
 
@@ -313,6 +301,7 @@ export async function loadWorkspace(v: Viewer): Promise<Workspace> {
     board,
     boardArchive,
     payouts,
+    provisions,
     moneyGoal: me?.goal ?? null,
   };
 }
@@ -606,18 +595,7 @@ export async function archiveBoard(v: Viewer) {
 
 /* ---------- Auszahlungen ---------- */
 
-export async function releasePayout(v: Viewer, payoutId: string) {
-  must(isAdmin(v.roles));
-  const [p] = await db
-    .update(schema.payout)
-    .set({ status: "freigegeben", releasedBy: v.id, releasedAt: new Date() })
-    .where(and(eq(schema.payout.id, payoutId), eq(schema.payout.status, "pruefung")))
-    .returning();
-  must(!!p, "Abrechnung nicht gefunden oder schon freigegeben");
-  await db.insert(schema.auditLog).values({ actorId: v.id, action: "payout.release", targetUserId: p.userId, detail: `${p.periode}: ${p.betrag} €` });
-  await notify([p.userId], `Deine Abrechnung ${p.periode} wurde freigegeben (${p.betrag.toLocaleString("de-DE")} €)`);
-  return { periode: p.periode, userId: p.userId };
-}
+export { releasePayout } from "./provisions";
 
 /* ---------- Eigene Einstellungen ---------- */
 

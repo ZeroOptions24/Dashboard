@@ -9,6 +9,11 @@ import {
   bookSlotAction,
   confirmReservationAction,
   releaseReservationAction,
+  markTbkAction,
+  stornoAction,
+  askProvisionAction,
+  answerProvisionAction,
+  runSettlementAction,
   markNotificationsReadAction,
   postEventAction,
   publishBoardAction,
@@ -73,6 +78,44 @@ export function releasePayout(who: PersonKey, id: string) {
   rerender();
   persist(() => releasePayoutAction(id));
   return p;
+}
+
+/* ---------- Provisionen (TBK, Storno, Rückfragen) ---------- */
+
+/** Admin: Kunde ist TBK → wartende Provisionen des Leads werden fest */
+export function markTbk(leadId: string) {
+  for (const x of d().PROVISIONS) if (x.lead === leadId && x.status === "tbk") x.status = "fest";
+  rerender();
+  persist(() => markTbkAction(leadId), { reload: true });
+}
+
+/** Admin: Storno mit Grund (Widerruf, MVT nicht baubar …) */
+export function stornoLead(leadId: string, grund: string) {
+  for (const x of d().PROVISIONS) if (x.lead === leadId && x.status !== "storno" && !x.payoutId) Object.assign(x, { status: "storno", grund });
+  rerender();
+  persist(() => stornoAction(leadId, grund), { reload: true });
+}
+
+/** MB: Rückfrage zu einer Position (geht an die Admins) */
+export function askProvision(id: string, text: string) {
+  const x = d().PROVISIONS.find((p) => p.id === id);
+  if (x) Object.assign(x, { frage: text, antwort: null });
+  rerender();
+  persist(() => askProvisionAction(id, text));
+}
+
+/** Admin: Rückfrage beantworten */
+export function answerProvision(id: string, text: string) {
+  const x = d().PROVISIONS.find((p) => p.id === id);
+  if (x) x.antwort = text;
+  rerender();
+  persist(() => answerProvisionAction(id, text));
+}
+
+/** Admin: Abrechnung zum heutigen Tag sofort erstellen (sonst automatisch am 1. und 15.) */
+export function runSettlementNow(done: (n: number) => void) {
+  if (!LIVE) return done(0);
+  persist(() => runSettlementAction(), { reload: true, onOk: (ids) => done(ids.length) });
 }
 
 /* ---------- Ranglisten ---------- */

@@ -152,8 +152,36 @@ export interface Slot {
 /* ---------- Auszahlungen & Verträge ---------- */
 export type PayoutStatusKey = "pruefung" | "freigegeben" | "ausgezahlt";
 
-/** Position: [Datum, Kunde, Text, Betrag, Status („fest“, „storno“, „offen“, „vorlaeufig:TT.MM.“)] */
-export type PayoutLine = [datum: string, kunde: string, text: string, betrag: number, status: string];
+/** Position einer Abrechnung (Schnappschuss beim Stichtag) */
+export interface PayoutItem {
+  /** „TT.MM.JJJJ“ (fest seit bzw. storniert am) */
+  datum: string;
+  kunde: string;
+  anlass: string;
+  betrag: number;
+  status: "fest" | "storno";
+  grund?: string | null;
+  provisionId?: string;
+}
+
+/** Provisionsposten (Ablauf A11): wartet auf TBK → fest → Abrechnung; oder Storno mit Grund */
+export interface ProvisionItem {
+  id: string;
+  user: PersonKey;
+  role: string;
+  lead: string;
+  kunde: string;
+  anlass: string;
+  betrag: number;
+  status: "tbk" | "fest" | "storno";
+  grund?: string | null;
+  /** in dieser Abrechnung enthalten (sonst noch offen) */
+  payoutId?: string | null;
+  frage?: string | null;
+  antwort?: string | null;
+  /** entstanden am „TT.MM.JJJJ“ */
+  datum: string;
+}
 
 export interface Payout {
   id: string;
@@ -161,7 +189,12 @@ export interface Payout {
   betrag: number;
   status: PayoutStatusKey;
   datum: string;
-  posten: PayoutLine[];
+  posten: PayoutItem[];
+  /** Netto und Umsatzsteuer (0 bei Kleinunternehmern); betrag = netto + ust */
+  netto?: number | null;
+  ust?: number | null;
+  /** z. B. „IBAN fehlt“ – Freigabe erst, wenn behoben */
+  hinweis?: string | null;
   /** letzte 4 Stellen der IBAN (echte Daten; Beispieldaten nutzen PROFILES) */
   ibanLast4?: string | null;
 }

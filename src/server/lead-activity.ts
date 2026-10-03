@@ -1,5 +1,5 @@
 import "server-only";
-import { gte } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { STATUS } from "@/lib/domain";
 import type { ActivityKind, ActivityRow } from "@/lib/lead-activity";
 import { nextTryText } from "@/lib/lead-activity";
@@ -10,6 +10,7 @@ import { db, schema } from "./db";
 import { addDealNote, pipedriveWriteMode, updateDeal, type DealUpdate } from "./pipedrive/client";
 import { invalidateLeadCache, loadLeadsFromPipedrive, withAssignments } from "./pipedrive/leads";
 import { getOwnLead, isOwnLeadId, updateOwnLead } from "./own-leads";
+import { onLeadStatus } from "./provisions";
 import { loadSetterAssignments } from "./setter-assignment";
 import { leadIdsForCloser, notify, setterIdMap, type Viewer } from "./workspace";
 
@@ -148,6 +149,26 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
     data = { answers };
   }
 
+  /* Provisionen (A11): Termin gelegt → Presetter, Verkauf → Setter + Closer, Absage/Verlust → Storno offener Posten */
+  const provisionHook = async () => {
+    if (kind !== "status") return;
+    const [appt] = await db
+      .select({ closerId: schema.appointment.closerId })
+      .from(schema.appointment)
+      .where(and(eq(schema.appointment.leadId, leadId), eq(schema.appointment.kind, "erst"), eq(schema.appointment.reserved, false)))
+      .orderBy(desc(schema.appointment.createdAt))
+      .limit(1);
+    await onLeadStatus({
+      leadId,
+      kunde: lead.kunde,
+      status: String(data.status),
+      reason: data.reason as string | undefined,
+      presetterId: role === "presetter" ? v.id : null,
+      setterId: setterUserId,
+      closerId: appt?.closerId ?? null,
+    });
+  };
+
   /* Eigene Leads: Dashboard ist Quelle der Wahrheit – Stand speichern und Deal immer aktualisieren */
   if (isOwn) {
     await db.insert(schema.leadActivity).values({ leadId, userId: v.id, role, kind, text, data: JSON.stringify(data) });
@@ -163,6 +184,7 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
     const sync = await updateOwnLead(leadId, upd);
     if (!sync.error && pdNote && sync.dealId) await addDealNote(sync.dealId, pdNote).catch(() => {});
     if (sync.error) result.warning = `In Pipedrive noch nicht übernommen (${sync.error}) – im Dashboard gespeichert, wird erneut versucht`;
+    await provisionHook();
     await notifySetter(kind, action, text, lead, setterUserId, v.id);
     return result;
   }
@@ -184,6 +206,7 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
   }
 
   await db.insert(schema.leadActivity).values({ leadId, userId: v.id, role, kind, text, data: JSON.stringify(data), pipedrive: pd });
+  await provisionHook();
 
   await notifySetter(kind, action, text, lead, setterUserId, v.id);
   return result;

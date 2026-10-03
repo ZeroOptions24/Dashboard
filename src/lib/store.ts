@@ -148,7 +148,7 @@ const replaceAll = <T,>(arr: T[], items: T[]) => arr.splice(0, arr.length, ...it
 export function clearDemoData() {
   const d = store.data;
   d.NOW.setTime(Date.now());
-  for (const arr of [d.LEADS, d.APPTS, d.SLOTS, d.EVENTS, d.CONTRACTS, d.BOARD_ARCHIVE, d.TEAM, d.WEEKLY, d.LOSS_STATS, d.MB_STATS, d.BOARD.rows, d.SETTER_BOARD.rows, d.DAY_GOAL.week]) arr.splice(0);
+  for (const arr of [d.LEADS, d.PROVISIONS, d.APPTS, d.SLOTS, d.EVENTS, d.CONTRACTS, d.BOARD_ARCHIVE, d.TEAM, d.WEEKLY, d.LOSS_STATS, d.MB_STATS, d.BOARD.rows, d.SETTER_BOARD.rows, d.DAY_GOAL.week]) arr.splice(0);
   for (const rec of [d.PEOPLE, d.PAYOUTS, d.NOTIFS, d.PROFILES, d.MONEY_GOAL, d.ROLE_USER] as Record<string, unknown>[]) for (const k of Object.keys(rec)) delete rec[k];
   Object.assign(d.ADMIN_KPI, { leads: 0, leadsVormonat: 0, termin: 0, checks: 0, verkaufstermin: 0, verkauft: 0, checksWoche: 0 });
   Object.assign(d.SETTER_BOARD, { published: "–", by: "System" });
@@ -194,6 +194,7 @@ export function applyWorkspace(w: Workspace) {
   replaceAll(d.BOARD_ARCHIVE, w.boardArchive);
   for (const k of Object.keys(d.PAYOUTS)) delete d.PAYOUTS[k];
   Object.assign(d.PAYOUTS, w.payouts);
+  replaceAll(d.PROVISIONS, w.provisions);
   if (w.moneyGoal != null) d.MONEY_GOAL[w.me] = w.moneyGoal;
   store.live.closers = w.closers;
   /* Zielwerte aus den Admin-Einstellungen */

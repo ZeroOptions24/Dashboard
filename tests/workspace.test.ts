@@ -162,11 +162,72 @@ describe("Auszahlungen", () => {
 
   it("nur Admins geben frei – einmalig, mit Protokoll und Benachrichtigung", async () => {
     await expect(ws.releasePayout(closer, "p1")).rejects.toThrow(/Berechtigung/);
+    /* ohne IBAN keine Freigabe */
+    await expect(ws.releasePayout(admin, "p1")).rejects.toThrow(/IBAN fehlt/);
+    await db.insert(schema.profile).values({ userId: "u-closer", ibanEnc: "verschluesselt", ibanLast4: "1234" });
     await ws.releasePayout(admin, "p1");
     await expect(ws.releasePayout(admin, "p1")).rejects.toThrow(/schon freigegeben/);
     const log = await db.select().from(schema.auditLog);
     expect(log.some((l) => l.action === "payout.release" && l.targetUserId === "u-closer")).toBe(true);
-    expect(await notifsOf("u-closer")).toContain("Deine Abrechnung September 2026 wurde freigegeben (1.200 €)");
+    expect(await notifsOf("u-closer")).toContain("Deine Abrechnung September 2026 wurde freigegeben (1.200 €) – Auszahlung am 15.10.2026");
+  });
+});
+
+describe("Provisionen: Termin, Verkauf, TBK, Abrechnung, Storno", () => {
+  it("vom Aufmaßtermin bis zur Auszahlung – mit Umsatzsteuer, Rückfrage und Gegenbuchung nach Storno", async () => {
+    const prov = await import("@/server/provisions");
+    const base = { leadId: "PD-77", kunde: "Familie Provision" };
+    await prov.onLeadStatus({ ...base, status: "aufmass", presetterId: "u-pre" });
+    await prov.onLeadStatus({ ...base, status: "aufmass", presetterId: "u-pre" }); /* doppelt → nur einmal */
+    await prov.onLeadStatus({ ...base, status: "verkauft", setterId: "u-setter", closerId: "u-closer" });
+    let rows = await db.select().from(schema.provision).where(eq(schema.provision.leadId, "PD-77"));
+    expect(rows.map((r) => [r.role, r.userId, r.betrag, r.status]).sort()).toEqual([
+      ["closer", "u-closer", 1000, "tbk"],
+      ["presetter", "u-pre", 250, "tbk"],
+      ["setter", "u-setter", 1000, "tbk"],
+    ]);
+    /* noch nicht fest → keine Abrechnung */
+    expect(await prov.runSettlement(new Date(2099, 0, 1))).toEqual([]);
+    await expect(prov.markTbk(closer, "PD-77")).rejects.toThrow(/Berechtigung/);
+    expect(await prov.markTbk(admin, "PD-77")).toBe(3);
+    /* Rückfrage nur zur eigenen Position, Antwort vom Admin */
+    const setterRow = (await db.select().from(schema.provision).where(eq(schema.provision.userId, "u-setter")))[0];
+    await expect(prov.askProvision(closer, setterRow.id, "Warum?")).rejects.toThrow(/nicht gefunden/);
+    await prov.askProvision(setter, setterRow.id, "Wann kommt das Geld?");
+    expect((await notifsOf("u-admin")).some((t) => t.startsWith("Rückfrage von Sven zu Familie Provision"))).toBe(true);
+    await prov.answerProvision(admin, setterRow.id, "Am 10.");
+    expect(await notifsOf("u-setter")).toContain("Antwort zu Familie Provision: Am 10.");
+    /* Abrechnung zum 1.1.2099: Closer (kein Kleinunternehmer) mit 19 % USt, Auszahlung am 10. */
+    const ids = await prov.runSettlement(new Date(2099, 0, 1));
+    expect(ids).toHaveLength(3);
+    expect(await prov.runSettlement(new Date(2099, 0, 1))).toEqual([]); /* zweiter Lauf: nichts doppelt */
+    const [closerPay] = await db.select().from(schema.payout).where(eq(schema.payout.id, ids.find((i) => i.endsWith("u-closer"))!));
+    expect(closerPay).toMatchObject({ netto: 1000, ust: 190, betrag: 1190, datum: "10.01.2099", hinweis: null });
+    const [setterPay] = await db.select().from(schema.payout).where(eq(schema.payout.userId, "u-setter")).orderBy(schema.payout.createdAt);
+    expect(setterPay).toBeDefined();
+    /* Storno nach der Abrechnung → Gegenbuchung −1.000 € für die nächste */
+    await prov.storno(admin, "PD-77", "Widerruf innerhalb von 14 Tagen");
+    rows = await db.select().from(schema.provision).where(eq(schema.provision.leadId, "PD-77"));
+    expect(rows.filter((r) => r.role.startsWith("storno-")).map((r) => r.betrag).sort()).toEqual([-1000, -1000, -250]);
+    /* Freigabe + Auszahlungstag */
+    await ws.releasePayout(admin, closerPay.id);
+    await prov.markPaid(new Date(2099, 0, 9)); /* einen Tag vorher: noch nicht */
+    expect((await db.select().from(schema.payout).where(eq(schema.payout.id, closerPay.id)))[0].status).toBe("freigegeben");
+    expect(await prov.markPaid(new Date(2099, 0, 10))).toBe(1);
+    expect((await db.select().from(schema.payout).where(eq(schema.payout.id, closerPay.id)))[0].status).toBe("ausgezahlt");
+  });
+
+  it("Absage storniert offene Provisionen automatisch; Stichtage 1./15. → Auszahlung 10./25.", async () => {
+    const prov = await import("@/server/provisions");
+    await prov.onLeadStatus({ leadId: "PD-78", kunde: "Familie Absage", status: "aufmass", presetterId: "u-pre" });
+    await prov.onLeadStatus({ leadId: "PD-78", kunde: "Familie Absage", status: "verloren", reason: "Zu teuer" });
+    const [r] = await db.select().from(schema.provision).where(eq(schema.provision.leadId, "PD-78"));
+    expect(r).toMatchObject({ status: "storno", grund: "Kein Verkauf – Zu teuer" });
+    const { nextRun, deDate } = await import("@/lib/payouts");
+    const n = (d: Date) => [deDate(nextRun(d).stichtag), deDate(nextRun(d).zahltag)];
+    expect(n(new Date(2026, 9, 1))).toEqual(["01.10.2026", "10.10.2026"]);
+    expect(n(new Date(2026, 9, 4))).toEqual(["15.10.2026", "25.10.2026"]);
+    expect(n(new Date(2026, 9, 20))).toEqual(["01.11.2026", "10.11.2026"]);
   });
 });
 
