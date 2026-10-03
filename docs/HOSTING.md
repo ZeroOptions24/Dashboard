@@ -1,70 +1,48 @@
-# Hosting: Strato Linux V-Server + Coolify
+# Hosting: Strato Linux V-Server + Docker
 
-Ziel: das MB-Dashboard läuft auf eurem eigenen Server in Deutschland, mit eigener Domain, SSL, täglichem Backup und Überwachung.
+Live seit 03.10.2026: **https://dashboard.energyengel.de** (Strato V-Server, Ubuntu 24.04, 4 Kerne, 8 GB RAM).
 🧑 = ihr · 🤖 = Entwicklung
 
-## 1. Server
+## Aufbau
 
-1. 🧑 Strato → Server → **Linux V-Server**: mind. 2 Kerne, 4 GB RAM (besser 8), **Ubuntu 24.04**, Standort Deutschland. AV-Vertrag im Kundenbereich abschließen.
-2. 🤝 SSH-Schlüssel hinterlegen (Entwicklung schickt den öffentlichen Teil), IP-Adresse an die Entwicklung.
-3. 🧑 DNS: Strato → Domains → DNS → **A-Record** `dashboard` (oder Wunsch-Subdomain) → Server-IP.
+- **Docker Compose** (`deploy/docker-compose.yml`): PostgreSQL 16 · Dashboard (Next.js, `Dockerfile`) · **Caddy** (HTTPS automatisch per Let’s Encrypt).
+- Nur Caddy ist von außen erreichbar (Ports 80/443); Datenbank und App nur intern.
+- Server abgesichert: Firewall (ufw: 22/80/443), SSH nur mit Schlüssel, fail2ban, automatische Sicherheitsupdates, Zeitzone Europe/Berlin.
+- Verzeichnisse auf dem Server:
+  - `/opt/mb-dashboard/app` – Code (Git-Klon)
+  - `/opt/mb-dashboard/secrets.env` – Geheimnisse und Einstellungen (nur root, nie im Repository)
+  - `/opt/mb-dashboard/backups` – tägliche Datenbank-Sicherungen (30 Tage)
 
-## 2. Server absichern und Coolify installieren 🤖
+## Einstellungen (`/opt/mb-dashboard/secrets.env`)
 
-```bash
-# als root auf dem Server
-apt update && apt -y upgrade
-apt -y install ufw fail2ban unattended-upgrades
-ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw --force enable
-# SSH nur mit Schlüssel: in /etc/ssh/sshd_config  PasswordAuthentication no  → systemctl restart ssh
-curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
-```
+| Variable | Bedeutung |
+| --- | --- |
+| `DOMAIN`, `BETTER_AUTH_URL` | `dashboard.energyengel.de` |
+| `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `CRON_SECRET` | auf dem Server erzeugt |
+| `DATA_ENCRYPTION_KEY` | IBAN-Verschlüsselung – **zusätzlich im Passwortmanager sichern**, sonst sind IBANs bei Verlust weg |
+| `PIPEDRIVE_API_TOKEN` | 🧑 selbst eintragen |
+| `PIPEDRIVE_WRITE` | `false` – gilt nur für die alte Pipeline; in der Dashboard-Pipeline schreibt das Dashboard immer |
+| `N8N_WP_LEAD_URL` | leer – nur Rückfall ohne Dashboard-Pipeline |
+| `STANDARD_PRESETTER_EMAIL` | Presetterin für Leads ohne Dashboard-Aktion |
+| `SIGNING_PROVIDER` | leer (Unterschrift noch nicht angebunden) – später `yousign` + Schlüssel |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | 🧑 sobald das Absender-Postfach steht (`smtp.strato.de`, 465) |
 
-Danach Coolify im Browser öffnen (`http://<IP>:8000`), Admin-Konto mit starkem Passwort + Zwei-Faktor anlegen, Port 8000 anschließend wieder schließen (Coolify über eigene Subdomain mit SSL erreichbar machen).
+Nach Änderungen: `cd /opt/mb-dashboard/app && docker compose --env-file /opt/mb-dashboard/secrets.env -f deploy/docker-compose.yml up -d --force-recreate app`
 
-## 3. Datenbank 🤖
+## Betrieb 🤖
 
-Coolify → New Resource → **PostgreSQL 16**. Interne Verbindungs-URL notieren → `DATABASE_URL` der App. Backups: siehe 6.
+- **Update ausrollen**: `ssh root@31.70.98.57 /opt/mb-dashboard/app/deploy/deploy.sh` (holt `main`, baut, startet; Migrationen laufen beim Start).
+- **Backup**: täglich 03:00 (`deploy/backup.sh`, Cron `/etc/cron.d/mb-dashboard`), 30 Tage. **Offen:** Kopie außerhalb des Servers (z. B. Strato HiDrive).
+- **Täglicher Lauf** 08:00: Onboarding-Erinnerungen + Pipedrive-Übertragung nachholen (`/api/cron/reminders`).
+- **Überwachung**: `https://dashboard.energyengel.de/api/health` → `{"ok":true}`. **Offen:** externer Check mit E-Mail-Alarm.
+- **Logs**: `docker compose --env-file /opt/mb-dashboard/secrets.env -f deploy/docker-compose.yml logs -f app`
 
-## 4. App 🤖
+## Erster Start (Checkliste)
 
-Coolify → New Resource → **GitHub (privates Repo `ZeroOptions24/Dashboard`)** über die Coolify-GitHub-App → Build Pack **Dockerfile**.
-
-- Domain: `https://dashboard.<eure-domain>` (SSL kommt automatisch von Let’s Encrypt)
-- Build-Argument: `NEXT_PUBLIC_DATA_SOURCE=pipedrive`
-- Health-Check-Pfad: `/api/health`
-- Beim Start laufen automatisch die Datenbank-Migrationen (`scripts/migrate.mjs`).
-
-### Umgebungsvariablen (Coolify → App → Environment)
-
-| Variable | Wert | Wer |
-| --- | --- | --- |
-| `DATABASE_URL` | interne URL aus Schritt 3 | 🤖 |
-| `BETTER_AUTH_URL` | `https://dashboard.<eure-domain>` | 🤖 |
-| `BETTER_AUTH_SECRET` | `openssl rand -base64 32` | 🤖 |
-| `DATA_ENCRYPTION_KEY` | `openssl rand -base64 32` – **sicher aufbewahren, sonst sind IBANs verloren** | 🤖 erzeugt, 🧑 sichert |
-| `CRON_SECRET` | `openssl rand -hex 24` | 🤖 |
-| `PIPEDRIVE_API_TOKEN` | aus Pipedrive → Persönliche Einstellungen → API | 🧑 selbst eintragen |
-| `PIPEDRIVE_WRITE` | `false` – gilt nur für die **alte** Pipeline (dort wird nichts verschoben). In der Dashboard-Pipeline schreibt das Dashboard immer. | 🤖 |
-| `N8N_WP_LEAD_URL` | bisheriger wp-lead-Webhook – nur Rückfall, solange die Dashboard-Pipeline noch nicht eingerichtet ist | 🤖 |
-| `STANDARD_PRESETTER_EMAIL` | E-Mail der Standard-Presetterin | 🤖 |
-| `SIGNING_PROVIDER` | leer (Test) – später `yousign` + `YOUSIGN_API_KEY`, `YOUSIGN_WEBHOOK_SECRET` | 🧑 |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | `smtp.strato.de`, `465`, Postfach-Zugang | 🧑 selbst eintragen |
-
-## 5. Erster Start
-
-1. 🤖 Deploy auslösen, `https://dashboard.<domain>/api/health` muss `{"ok":true}` zeigen.
-2. 🧑 **Sofort** `/setup` öffnen und das erste Admin-Konto anlegen.
-3. 🧑 Team importieren (Team → „Bestehende MAs übernehmen“), Rollen prüfen, Setter-Namen und Setter-Link-Codes eintragen, Links per „E-Mails ohne Versand“ verschicken.
-4. 🤝 Team → „Pipedrive-Pipeline fürs Dashboard“ → „Pipeline in Pipedrive anlegen“ (neue Leads landen ab dann dort, das Dashboard ist Quelle der Wahrheit).
-5. 🤖 Setter-Zuweisungen eintragen (Team → „Setter zuweisen“).
+1. 🧑 `/setup` öffnen → erstes Admin-Konto.
+2. 🧑 Pipedrive-Token eintragen (Befehl von der Entwicklung).
+3. 🧑 Team importieren, Rollen prüfen, Links per „E-Mails ohne Versand“ verschicken.
+4. 🤝 Team → „Pipedrive-Pipeline fürs Dashboard“ → anlegen.
+5. 🤖 Setter-Zuweisungen eintragen.
 6. 🤝 Testlauf nach [TESTLAUF-LIVEGANG.md](TESTLAUF-LIVEGANG.md).
-
-## 6. Betrieb 🤖
-
-- **Backup**: Coolify → Datenbank → Backups → täglich 03:00, 30 Tage, Ziel S3-kompatibel (z. B. Strato HiDrive S3). Einmal Wiederherstellung testen.
-- **Tägliche Erinnerungen**: Coolify → App → Scheduled Tasks → täglich 08:00
-  `curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/reminders`
-- **Überwachung**: Coolify-Benachrichtigungen (E-Mail) bei fehlgeschlagenem Deploy/Health-Check; zusätzlich externer Check auf `/api/health`.
-- **Updates**: Push auf `main` → CI (Tests + Docker-Build) → in Coolify „Redeploy“ (oder automatisch).
-- **Zwei-Faktor-Pflicht** für Admins einschalten, sobald alle eingerichtet sind (`ADMIN_2FA_PFLICHT` in `src/server/auth.ts`).
+7. 🧑 Zwei-Faktor für Admins, danach Pflicht einschalten.
