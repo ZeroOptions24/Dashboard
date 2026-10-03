@@ -931,3 +931,68 @@ h2 .ico{vertical-align:-3px}
 .ee-mail__head{padding:10px 14px;border-bottom:1px solid var(--line);font-size:.85rem;display:flex;flex-wrap:wrap;gap:4px 14px}
 .ee-mail iframe{width:100%;height:420px;border:0;background:#F2F5F1}
 .ee-userbar{display:flex;align-items:center;gap:8px}
+
+/* ---------- Übersicht nach Tims Vorlage: Heute · Monat → Zu erledigen → Rangliste · Quote ---------- */
+.g-ovtop,.g-ovbot{align-items:stretch}
+.ee-today__foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ee-today__foot .ee-daygoal__streak{margin:0}
+.ee-month,.ee-rankcard,.ee-quotes{display:flex;flex-direction:column;gap:12px}
+.ee-month__num{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ee-month__num b{font:800 2.2rem/1 var(--f-display);letter-spacing:-.02em}
+.ee-month__num span{color:var(--ink-3);font-weight:600;font-size:.9rem}
+.ee-month__stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ee-month__stats>*{display:flex;flex-direction:column;gap:3px;padding:9px 10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);color:inherit;text-align:left;min-width:0;font:inherit}
+.ee-month__stats b{font:800 1.05rem/1.1 var(--f-display);overflow-wrap:anywhere}
+.ee-month__stats span{font-size:.72rem;color:var(--ink-3);display:flex;align-items:center;gap:3px}
+.ee-month__stats button{cursor:pointer}
+.ee-month__stats button:hover{border-color:var(--forest)}
+.ee-rankcard__line{font-size:.86rem;margin:0}
+.ee-qrow{display:flex;flex-direction:column;gap:5px}
+.ee-qrow+.ee-qrow{padding-top:10px;border-top:1px solid var(--line)}
+.ee-qrow__top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:600;font-size:.9rem}
+.ee-qrow__top b{font:800 1.4rem/1 var(--f-display)}
+.ee-qrow__top b.is-good{color:var(--ok)}
+.ee-qrow__top b.is-bad{color:var(--bad)}
+.ee-qrow__bar{position:relative;height:8px;border-radius:99px;background:var(--surface-2)}
+.ee-qrow__bar i{display:block;height:100%;border-radius:99px;background:var(--ink-3)}
+.ee-qrow__bar i.is-good{background:var(--ok)}
+.ee-qrow__bar i.is-bad{background:var(--bad)}
+.ee-qrow__bar s{position:absolute;top:-3px;width:2px;height:14px;background:var(--ink);border-radius:2px}
+.ee-qrow__sub{font-size:.72rem;color:var(--ink-3)}
+
+/* ---------- To-Dos ---------- */
+.ee-todos{display:flex;flex-direction:column;gap:8px}
+.ee-todo2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit;box-shadow:inset 4px 0 0 var(--tone,var(--line-strong))}
+button.ee-todo2{cursor:pointer}
+button.ee-todo2:hover{background:var(--surface-2)}
+.ee-todo2>svg{color:var(--ink-3)}
+.ee-todo2.is-bad{--tone:var(--bad)}
+.ee-todo2.is-warn{--tone:var(--warn)}
+.ee-todo2.is-info{--tone:var(--info)}
+.ee-todo2.is-ok{--tone:var(--forest-text)}
+.ee-todo2.is-good{--tone:var(--ok)}
+.ee-todo2__what{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ee-todo2__what b{font:750 1.02rem/1.25 var(--f-display,inherit);color:var(--tone,var(--ink));hyphens:auto;overflow-wrap:break-word}
+.ee-todo2__what span{font-size:.84rem;color:var(--ink-2)}
+.ee-todo2__who{display:flex;flex-direction:column;gap:2px;text-align:right;min-width:0}
+.ee-todo2__who b{font-size:1.02rem;font-weight:750;line-height:1.25;hyphens:auto;overflow-wrap:break-word}
+.ee-todo2__who span{font-size:.82rem;color:var(--ink-3)}
+.ee-todo2.is-done{--tone:var(--ok);background:var(--surface-2)}
+.ee-todo2.is-done .ee-todo2__what b{display:flex;align-items:center;gap:6px}
+.ee-todohead{display:flex;align-items:center;gap:8px;font-size:1.05rem;margin:0}
+.ee-todohead .num{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 7px;border-radius:99px;background:var(--surface-2);font-size:.8rem}
+.ee-todohead.is-bad{color:var(--bad)}
+.ee-todohead.is-good{color:var(--ok)}
+.ee-todo__more{margin-top:10px;align-self:flex-start}
+@media (max-width:900px){
+  .ee-bottom .ee-nav__badge{position:absolute;top:2px;right:calc(50% - 22px);margin:0}
+  .ee-bottom button{position:relative}
+}
+@media (max-width:760px){
+  .ee-month__stats{gap:6px}
+  .ee-month__stats>*{padding:8px}
+  .ee-month__stats b{font-size:.92rem}
+  .ee-month__stats span{font-size:.66rem}
+  .ee-todo2{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;gap:10px;padding:11px 12px}
+  .ee-todo2__what b,.ee-todo2__who b{font-size:.98rem}
+}

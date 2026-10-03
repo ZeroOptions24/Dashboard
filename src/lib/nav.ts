@@ -1,5 +1,5 @@
 /* Navigation je Rolle: [Ansicht, Beschriftung, Icon] – Reihenfolge wie im Prototyp.
-   Auf dem Handy erscheinen die ersten vier unten, der Rest unter „Mehr“. */
+   Auf dem Handy erscheinen die ersten vier (mit To-Dos fünf) unten, der Rest unter „Mehr“. */
 
 import type { IconName } from "./icons";
 import type { Role } from "./types";
@@ -12,6 +12,7 @@ export const NAV: Record<Role, NavItem[]> = {
     ["erfassen", "Lead erfassen", "plus"],
     ["leads", "Pipeline", "list"],
     ["rangliste", "Rangliste", "trophy"],
+    ["todos", "To-Dos", "todo"],
     ["auszahlungen", "Auszahlungen", "euro"],
     ["vertraege", "Verträge", "doc"],
     ["events", "Events", "flag"],
@@ -22,6 +23,8 @@ export const NAV: Record<Role, NavItem[]> = {
     ["uebersicht", "Übersicht", "home"],
     ["leitfaden", "Leitfaden", "phone"],
     ["leads", "Pipeline", "list"],
+    ["rangliste", "Rangliste", "trophy"],
+    ["todos", "To-Dos", "todo"],
     ["auszahlungen", "Auszahlungen", "euro"],
     ["vertraege", "Verträge", "doc"],
     ["events", "Events", "flag"],
@@ -32,10 +35,11 @@ export const NAV: Record<Role, NavItem[]> = {
     ["uebersicht", "Übersicht", "home"],
     ["kalender", "Kalender", "cal"],
     ["termine", "Termine", "clock"],
+    ["rangliste", "Rangliste", "trophy"],
+    ["todos", "To-Dos", "todo"],
     ["auszahlungen", "Auszahlungen", "euro"],
     ["vertraege", "Verträge", "doc"],
     ["events", "Events", "flag"],
-    ["rangliste", "Rangliste", "trophy"],
     ["stammdaten", "Stammdaten", "user"],
     ["neu", "Weitere Funktion", "plus"],
   ],

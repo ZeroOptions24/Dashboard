@@ -11,6 +11,7 @@ import type {
   AdminKpi, Appointment, Board, BoardArchiveEntry, Contract, Lead, MbStats, Notification,
   Payout, Person, PersonKey, Profile, Role, Slot, TeamEvent, TeamMember,
 } from "./types";
+import type { DoneItem } from "./lead-activity";
 
 /** Lead, wie er erfasst wird – Bearbeitungsfelder werden beim Laden ergänzt. */
 type LeadSeed = Omit<Lead, "attempts" | "nextTry" | "reason" | "reasonNote" | "eigenlead">;
@@ -239,7 +240,14 @@ export function createDemoData() {
   const LOSS_STATS: [string, number][] = [['Kein Eigentümer',9],['Zu teuer',7],['Kein Interesse mehr',6],['Anderer Anbieter',4],['Technisch nicht machbar',3],['Sonstiges',2]];
 
   /* Tagesziel Setter */
-  const CALL_DAY: { goal: number; done: number } = { goal:30, done:14 }; /* Presetter: Anrufe heute */
+  /* Presetter: Anrufe heute, gelegte Termine, Serie, Woche Mo–Sa, heute erledigt */
+  const CALL_DAY: { goal: number; done: number; termine: number; streak: number; week: [string, number | null][]; log: DoneItem[] } =
+    { goal:30, done:14, termine:2, streak:2, week:[['Mo',34],['Di',31],['Mi',null],['Do',null],['Fr',null],['Sa',null]],
+      log:[{ what:'Nicht erreicht (Versuch 2)', who:'Sabine Weigel', time:'10:42' },{ what:'Rückruf vereinbart: heute 18:00', who:'Familie Brandt', time:'09:15' }] };
+  /* Closer: heute erledigte Rückmeldungen, Serie, Woche [Tag, erledigt, Termine an dem Tag], heute erledigt */
+  const CLOSER_DAY: { done: number; streak: number; week: [string, number | null, number][]; log: DoneItem[] } =
+    { done:1, streak:3, week:[['Mo',3,3],['Di',2,2],['Mi',null,1],['Do',null,2],['Fr',null,1],['Sa',null,0]],
+      log:[{ what:'Rückmeldung Aufmaßtermin', who:'Familie Zimmermann', time:'08:30' }] };
   const DAY_GOAL: { goal: number; streak: number; week: [string, number | null][] } = { goal:5, streak:4, week:[['Mo',6],['Di',5],['Mi',null],['Do',null],['Fr',null],['Sa',null]] };
 
   /* Setter-Rangliste (nur für Setter sichtbar): gelegte Termine aus eigenen Leads */
@@ -247,6 +255,13 @@ export function createDemoData() {
     title:'Setter-Rangliste September 2026', unit:'gelegte Termine', goal:null, ends:'30.09.2026',
     published:'22.09.2026, 18:30', by:'Tim', marks:[], prizes:[],
     rows:[['lara',12],['eric',7],['romy',5],['ugur',4],['florian',1]],
+  };
+
+  /* Presetter-Rangliste: gelegte Aufmaßtermine im Monat */
+  const PRESETTER_BOARD: Board = {
+    title:'Presetter-Rangliste September 2026', unit:'gelegte Termine', goal:null, ends:'30.09.2026',
+    published:'laufend', by:'System', marks:[], prizes:[],
+    rows:[['inan',18],['daniel',14]],
   };
 
   /* Quoten je MB (Admin, September, Beispiel) */
@@ -259,12 +274,12 @@ export function createDemoData() {
   ];
 
   /* Vergleichswerte für die Einfärbung von Zahlen (grün = deutlich besser, rot = deutlich schlechter als der Vergleich) */
-  const BENCH: Record<string, number> = { setterLeads:23, setterTermin:32, presetterTermin:35, presetterTerminMe:41, closerQuote:45, closerQuoteMe:54, closerAbschluesse:3, firstCallH:2, firstCallMe:3.4 };
+  const BENCH: Record<string, number> = { setterLeads:23, setterTermin:32, setterVerkauf:11, presetterTermin:35, presetterTerminMe:41, reach:60, reachMe:68, closerQuote:45, closerQuoteMe:54, checks:70, checksMe:78, closerAbschluesse:3, firstCallH:2, firstCallMe:3.4 };
 
   /* Monatsziel Verdienst je Person (vom MB selbst einstellbar) */
   const MONEY_GOAL: Record<PersonKey, number> = { romy:3000, inan:2500, leo:8000 };
 
-  return { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, DAY_GOAL, SETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL, ADMIN_KPI };
+  return { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, CLOSER_DAY, DAY_GOAL, SETTER_BOARD, PRESETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL, ADMIN_KPI };
 }
 
 export type DemoData = ReturnType<typeof createDemoData>;

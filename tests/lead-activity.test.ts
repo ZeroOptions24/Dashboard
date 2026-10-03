@@ -75,7 +75,22 @@ describe("Aktivitäten auf Leads", () => {
       act("PD-3", "u-b", "status", "2026-09-30T07:00:00Z", { status: "abgesagt" }) /* 1 Std. */,
     ];
     const s = presetterStats(leads, rows, "u-a", new Date("2026-09-30T15:00:00Z"));
-    expect(s).toEqual({ callsToday: 3, firstCallH: 3, terminQuote: 50, teamFirstCallH: 2.3, teamTerminQuote: 33 });
+    expect(s).toMatchObject({ callsToday: 3, firstCallH: 3, terminQuote: 50, teamFirstCallH: 2.3, teamTerminQuote: 33 });
+    /* 30.09.2026 ist ein Mittwoch */
+    expect(s.callsWeek).toEqual([["Mo", 0], ["Di", 0], ["Mi", 3], ["Do", null], ["Fr", null], ["Sa", null]]);
+    expect(s).toMatchObject({ termineToday: 1, reachQuote: 50, teamReachQuote: 67, boardRows: [["u-a", 1]] });
+    expect(s.doneToday.map((d) => [d.leadId, d.time])).toEqual([["PD-2", "12:00"], ["PD-1", "11:00"], ["PD-1", "10:00"]]);
+  });
+
+  it("Serie: Tage in Folge mit erreichtem Anrufziel, Sonntage zählen nicht", () => {
+    const rows = [
+      act("PD-1", "u-a", "attempt", "2026-09-26T08:00:00Z", { attempt: 1 }) /* Sa */,
+      act("PD-1", "u-a", "attempt", "2026-09-28T08:00:00Z", { attempt: 2 }) /* Mo */,
+      act("PD-1", "u-a", "attempt", "2026-09-29T08:00:00Z", { attempt: 3 }) /* Di */,
+    ];
+    const s = presetterStats([lead("PD-1")], rows, "u-a", new Date("2026-09-30T15:00:00Z"), 1);
+    expect(s.streak).toBe(3);
+    expect(presetterStats([lead("PD-1")], rows, "u-a", new Date("2026-09-30T15:00:00Z"), 2).streak).toBe(0);
   });
 });
 

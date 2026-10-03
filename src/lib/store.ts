@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from "react";
 import { createDemoData } from "./demo-data";
 import type { LeadStats } from "./stats";
+import type { CloserStats } from "./closer-stats";
 import type { PresetterStats } from "./lead-activity";
 import type { FormValues } from "./vq";
 import type { IconName } from "./icons";
@@ -147,9 +148,12 @@ export function clearDemoData() {
   d.NOW.setTime(Date.now());
   for (const arr of [d.LEADS, d.APPTS, d.SLOTS, d.EVENTS, d.CONTRACTS, d.BOARD_ARCHIVE, d.TEAM, d.WEEKLY, d.LOSS_STATS, d.MB_STATS, d.BOARD.rows, d.SETTER_BOARD.rows, d.DAY_GOAL.week]) arr.splice(0);
   for (const rec of [d.PEOPLE, d.PAYOUTS, d.NOTIFS, d.PROFILES, d.MONEY_GOAL, d.ROLE_USER] as Record<string, unknown>[]) for (const k of Object.keys(rec)) delete rec[k];
-  Object.assign(d.ADMIN_KPI, { leads: 0, leadsVormonat: 0, termin: 0, checks: 0, verkauft: 0, checksWoche: 0 });
+  Object.assign(d.ADMIN_KPI, { leads: 0, leadsVormonat: 0, termin: 0, checks: 0, verkaufstermin: 0, verkauft: 0, checksWoche: 0 });
   Object.assign(d.SETTER_BOARD, { published: "–", by: "System" });
-  d.CALL_DAY.done = 0;
+  for (const arr of [d.CALL_DAY.week, d.CALL_DAY.log, d.CLOSER_DAY.week, d.CLOSER_DAY.log, d.PRESETTER_BOARD.rows]) arr.splice(0);
+  Object.assign(d.CALL_DAY, { done: 0, termine: 0, streak: 0 });
+  Object.assign(d.CLOSER_DAY, { done: 0, streak: 0 });
+  Object.assign(d.PRESETTER_BOARD, { published: "laufend", by: "System" });
   d.DAY_GOAL.streak = 0;
   /* Vergleichswerte kommen aus /api/stats; nur Zielwerte bleiben */
   for (const k of Object.keys(d.BENCH)) if (k !== "firstCallH") delete d.BENCH[k];
@@ -232,8 +236,10 @@ export function applyLiveStats(s: {
   setterBoardRows?: [PersonKey, number][];
   dayGoal?: LeadStats["dayGoal"][string];
   presetter?: PresetterStats;
+  closer?: CloserStats;
 }) {
   const d = store.data;
+  const setOrDrop = (k: string, v: number | null) => (v == null ? delete d.BENCH[k] : (d.BENCH[k] = v));
   if (s.adminKpi) Object.assign(d.ADMIN_KPI, s.adminKpi);
   for (const k of [...(s.mbStats ?? []).map((m) => m.key), ...(s.setterBoardRows ?? []).map((r) => r[0])]) ensureSetter(k);
   if (s.mbStats) replaceAll(d.MB_STATS, s.mbStats);
@@ -246,12 +252,27 @@ export function applyLiveStats(s: {
   }
   if (s.presetter) {
     const p = s.presetter;
-    d.CALL_DAY.done = p.callsToday;
-    const setOrDrop = (k: string, v: number | null) => (v == null ? delete d.BENCH[k] : (d.BENCH[k] = v));
+    Object.assign(d.CALL_DAY, { done: p.callsToday, termine: p.termineToday, streak: p.streak });
+    replaceAll(d.CALL_DAY.week, p.callsWeek);
+    replaceAll(d.CALL_DAY.log, p.doneToday);
     setOrDrop("firstCallMe", p.firstCallH);
     setOrDrop("firstCallTeam", p.teamFirstCallH);
     setOrDrop("presetterTerminMe", p.terminQuote);
     setOrDrop("presetterTermin", p.teamTerminQuote);
+    setOrDrop("reachMe", p.reachQuote);
+    setOrDrop("reach", p.teamReachQuote);
+    replaceAll(d.PRESETTER_BOARD.rows, p.boardRows);
+    Object.assign(d.PRESETTER_BOARD, { title: `Presetter-Rangliste ${s.monat} ${d.NOW.getFullYear()}`, ends: s.monatsende });
+  }
+  if (s.closer) {
+    const c = s.closer;
+    Object.assign(d.CLOSER_DAY, { done: c.doneToday.length, streak: c.streak });
+    replaceAll(d.CLOSER_DAY.week, c.week);
+    replaceAll(d.CLOSER_DAY.log, c.doneToday);
+    setOrDrop("closerQuoteMe", c.verkaufQuote);
+    setOrDrop("closerQuote", c.teamVerkaufQuote);
+    setOrDrop("checksMe", c.checksQuote);
+    setOrDrop("checks", c.teamChecksQuote);
   }
   if (s.dayGoal) {
     replaceAll(d.DAY_GOAL.week, s.dayGoal.week);

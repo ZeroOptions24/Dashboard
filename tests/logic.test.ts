@@ -136,3 +136,45 @@ describe("E-Mail-Textfassung", () => {
     expect(t).not.toMatch(/<|&amp;/);
   });
 });
+
+describe("Closer-Kennzahlen und To-Dos", () => {
+  it("Rückmeldungen heute, Woche, Serie und Quoten mit Teamschnitt", async () => {
+    const { closerStats } = await import("@/lib/closer-stats");
+    const a = (closerId: string, leadId: string, kind: string, date: string, feedbackResult: string | null, feedbackAt: string | null) => ({ closerId, leadId, kind, date, kunde: `Kunde ${leadId}`, feedbackResult, feedbackAt });
+    const appts = [
+      a("leo", "L1", "erst", "2026-09-28", "checks", "2026-09-28T18:00:00Z"),
+      a("leo", "L1", "closing", "2026-09-29", "verkauft", "2026-09-29T17:00:00Z"),
+      a("leo", "L2", "erst", "2026-09-30", "nicht_angetroffen", "2026-09-30T09:00:00Z"),
+      a("leo", "L3", "erst", "2026-09-30", null, null),
+      a("max", "L4", "erst", "2026-09-29", "verloren", "2026-09-29T12:00:00Z"),
+    ];
+    const s = closerStats(appts, "leo", new Date("2026-09-30T15:00:00Z"));
+    expect(s.doneToday).toEqual([{ what: "Rückmeldung Aufmaßtermin", leadId: "L2", who: "Kunde L2", time: "11:00" }]);
+    expect(s.week.slice(0, 4)).toEqual([["Mo", 1, 1], ["Di", 1, 1], ["Mi", 1, 2], ["Do", null, 0]]);
+    expect(s.streak).toBe(2);
+    expect(s).toMatchObject({ verkaufQuote: 100, checksQuote: 100, teamVerkaufQuote: 50, teamChecksQuote: 50 });
+  });
+
+  it("To-Dos: Presetter-Anrufe nach Dringlichkeit, Setter-Tagesziel, offene Verträge", async () => {
+    const { todoItems } = await import("@/lib/todos");
+    const now = new Date(2026, 8, 30, 15, 0);
+    const person = (k: string) => ({ key: k, name: k, first: k, role: "setter" as const, initials: "" });
+    const base = { now, appts: [], slots: [], person, openContracts: 1 };
+    const mk = (id: string, status: Lead["status"], extra: Partial<Lead>): Lead => ({
+      id, pd: null, kunde: `Kunde ${id}`, anrede: "", tel: "", ort: "", produkt: "wp", status, setter: "anna", presetter: "pia", datum: "28.09.2026",
+      setNote: "", preNote: "", hist: [], attempts: 0, nextTry: null, reason: null, reasonNote: "", eigenlead: true, ...extra,
+    });
+    const leads = [
+      mk("1", "eingereicht", { hist: [["Lead eingereicht", "28.09. 09:00"]] }),
+      mk("2", "terminierung", { attempts: 1, nextTry: "Rückruf 01.10. 18:00", hist: [["Lead eingereicht", "30.09. 14:00"]] }),
+    ];
+    const p = todoItems({ ...base, role: "presetter", me: "pia", leads });
+    expect(p.map((t) => [t.group, t.what, t.who])).toEqual([
+      ["over", "Anruf überfällig", "Kunde 1"],
+      ["today", "Vertrag unterschreiben", "Verträge"],
+      ["later", "Rückruf", "Kunde 2"],
+    ]);
+    const s = todoItems({ ...base, role: "setter", me: "anna", leads, leadsToday: 2, dayGoal: 5, openContracts: 0 });
+    expect(s.map((t) => t.what)).toEqual(["Noch 3 Leads"]);
+  });
+});

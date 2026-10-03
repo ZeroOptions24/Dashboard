@@ -12,7 +12,9 @@ Eine Seite je Rolle. Wer mehrere Rollen hat, wechselt oben rechts unter „Rolle
 4. **Aufs Handy holen:** Seite im Handy-Browser öffnen →
    - iPhone (Safari): Teilen-Symbol → „Zum Home-Bildschirm“
    - Android (Chrome): Menü ⋮ → „App installieren“ bzw. „Zum Startbildschirm hinzufügen“
-5. Glocke oben rechts = Benachrichtigungen (Aufmaßtermin gelegt, Rückmeldung, Abrechnung …).
+5. **Übersicht** (für Setter, Presetter und Closer gleich aufgebaut): oben „Heute“ (Tagesziel, Woche, Serie) und „Monat“ (Geld, Ziel, nächste Auszahlung), darunter „Zu erledigen“ (die 3 wichtigsten Aufgaben), unten deine Rangliste und deine Quoten im Vergleich zum Team.
+6. **To-Dos**: alles Offene – Überfällig, Heute, Demnächst – und was du heute schon erledigt hast. Die Zahl am Menüpunkt zeigt, was heute dran oder überfällig ist.
+7. Glocke oben rechts = Benachrichtigungen (Aufmaßtermin gelegt, Rückmeldung, Abrechnung …).
 
 ---
 
@@ -29,7 +31,7 @@ Eine Seite je Rolle. Wer mehrere Rollen hat, wechselt oben rechts unter „Rolle
 
 Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und Closer sehen Adresse, Rückrufwunsch, Notizen und Vorqualifizierung direkt.
 
-**Übersicht**: Dein Geld (Monat), Tagesziel (5 Leads), deine Quote im Vergleich zum Team, Setter-Rangliste, letzte Leads.
+**Übersicht**: Tagesziel (5 Leads) mit Woche und Serie, dein Geld im Monat, To-Dos, Setter-Rangliste, Termin- und Verkaufsquote im Vergleich zum Team.
 **Pipeline**: alle deine Leads mit Stand – 7 Stufen: Lead eingereicht · Terminierung (Presetter in Kontakt) · Aufmaßtermin · Checks · Verkaufstermin · Verkauf · Ausgezahlt. Lead antippen → Verlauf (auch, wann das Presetting angerufen hat).
 
 > Fehlt ein Lead bei dir? Dann steht in Pipedrive ein anderer oder kein Setter. Kurz beim Admin melden – er weist ihn dir im Dashboard zu.
@@ -48,7 +50,8 @@ Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und 
 - Notizen und Vorqualifizierung werden automatisch gespeichert.
 - Hinweis „… hat diesen Lead gerade offen“: Kollegin telefoniert vermutlich gerade – lieber den nächsten nehmen.
 
-**Kennzahlen**: Anrufe heute (Ziel 30), Ø Zeit bis zum ersten Anruf (Ziel 2 Std.), Terminquote – jeweils mit Teamschnitt.
+**Übersicht**: Anrufe heute (Ziel 30) mit Woche und Serie, gelegte Termine, dein Geld, To-Dos (= Anrufliste nach Dringlichkeit), Presetter-Rangliste (gelegte Aufmaßtermine im Monat), Terminquote, Erreichquote und Ø Zeit bis zum ersten Anruf (Ziel 2 Std.) – jeweils mit Teamschnitt.
+**To-Dos**: die ganze Anrufliste mit Suche – Überfällig, Heute, Demnächst; antippen öffnet den Leitfaden.
 
 > Pipedrive wird vom Dashboard (noch) nicht verändert: Termin/Absage bitte wie bisher auch in Pipedrive nachziehen.
 

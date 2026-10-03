@@ -14,6 +14,7 @@ import PipelineView from "@/components/pipeline/PipelineView";
 import LeitfadenView from "@/components/presetter/LeitfadenView";
 import StammdatenView from "@/components/profile/StammdatenView";
 import RanglisteView from "@/components/ranking/RanglisteView";
+import TodosView from "@/components/todos/TodosView";
 import ErfassenView from "@/components/setter/ErfassenView";
 import { BottomNav, MoreSheet, SideMe, SideNav } from "@/components/shell/Nav";
 import Toasts from "@/components/shell/Toasts";
@@ -34,6 +35,7 @@ const VIEWS: Record<string, () => React.ReactNode> = {
   kalender: () => <KalenderView />,
   termine: () => <TermineView />,
   rangliste: () => <RanglisteView />,
+  todos: () => <TodosView />,
   auszahlungen: () => <AuszahlungenView />,
   vertraege: () => <VertraegeView />,
   events: () => <EventsView />,

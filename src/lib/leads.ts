@@ -46,7 +46,7 @@ export const isOverdue = (l: Lead, now: Date) =>
   isCalling(l.status) && !l.attempts && !l.nextTry && ageH(l, now) >= 24;
 
 /** Fälligkeit aus „nextTry“ (z. B. „Rückruf heute 18:00“, „Do 24.09. ab 18:00“, „Fr 25.09. vormittags“) */
-function dueAt(l: Lead, now: Date): Date | null {
+export function dueAt(l: Lead, now: Date): Date | null {
   const t = l.nextTry || "";
   if (!t) return null;
   /* „01.03.2027“ mit Jahr, sonst „24.09.“ im laufenden Jahr */

@@ -6,6 +6,7 @@ import { NAV, ROLE_LABEL, SHORT_LABEL, type NavItem } from "@/lib/nav";
 import { useStore } from "@/lib/store";
 import { go, toggleMore } from "@/lib/ui";
 import { useDashboard } from "@/lib/useDashboard";
+import { useOpenTodoCount } from "@/components/overview/Cards";
 
 /** Zähler an Menüpunkten: offene Verträge, fällige Closer-Rückmeldungen */
 function Badge({ view }: { view: string }) {
@@ -14,7 +15,14 @@ function Badge({ view }: { view: string }) {
   let n = 0;
   if (view === "vertraege" && live.contracts) n = role === "admin" ? live.contracts.openAll + live.contracts.questions : live.contracts.openMine;
   if (view === "termine" && role === "closer") n = pendingFeedback(data.APPTS, me, now).length;
+  if (view === "todos") return <TodoBadge />;
   return n ? <span className="ee-nav__badge">{n}</span> : null;
+}
+
+/** Offene To-Dos (überfällig + heute) */
+function TodoBadge() {
+  const n = useOpenTodoCount();
+  return n ? <span className="ee-nav__badge">{n > 99 ? "99+" : n}</span> : null;
 }
 
 function NavButton({ item: [v, l, i] }: { item: NavItem }) {
@@ -74,10 +82,11 @@ export function SideMe() {
 export function BottomNav() {
   const { role, ui } = useDashboard();
   const items = NAV[role],
-    main = items.slice(0, 4),
-    rest = items.slice(4);
+    nMain = items.some((i) => i[0] === "todos") ? 5 : 4,
+    main = items.slice(0, nMain),
+    rest = items.slice(nMain);
   return (
-    <nav className="ee-bottom" id="bottomNav" data-component="BottomNav" aria-label="Navigation">
+    <nav className="ee-bottom" id="bottomNav" data-component="BottomNav" aria-label="Navigation" style={{ gridTemplateColumns: `repeat(${nMain + 1}, minmax(0, 1fr))` }}>
       {main.map(([v, l, i]) => (
         <button key={v} aria-current={ui.view === v ? "page" : undefined} onClick={() => go(v)}>
           <Icon name={i} />
@@ -100,7 +109,7 @@ export function MoreSheet() {
   return (
     <div className={overlay.more ? "ee-more is-open" : "ee-more"} id="moreSheet" data-component="MoreSheet" role="dialog" aria-label="Weitere Bereiche">
       <div className="ee-more__grip" />
-      {NAV[role].slice(4).map((item) => (
+      {NAV[role].slice(NAV[role].some((i) => i[0] === "todos") ? 5 : 4).map((item) => (
         <NavButton key={item[0]} item={item} />
       ))}
     </div>

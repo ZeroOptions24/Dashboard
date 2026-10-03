@@ -47,7 +47,7 @@ export interface LeadStats {
   /** je Setter im laufenden Monat (ohne Leads ohne Setter) */
   perSetter: MbStats[];
   /** Teamschnitt: Leads je Setter, Terminquote in % */
-  bench: { setterLeads: number; setterTermin: number };
+  bench: { setterLeads: number; setterTermin: number; setterVerkauf: number };
   /** eingereichte Leads der letzten 8 Kalenderwochen */
   weekly: [string, number][];
   /** Verlustgründe im laufenden Monat */
@@ -105,10 +105,11 @@ export function computeStats(leads: Lead[], now: Date): LeadStats {
     })
     .sort((a, b) => b.leads - a.leads);
   const active = perSetter.filter((s) => s.leads > 0);
-  const sum = (k: "leads" | "termin") => active.reduce((t, s) => t + s[k], 0);
+  const sum = (k: "leads" | "termin" | "verkauft") => active.reduce((t, s) => t + s[k], 0);
   const bench = {
     setterLeads: active.length ? Math.round(sum("leads") / active.length) : 0,
     setterTermin: sum("leads") ? Math.round((sum("termin") / sum("leads")) * 100) : 0,
+    setterVerkauf: sum("leads") ? Math.round((sum("verkauft") / sum("leads")) * 100) : 0,
   };
 
   /* letzte 8 Kalenderwochen */

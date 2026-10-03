@@ -20,7 +20,7 @@ import type { LeadAction } from "@/server/lead-activity";
 import { nextTryText as sharedNextTry } from "./lead-activity";
 import { persist } from "./live";
 import { dkey, eur, fmtDay, fmtHour, nowStamp, pad, parseKey } from "./format";
-import { apptEnd } from "./appointments";
+import { apptEnd, kindLabel } from "./appointments";
 import { STATUS } from "./domain";
 import { inCallPool, isCalling, isStoredLeadId, urgencySort } from "./leads";
 import { ranked } from "./ranking";
@@ -183,11 +183,18 @@ function flushPending(id: string) {
     }
 }
 
+/** „Heute erledigt“ sofort ergänzen (der Server liefert es beim nächsten Laden ebenfalls) */
+function logDone(role: "presetter" | "closer", what: string, who: string) {
+  const n = new Date();
+  const time = `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
+  (role === "presetter" ? d().CALL_DAY.log : d().CLOSER_DAY.log).unshift({ what, who, time });
+}
+
 export function setLeadStatus(id: string, status: StatusKey | "nicht_erreicht", reason?: string, note?: string, opts: { silent?: boolean } = {}): string {
   const l = leadById(id);
   if (!l) return "";
   const attempt = status === "nicht_erreicht";
-  if (store.ui.role === "presetter" && isCalling(l.status)) d().CALL_DAY.done++;
+  const calling = store.ui.role === "presetter" && isCalling(l.status);
   let st: StatusKey;
   if (attempt) {
     l.attempts++;
@@ -204,6 +211,11 @@ export function setLeadStatus(id: string, status: StatusKey | "nicht_erreicht", 
     l.reasonNote = note || "";
   }
   l.hist.unshift([(attempt ? `Nicht erreicht (Versuch ${l.attempts})` : STATUS[st].label) + (reason ? ` – ${reason}` : ""), nowStamp(d().NOW)]);
+  if (calling) {
+    d().CALL_DAY.done++;
+    if (st === "aufmass") d().CALL_DAY.termine++;
+    logDone("presetter", l.hist[0][0], l.kunde);
+  }
   /* verloren: künftige Termine entfallen, gelaufene bleiben für die Historie */
   if (st === "verloren") {
     const keep = d().APPTS.filter((a) => a.lead !== id || apptEnd(a) <= d().NOW);
@@ -232,7 +244,10 @@ export function saveCallback(id: string, date: string, time: string, note: strin
   const l = leadById(id);
   if (!l) return "";
   const when = `${date === dkey(d().NOW) ? "heute" : fmtDay(date)} ${time}`;
-  if (store.ui.role === "presetter") d().CALL_DAY.done++;
+  if (store.ui.role === "presetter") {
+    d().CALL_DAY.done++;
+    logDone("presetter", `Rückruf vereinbart: ${when}`, l.kunde);
+  }
   l.nextTry = `Rückruf ${when}`;
   if (l.status === "eingereicht") l.status = "terminierung";
   l.hist.unshift([`Rückruf vereinbart: ${when}${note ? " – " + note : ""}`, nowStamp(d().NOW)]);
@@ -253,6 +268,10 @@ export function applyFeedback(apptId: string, res: FeedbackResult, o: { note: st
   const l = leadById(a.lead);
   if (!l) return "";
   if (real) real.feedback = { result: res, at: nowStamp(d().NOW), note: o.note || "" };
+  if (store.ui.role === "closer") {
+    d().CLOSER_DAY.done++;
+    logDone("closer", `Rückmeldung ${real ? kindLabel(real) : "Checks"}`, l.kunde);
+  }
   if (res === "checks") {
     if (o.date) d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer: a.closer, kind: "closing", date: o.date, start: o.hour ?? 17, dur: 1.5, ort: a.ort, feedback: null });
     /* mit eingetragenem Verkaufstermin direkt in „Verkaufstermin“, sonst „Checks“ */

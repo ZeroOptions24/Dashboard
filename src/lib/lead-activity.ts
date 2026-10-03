@@ -95,11 +95,59 @@ export interface PresetterStats {
   terminQuote: number | null;
   teamFirstCallH: number | null;
   teamTerminQuote: number | null;
+  /** Anrufe je Wochentag Mo–Sa dieser Woche (Zukunft = null) */
+  callsWeek: [string, number | null][];
+  /** Tage in Folge (ohne heute und Sonntage) mit erreichtem Anrufziel */
+  streak: number;
+  /** heute gelegte Aufmaßtermine */
+  termineToday: number;
+  /** Anteil der angerufenen Leads, die erreicht wurden (Rückruf oder Ergebnis), laufender Monat in % */
+  reachQuote: number | null;
+  teamReachQuote: number | null;
+  /** Presetter-Rangliste: gelegte Aufmaßtermine im laufenden Monat je Person */
+  boardRows: [PersonKey, number][];
+  /** heute erledigt (neueste oben) */
+  doneToday: DoneItem[];
 }
+
+/** Erledigte Aufgabe für „Heute erledigt“ */
+export interface DoneItem {
+  what: string;
+  /** Kunde bzw. Lead-ID (der Client setzt den Namen ein) */
+  leadId?: string;
+  who?: string;
+  /** „hh:mm“ */
+  time: string;
+}
+
+const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+/** „JJJJ-MM-TT“ ± n Tage */
+const addDays = (key: string, n: number) => {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const weekdayOf = (key: string) => new Date(`${key}T12:00:00Z`).getUTCDay();
+/** Mo–Sa der laufenden Woche als „JJJJ-MM-TT“ */
+export function weekKeys(today: string) {
+  const mon = addDays(today, -((weekdayOf(today) + 6) % 7));
+  return WOCHENTAGE.map((label, i) => [label, addDays(mon, i)] as const);
+}
+/** Tage in Folge vor heute (Sonntage übersprungen), an denen count(tag) ≥ goal */
+export function streakBefore(today: string, count: (day: string) => number, goal: number) {
+  let streak = 0;
+  for (let d = addDays(today, -1), i = 0; i < 90; d = addDays(d, -1), i++) {
+    if (weekdayOf(d) === 0) continue;
+    if (goal > 0 && count(d) >= goal) streak++;
+    else break;
+  }
+  return streak;
+}
+const hhmm = (iso: string) => stamp(iso).split(" ")[1];
 
 const CALL_KINDS: ActivityKind[] = ["attempt", "callback", "status"];
 
-export function presetterStats(leads: Lead[], rows: ActivityRow[], userId: PersonKey, now: Date): PresetterStats {
+export function presetterStats(leads: Lead[], rows: ActivityRow[], userId: PersonKey, now: Date, goal = 0): PresetterStats {
   const today = berlinDay(now);
   const month = today.slice(0, 7);
   const calls = rows.filter((r) => r.role === "presetter" && r.userId && CALL_KINDS.includes(r.kind));
@@ -121,11 +169,35 @@ export function presetterStats(leads: Lead[], rows: ActivityRow[], userId: Perso
     const termin = new Set(mine.filter((r) => r.kind === "status" && normStatus(String(r.data.status)) === "aufmass").map((r) => r.leadId));
     return called.size ? Math.round((termin.size / called.size) * 100) : null;
   };
+  const dayOf = (r: ActivityRow) => berlinDay(new Date(r.createdAt));
+  const mineCalls = calls.filter((r) => r.userId === userId);
+  const callsOn = (day: string) => mineCalls.filter((r) => dayOf(r) === day).length;
+  const isTermin = (r: ActivityRow) => r.kind === "status" && normStatus(String(r.data.status)) === "aufmass";
+  /* erreicht = Rückruf vereinbart oder ein Ergebnis (Termin, Absage …) */
+  const reach = (who?: string) => {
+    const mine = calls.filter((r) => dayOf(r).startsWith(month) && (!who || r.userId === who));
+    const called = new Set(mine.map((r) => r.leadId));
+    const reached = new Set(mine.filter((r) => r.kind !== "attempt").map((r) => r.leadId));
+    return called.size ? Math.round((reached.size / called.size) * 100) : null;
+  };
+  const board = new Map<PersonKey, number>();
+  for (const r of calls) if (isTermin(r) && dayOf(r).startsWith(month)) board.set(r.userId!, (board.get(r.userId!) ?? 0) + 1);
+  if (!board.has(userId)) board.set(userId, 0);
   return {
-    callsToday: calls.filter((r) => r.userId === userId && berlinDay(new Date(r.createdAt)) === today).length,
+    callsToday: callsOn(today),
     firstCallH: delays(userId),
     terminQuote: quote(userId),
     teamFirstCallH: delays(),
     teamTerminQuote: quote(),
+    callsWeek: weekKeys(today).map(([label, day]) => [label, day > today ? null : callsOn(day)]),
+    streak: streakBefore(today, callsOn, goal),
+    termineToday: mineCalls.filter((r) => isTermin(r) && dayOf(r) === today).length,
+    reachQuote: reach(userId),
+    teamReachQuote: reach(),
+    boardRows: [...board.entries()],
+    doneToday: mineCalls
+      .filter((r) => dayOf(r) === today)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((r) => ({ what: r.text, leadId: r.leadId, time: hhmm(r.createdAt) })),
   };
 }

@@ -11,7 +11,7 @@ import { reloadWorkspace } from "@/lib/live";
 import { useDashboard } from "@/lib/useDashboard";
 import type { Board, PersonKey } from "@/lib/types";
 
-type BoardKey = "cup" | "setter";
+type BoardKey = "cup" | "setter" | "presetter";
 
 function Leaderboard({ B }: { B: Board }) {
   const { me, person } = useDashboard();
@@ -219,13 +219,13 @@ function BoardEditor({ B, boardKey }: { B: Board; boardKey: BoardKey }) {
 export default function RanglisteView() {
   const { data, role } = useDashboard();
   const [tab, setTab] = useState<BoardKey>("cup");
-  /* Setter sehen nur die Setter-Rangliste, Closer nur den Wärmepumpen-Cup, Admin beide */
-  const boardKey: BoardKey = role === "setter" ? "setter" : role === "closer" ? "cup" : tab;
-  const B = boardKey === "setter" ? data.SETTER_BOARD : data.BOARD;
+  /* Setter sehen die Setter-Rangliste, Presetter die Presetter-Rangliste, Closer den Wärmepumpen-Cup, Admin alle */
+  const boardKey: BoardKey = role === "setter" ? "setter" : role === "presetter" ? "presetter" : role === "closer" ? "cup" : tab;
+  const B = boardKey === "setter" ? data.SETTER_BOARD : boardKey === "presetter" ? data.PRESETTER_BOARD : data.BOARD;
   if (role !== "admin")
     return (
       <>
-        <PageHead title={boardKey === "setter" ? "Setter-Rangliste" : "Wärmepumpen-Cup"} />
+        <PageHead title={boardKey === "setter" ? "Setter-Rangliste" : boardKey === "presetter" ? "Presetter-Rangliste" : "Wärmepumpen-Cup"} />
         <div className="ee-grid g-main" style={{ alignItems: "start" }}>
           <div className="stack" style={{ gap: 18 }}>
             <Leaderboard B={B} />
@@ -242,6 +242,7 @@ export default function RanglisteView() {
           [
             ["cup", "Wärmepumpen-Cup"],
             ["setter", "Setter-Rangliste"],
+            ["presetter", "Presetter-Rangliste"],
           ] as [BoardKey, string][]
         ).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={boardKey === k} onClick={() => setTab(k)}>
@@ -254,11 +255,13 @@ export default function RanglisteView() {
           <Leaderboard B={B} />
         </div>
         <div className="stack">
-          {LIVE && boardKey === "setter" ? (
+          {boardKey === "presetter" || (LIVE && boardKey === "setter") ? (
             <section className="ee-card">
-              <h2>Automatisch aus Pipedrive</h2>
+              <h2>{boardKey === "presetter" ? "Automatisch aus dem Dashboard" : "Automatisch aus Pipedrive"}</h2>
               <p className="muted" style={{ marginTop: 6 }}>
-                Die Setter-Rangliste zählt laufend die gelegten Termine im aktuellen Monat – hier gibt es nichts einzutragen.
+                {boardKey === "presetter"
+                  ? "Die Presetter-Rangliste zählt laufend die im Dashboard gelegten Aufmaßtermine im aktuellen Monat – hier gibt es nichts einzutragen."
+                  : "Die Setter-Rangliste zählt laufend die gelegten Termine im aktuellen Monat – hier gibt es nichts einzutragen."}
               </p>
             </section>
           ) : (
