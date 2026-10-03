@@ -85,6 +85,13 @@
       "when": 1791058557120,
       "tag": "0011_status_7_stufen",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791063851813,
+      "tag": "0012_termin_vormerken",
+      "breakpoints": true
     }
   ]
 }

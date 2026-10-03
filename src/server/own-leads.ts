@@ -99,7 +99,8 @@ async function dealFields(row: Row, cfg: PipelineConfig) {
   const presetterId = acts.find((a) => a.role === "presetter")?.userId;
   const versuche = acts.filter((a) => a.kind === "attempt").length;
   const [appt] = await db.select().from(schema.appointment).where(eq(schema.appointment.leadId, row.id)).orderBy(desc(schema.appointment.createdAt)).limit(1);
-  const termin = appt ? `${isoToDe(appt.date)} ${String(Math.floor(appt.start)).padStart(2, "0")}:${appt.start % 1 ? "30" : "00"}` : "";
+  /* vorgemerkt (Setter) = noch kein Closer; im Feld „MB Termin“ als „vorgemerkt …“ */
+  const termin = appt ? `${appt.reserved ? "vorgemerkt " : ""}${isoToDe(appt.date)} ${String(Math.floor(appt.start)).padStart(2, "0")}:${appt.start % 1 ? "30" : "00"}` : "";
   const custom: Record<string, unknown> = {
     [f.setter]: await nameOf(row.setterId),
     [f.thema]: json<string[]>(row.themen, []).join(", "),
@@ -110,7 +111,7 @@ async function dealFields(row: Row, cfg: PipelineConfig) {
     [f.plz]: row.plz,
     [f.ort]: row.ort,
     [f.presetter]: await nameOf(presetterId),
-    [f.closer]: appt ? await nameOf(appt.closerId) : "",
+    [f.closer]: appt && !appt.reserved ? await nameOf(appt.closerId) : "",
     [f.termin]: termin,
     [f.versuche]: versuche,
     [f.gps]: row.gpsLat != null && row.gpsLon != null ? `${row.gpsLat}, ${row.gpsLon}` : "",

@@ -1,10 +1,10 @@
 /* To-Dos je Rolle (wie in Tims Vorlage): links was zu tun ist, rechts um wen es geht.
    group: over (überfällig) · today (heute) · later (demnächst). Reine Funktionen. */
 
-import { feedbackDue, kindLabel, pendingFeedback } from "./appointments";
+import { feedbackDue, kindLabel, pendingFeedback, reservationOf } from "./appointments";
 import { STATUS } from "./domain";
 import { dkey, fmtDay, fmtDue, fmtHour } from "./format";
-import { ageH, apptStart, callbackLate, dueAt, isCalling, isCallback, isLost, isOverdue, leadsForUser, urgencySort } from "./leads";
+import { ageH, apptStart, callbackLate, callbackStale, dueAt, isCalling, isCallback, isLost, isOverdue, leadsForUser, urgencySort } from "./leads";
 import type { Appointment, Lead, Person, PersonKey, Role, Slot } from "./types";
 
 export type TodoGroup = "over" | "today" | "later";
@@ -28,7 +28,10 @@ export function leadStatus(l: Lead, now: Date, appts: Appointment[], person: (k:
     appts.filter((a) => a.lead === l.id && (!kind || a.kind === kind)).sort((a, b) => apptStart(b).getTime() - apptStart(a).getTime())[0];
   const day = (i: number) => l.hist[i]?.[1].split(" ")[0] ?? "";
   if (isCalling(l.status)) {
+    const r = reservationOf(appts, l.id);
+    if (r) return { what: "Termin vorgemerkt", when: `${fmtDay(r.date)} ${fmtHour(r.start)} · ${person(r.closer).first} – wird noch bestätigt`, tone: "info" };
     const next = (l.nextTry || "").replace(/^Rückruf /, "");
+    if (callbackStale(l, now)) return { what: "Wartet auf Anruf", when: `Rückrufwunsch ${next} ist verstrichen`, tone: "warn" };
     if (callbackLate(l, now)) return { what: "Rückruf überfällig", when: next, tone: "bad" };
     if (isCallback(l)) return { what: "Rückruf", when: next, tone: "info" };
     if (l.nextTry && l.attempts) return { what: `${l.attempts}× nicht erreicht`, when: `nächster Versuch: ${l.nextTry}`, tone: "warn" };
@@ -100,9 +103,25 @@ export function todoItems(x: TodoInput): Todo[] {
   if (role === "presetter") {
     const mine = leadsForUser(x.leads, role, me).filter((l) => isCalling(l.status));
     for (const l of mine.sort(urgencySort(now))) {
+      /* vom Setter vorgemerkt: anrufen, qualifizieren, bestätigen – ab 48 Std. vorher rot (24 Std. vorher wird er freigegeben) */
+      const r = reservationOf(appts, l.id);
+      if (r) {
+        const h = (apptStart(r).getTime() - now.getTime()) / 36e5;
+        T.push({
+          key: l.id,
+          group: h < 48 ? "over" : "today",
+          tone: h < 48 ? "bad" : "warn",
+          what: "Vorgemerkten Termin bestätigen",
+          when: `${fmtDay(r.date)} ${fmtHour(r.start)} · ${person(r.closer).first} · vorgemerkt von ${person(l.setter).first}`,
+          who: l.kunde,
+          where: l.ort,
+          act: { kind: "call", id: l.id },
+        });
+        continue;
+      }
       const st = leadStatus(l, now, appts, person);
       const due = dueAt(l, now);
-      const group: TodoGroup = st.tone === "bad" ? "over" : !due || dkey(due) <= today ? "today" : "later";
+      const group: TodoGroup = st.tone === "bad" ? "over" : !due || dkey(due) <= today || callbackStale(l, now) ? "today" : "later";
       T.push({ key: l.id, group, tone: st.tone === "ok" ? "info" : st.tone, what: st.what, when: st.when, who: l.kunde, where: l.ort, act: { kind: "call", id: l.id } });
     }
   }
@@ -133,7 +152,7 @@ export function todoItems(x: TodoInput): Todo[] {
     const nw = x.slots.filter((s) => s.closer === me && s.date >= dkey(mon) && s.date <= dkey(sun)).length;
     if (nw < 4)
       T.push({ key: "slots", group: "today", tone: "warn", what: "Slots eintragen", when: `erst ${nw} von 4`, who: "Nächste Woche", where: `${fmtDay(dkey(mon))} – ${fmtDay(dkey(sun))}`, act: { kind: "view", view: "kalender" } });
-    for (const a of appts.filter((y) => y.closer === me && apptStart(y) > now).sort((p, q) => apptStart(p).getTime() - apptStart(q).getTime())) {
+    for (const a of appts.filter((y) => y.closer === me && !y.reserved && apptStart(y) > now).sort((p, q) => apptStart(p).getTime() - apptStart(q).getTime())) {
       const l = x.leads.find((y) => y.id === a.lead);
       T.push({ key: `t-${a.id}`, group: a.date === today ? "today" : "later", tone: "ok", what: kindLabel(a), when: `${fmtDay(a.date)} ${fmtHour(a.start)}`, who: l?.kunde ?? "Kunde", where: a.ort, act: { kind: "view", view: "termine" } });
     }

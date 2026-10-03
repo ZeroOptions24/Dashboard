@@ -60,9 +60,15 @@ export function dueAt(l: Lead, now: Date): Date | null {
 export const isCallback = (l: Lead) => /^Rückruf/.test(l.nextTry || "");
 /** Zeitpunkt eines vereinbarten Rückrufs (sonst null) */
 export const callbackDue = (l: Lead, now: Date) => (isCallback(l) ? dueAt(l, now) : null);
+/** Rückrufe, die länger als so viele Tage verstrichen sind, gelten nicht mehr als überfällig (alte Wünsche von der Haustür) */
+export const RUECKRUF_VERFALL_TAGE = 7;
+export const callbackStale = (l: Lead, now: Date) => {
+  const due = dueAt(l, now);
+  return isCallback(l) && !!due && now.getTime() - due.getTime() > RUECKRUF_VERFALL_TAGE * 864e5;
+};
 export const callbackLate = (l: Lead, now: Date) => {
   const due = dueAt(l, now);
-  return isCallback(l) && !!due && due < now;
+  return isCallback(l) && !!due && due < now && !callbackStale(l, now);
 };
 
 /* ---------- Termine ---------- */

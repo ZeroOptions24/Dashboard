@@ -63,7 +63,9 @@ export type Drawer =
   /** id = Termin-ID oder „LEAD:<lead-id>“ für Leads in den Checks ohne 2. Termin */
   | { kind: "feedback"; id: string }
   | { kind: "appt"; id: string }
-  | { kind: "team"; key: PersonKey };
+  | { kind: "team"; key: PersonKey }
+  /** Einwände mit Antworten (Telefonleitfaden), id = Lead für Namen im Text */
+  | { kind: "objections"; id: string };
 
 export interface Toast {
   id: number;

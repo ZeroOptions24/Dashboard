@@ -76,6 +76,11 @@ export function applyActivities(leads: Lead[], rows: ActivityRow[], defaultPrese
     if (notes.length) l.preNote = String(notes[notes.length - 1].data.text ?? "");
     const vqs = acts.filter((a) => a.kind === "vq");
     if (vqs.length) l.vq = { ...(vqs[vqs.length - 1].data.answers as Record<string, string>) };
+    /* an der Tür beantwortet = Vorqualifizierung, die der Setter gespeichert hat */
+    const door = new Set(l.door ?? []);
+    for (const a of vqs.filter((x) => x.role === "setter"))
+      for (const [k, v] of Object.entries(a.data.answers as Record<string, string>)) if (String(v ?? "").trim()) door.add(k);
+    if (door.size) l.door = [...door];
     const pre = acts.filter((a) => a.role === "presetter" && a.userId);
     if (pre.length) l.presetter = pre[pre.length - 1].userId!;
     else if (defaultPresetter && !l.presetter) l.presetter = defaultPresetter;

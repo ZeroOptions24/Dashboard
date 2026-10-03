@@ -9,7 +9,7 @@ import Icon from "@/components/ui/Icon";
 import { PipelineSteps, StatusChip, ToneChip } from "@/components/ui/Chips";
 import { applyFeedback, guideAdvance, saveCallback, setLeadStatus, type FeedbackResult } from "@/lib/actions";
 import { kindLabel, needsFeedback } from "@/lib/appointments";
-import { FEEDBACK_OPTIONS, LOSS_REASONS, STATUS } from "@/lib/domain";
+import { FEEDBACK_OPTIONS, GUIDES, LOSS_REASONS, STATUS } from "@/lib/domain";
 import { dkey, fmtDay, fmtHour, maskIban, pad } from "@/lib/format";
 import { formatIban } from "@/lib/iban";
 import { isLost, provFor, telFull, telHref } from "@/lib/leads";
@@ -607,7 +607,29 @@ function DrawerContent({ d }: { d: Drawer }) {
       return <ApptDrawer id={d.id} />;
     case "team":
       return <TeamDrawer key={d.key} memberKey={d.key} />;
+    case "objections":
+      return <ObjectionsDrawer id={d.id} />;
   }
+}
+
+/** Einwände: Antwort antippen zum Aufklappen (nur eine offen) */
+function ObjectionsDrawer({ id }: { id: string }) {
+  const { data, person } = useDashboard();
+  const l = data.LEADS.find((x) => x.id === id);
+  const fill = (t: string) => t.replace(/\{setter\}/g, l && l.setter !== "unbekannt" ? person(l.setter).first : "unserem Team").replace(/\{closer\}/g, "unser Energieberater");
+  return (
+    <>
+      <DrawerHead title="Einwände" sub="Antwort antippen zum Aufklappen" />
+      <div className="ee-drawer__body stack" style={{ gap: 8 }} data-component="ObjectionPanel">
+        {GUIDES.wp.objections.map(([o, a]) => (
+          <details key={o} className="ee-objection" name="einwand">
+            <summary>{o}</summary>
+            <p>{fill(a)}</p>
+          </details>
+        ))}
+      </div>
+    </>
+  );
 }
 
 /** Seitenleiste rechts (Handy: von unten) */

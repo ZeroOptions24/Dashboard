@@ -94,6 +94,8 @@ export function dealToLead(deal: PdDeal, person: PdPerson | undefined, note?: Le
     rueckrufWunsch: note?.rueckruf,
     gps: note?.gps,
     vq: vqFromDeal(deal),
+    /* Vorqualifizierung in Pipedrive kommt aus dem Formular an der Tür (n8n wp-vorqual) */
+    door: Object.keys(vqFromDeal(deal) ?? {}),
     produkt: "wp",
     status,
     setter: setterKey(deal.custom_fields?.[DEAL_FIELDS.setter]),

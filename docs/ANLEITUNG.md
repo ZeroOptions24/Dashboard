@@ -27,7 +27,7 @@ Eine Seite je Rolle. Wer mehrere Rollen hat, wechselt oben rechts unter „Rolle
 4. **„Lead erstellen“** → der Lead ist sofort im Dashboard und als Deal in Pipedrive (Pipeline „MB-Dashboard Wärmepumpe“) – mit dir als Setter, ohne Setter-Link.
    - Warnt das Dashboard „Diesen Kunden gibt es vermutlich schon“: nur „Trotzdem anlegen“, wenn es wirklich ein anderes Haus ist.
 5. Optional **„Direkt an der Tür vorqualifizieren“**: Fragen zum Haus, zur Heizung, zum Eigentum. Teilweise reicht – den Rest klärt das Presetting am Telefon.
-6. Optional **Termin legen**: freien Closer-Slot wählen oder „Termin direkt eintragen“ (Datum, Uhrzeit, Closer).
+6. Optional **Termin vormerken**: freien Closer-Slot wählen oder „Termin direkt vormerken“. Der Termin ist damit für den Kunden reserviert, der Closer wird aber erst informiert, wenn das Presetting den Kunden angerufen, durchqualifiziert und den Termin **bestätigt** hat (Zwei-Schritte-System). Unbestätigte Vormerkungen werden 24 Std. vor dem Termin automatisch wieder freigegeben.
 
 Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und Closer sehen Adresse, Rückrufwunsch, Notizen und Vorqualifizierung direkt.
 
@@ -47,6 +47,9 @@ Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und 
 - **Rückruf vereinbaren** → Datum/Uhrzeit; zur Zeit erscheint oben „Rückruf ist jetzt dran“.
 - **Abgesagt** (mit Grund) · **Falsche Nummer** (sofort abgesagt).
 - **Termin legen**: freien Closer-Slot wählen oder „Termin direkt eintragen“. Setter und Closer werden informiert.
+- **Vom Setter vorgemerkter Termin**: steht im Leitfaden unter „Vorgemerkten Termin bestätigen“ und in den To-Dos (ab 48 Std. vorher rot). Erst qualifizieren, dann „Termin bestätigen“ – oder „Anderen Termin wählen“ (Slot wird wieder frei).
+- **Vorqualifizierung**: Was der Setter schon an der Tür beantwortet hat, ist ausgeblendet – „Alle anzeigen“ holt es zurück.
+- **Einwände** (Knopf oben): passende Antworten zum Aufklappen.
 - Notizen und Vorqualifizierung werden automatisch gespeichert.
 - Hinweis „… hat diesen Lead gerade offen“: Kollegin telefoniert vermutlich gerade – lieber den nächsten nehmen.
 
@@ -59,7 +62,7 @@ Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und 
 
 ## Closer
 
-**Kalender** → „Slots eintragen“: Tag, von–bis, optional „4 Wochen wiederholen“. Freie Slots sieht das Presetting zum Buchen.
+**Kalender** → „Slots eintragen“: Tag, von–bis, optional „4 Wochen wiederholen“. Freie Slots sieht das Presetting zum Buchen. Grau gestrichelt „reserviert“ = vom Setter vorgemerkt, noch nicht bestätigt (ohne Kundendaten).
 **Termine** → anstehende Termine mit Adresse, Route, Telefon, Kundensteckbrief.
 **Rückmeldung nach jedem Termin – Pflicht innerhalb 24 Std.**: Aufmaß fand statt (Checks, mit Verkaufstermin) · Nicht angetroffen (zurück an den Presetter) · Verloren (Grund) · Verkauft. Ohne Rückmeldung bekommst du keine neuen Termine.
 **Wärmepumpen-Cup**: dein Platz im Wettbewerb.

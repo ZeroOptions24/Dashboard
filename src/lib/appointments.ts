@@ -11,7 +11,10 @@ export const apptEnd = (a: Appointment) => {
 };
 
 /** Termin vorbei, aber noch keine Rückmeldung des Closers. */
-export const needsFeedback = (a: Appointment, now: Date) => !a.feedback && apptEnd(a) <= now;
+export const needsFeedback = (a: Appointment, now: Date) => !a.reserved && !a.feedback && apptEnd(a) <= now;
+
+/** Vom Setter vorgemerkter, noch nicht bestätigter Termin eines Leads */
+export const reservationOf = (appts: Appointment[], leadId: string) => appts.find((a) => a.lead === leadId && a.reserved);
 
 /** Frist für die Rückmeldung: Terminende + FEEDBACK_FRIST_H Stunden. */
 export const feedbackDue = (a: Appointment) => new Date(apptEnd(a).getTime() + FEEDBACK_FRIST_H * 36e5);

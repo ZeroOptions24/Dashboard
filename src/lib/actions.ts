@@ -7,6 +7,8 @@ import {
   addSlotsAction,
   bookDirectAction,
   bookSlotAction,
+  confirmReservationAction,
+  releaseReservationAction,
   markNotificationsReadAction,
   postEventAction,
   publishBoardAction,
@@ -344,35 +346,65 @@ export function setLeadPreNote(id: string, note: string) {
   persistLater(`note:${id}`, id, () => ({ type: "note", text: l.preNote }));
 }
 
-/** Ersttermin in einem freien Closer-Slot buchen */
-export function bookSlot(l: Lead, s: Slot) {
+/** Aufmaßtermin in einem freien Closer-Slot buchen – als Setter nur vormerken (Presetter bestätigt). Liefert true bei Vormerkung. */
+export function bookSlot(l: Lead, s: Slot): boolean {
   const i = d().SLOTS.findIndex((x) => x.id === s.id);
   if (i >= 0) d().SLOTS.splice(i, 1);
   d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer: s.closer, kind: "erst", date: s.date, start: s.start, dur: 1.5, ort: l.ort, feedback: null });
-  l.closer = s.closer;
-  setLeadStatus(l.id, "aufmass");
-  if (!LIVE) pushNotif(s.closer, `Neuer Aufmaßtermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, "aufmass");
+  const reserved = store.ui.role === "setter";
+  d().APPTS[d().APPTS.length - 1].reserved = reserved || undefined;
+  if (!reserved) {
+    l.closer = s.closer;
+    setLeadStatus(l.id, "aufmass");
+    if (!LIVE) pushNotif(s.closer, `Neuer Aufmaßtermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, "aufmass");
+  }
   rerender();
-  persist(() => bookSlotAction(s.id, { id: l.id, kunde: l.kunde, ort: l.ort }), { reload: true });
+  persist(() => bookSlotAction(s.id, { id: l.id, kunde: l.kunde, ort: l.ort }, store.ui.role), { reload: true });
+  return reserved;
 }
 
 /** Personen, die als Closer gebucht werden können */
 export const closerOptions = (): PersonKey[] =>
   store.live.closers ?? Object.values(d().PEOPLE).filter((p) => p.role === "closer").map((p) => p.key);
 
-/** Ersttermin direkt eintragen (ohne freien Slot) – Datum, Uhrzeit (z. B. 17.5), Closer */
+/** Aufmaßtermin direkt eintragen (ohne freien Slot) – Datum, Uhrzeit (z. B. 17.5), Closer; als Setter nur vormerken */
 export function bookDirect(l: Lead, date: string, start: number, closer: PersonKey) {
   const clash = d().APPTS.some((a) => a.closer === closer && a.date === date && start < a.start + a.dur && a.start < start + 1.5);
   if (clash) return "Der Closer hat zu der Zeit schon einen Termin";
   const i = d().SLOTS.findIndex((s) => s.closer === closer && s.date === date && s.start === Math.floor(start));
   if (i >= 0) d().SLOTS.splice(i, 1);
-  d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer, kind: "erst", date, start, dur: 1.5, ort: l.ort, feedback: null });
-  l.closer = closer;
-  setLeadStatus(l.id, "aufmass");
-  if (!LIVE) pushNotif(closer, `Neuer Aufmaßtermin: ${l.kunde}, ${fmtDay(date)} ${fmtHour(start)} (${l.ort})`, "aufmass");
+  const reserved = store.ui.role === "setter";
+  d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer, kind: "erst", date, start, dur: 1.5, ort: l.ort, feedback: null, reserved: reserved || undefined });
+  if (!reserved) {
+    l.closer = closer;
+    setLeadStatus(l.id, "aufmass");
+    if (!LIVE) pushNotif(closer, `Neuer Aufmaßtermin: ${l.kunde}, ${fmtDay(date)} ${fmtHour(start)} (${l.ort})`, "aufmass");
+  }
   rerender();
-  persist(() => bookDirectAction({ id: l.id, kunde: l.kunde, ort: l.ort }, { date, start, closerId: closer }), { reload: true });
+  persist(() => bookDirectAction({ id: l.id, kunde: l.kunde, ort: l.ort }, { date, start, closerId: closer }, store.ui.role), { reload: true });
   return null;
+}
+
+/** Vorgemerkten Termin bestätigen (Presetter): jetzt fest gebucht, Lead → Aufmaßtermin, Closer wird informiert */
+export function confirmReservation(l: Lead, apptId: string) {
+  const a = d().APPTS.find((x) => x.id === apptId);
+  if (!a) return;
+  a.reserved = undefined;
+  l.closer = a.closer;
+  setLeadStatus(l.id, "aufmass");
+  rerender();
+  persist(() => confirmReservationAction(apptId), { reload: true });
+}
+
+/** Vormerkung lösen: Termin entfällt, Slot wird wieder frei */
+export function releaseReservation(l: Lead, apptId: string, why = "") {
+  const i = d().APPTS.findIndex((x) => x.id === apptId);
+  if (i < 0) return;
+  const [a] = d().APPTS.splice(i, 1);
+  if (a.start % 1 === 0) d().SLOTS.push({ id: `S-${rnd()}`, closer: a.closer, date: a.date, start: a.start });
+  l.hist.unshift([`Vormerkung ${fmtDay(a.date)} ${fmtHour(a.start)} gelöst${why ? ` – ${why}` : ""}`, nowStamp(d().NOW)]);
+  rerender();
+  persist(() => releaseReservationAction(apptId, why), { reload: true });
 }
 
 /** Lead aus dem Setting-Formular anlegen (Prototyp: lokal; echt: n8n-Webhook → Pipedrive) */

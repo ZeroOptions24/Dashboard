@@ -82,6 +82,18 @@ describe("Aktivitäten auf Leads", () => {
     expect(s.doneToday.map((d) => [d.leadId, d.time])).toEqual([["PD-2", "12:00"], ["PD-1", "11:00"], ["PD-1", "10:00"]]);
   });
 
+  it("Antworten von der Tür: Vorqualifizierung des Setters wird als „door“ markiert", () => {
+    const [l] = applyActivities(
+      [lead("PD-1")],
+      [
+        act("PD-1", "u-sara", "vq", "2026-09-30T08:00:00Z", { answers: { wohnflaeche: "140", baujahr_haus: "" } }),
+        act("PD-1", "u-aimee", "vq", "2026-09-30T09:00:00Z", { answers: { wohnflaeche: "140", heizungsart: "Gas" } }),
+      ].map((a, i) => ({ ...a, role: i === 0 ? ("setter" as const) : a.role })),
+    );
+    expect(l.door).toEqual(["wohnflaeche"]);
+    expect(l.vq).toEqual({ wohnflaeche: "140", heizungsart: "Gas" });
+  });
+
   it("Serie: Tage in Folge mit erreichtem Anrufziel, Sonntage zählen nicht", () => {
     const rows = [
       act("PD-1", "u-a", "attempt", "2026-09-26T08:00:00Z", { attempt: 1 }) /* Sa */,

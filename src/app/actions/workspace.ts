@@ -30,9 +30,11 @@ export const toggleRsvpAction = async (eventId: string) => run((v) => ws.toggleR
 export const postEventAction = async (input: Parameters<typeof ws.postEvent>[1]) => run((v) => ws.postEvent(v, input));
 export const addSlotsAction = async (list: { date: string; start: number }[]) => run((v) => ws.addSlots(v, list));
 export const removeSlotAction = async (slotId: string) => run((v) => ws.removeSlot(v, slotId));
-export const bookDirectAction = async (lead: { id: string; kunde: string; ort: string }, input: { date: string; start: number; closerId: string }) =>
-  run((v) => ws.bookDirect(v, lead, input));
-export const bookSlotAction = async (slotId: string, lead: { id: string; kunde: string; ort: string }) => run((v) => ws.bookSlot(v, slotId, lead));
+export const bookDirectAction = async (lead: { id: string; kunde: string; ort: string }, input: { date: string; start: number; closerId: string }, asRole?: Role) =>
+  run((v) => ws.bookDirect(v, lead, input, asRole));
+export const bookSlotAction = async (slotId: string, lead: { id: string; kunde: string; ort: string }, asRole?: Role) => run((v) => ws.bookSlot(v, slotId, lead, asRole));
+export const confirmReservationAction = async (apptId: string) => run((v) => ws.confirmReservation(v, apptId));
+export const releaseReservationAction = async (apptId: string, why?: string) => run((v) => ws.releaseReservation(v, apptId, why));
 export const saveFeedbackAction = async (apptId: string, input: Parameters<typeof ws.saveFeedback>[2]) => run((v) => ws.saveFeedback(v, apptId, input));
 export const publishBoardAction = async (input: Parameters<typeof ws.publishBoard>[1]) => run((v) => ws.publishBoard(v, input));
 export const archiveBoardAction = async () => run((v) => ws.archiveBoard(v));

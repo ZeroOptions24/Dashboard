@@ -1,5 +1,5 @@
 import { PIPELINE, STATUS } from "@/lib/domain";
-import { ageH, callbackLate, isCallback } from "@/lib/leads";
+import { ageH, callbackLate, callbackStale, isCallback } from "@/lib/leads";
 import type { Lead, StatusKey } from "@/lib/types";
 
 /** Farbiger Chip mit freiem Text. tone: ok | warn | bad | info | pos | Status-Töne */
@@ -54,6 +54,7 @@ export function AgeBadge({ lead, now }: { lead: Lead; now: Date }) {
 export function TryChip({ lead, now, short }: { lead: Lead; now: Date; short?: boolean }) {
   const t = lead.nextTry;
   if (!t) return <AgeBadge lead={lead} now={now} />;
+  if (callbackStale(lead, now)) return <ToneChip label={`Rückrufwunsch verstrichen (${t.replace(/^Rückruf /, "")})`} tone="warn" />;
   if (callbackLate(lead, now)) return <ToneChip label={`Rückruf überfällig (${t.replace(/^Rückruf /, "")})`} tone="bad" />;
   if (isCallback(lead))
     return <ToneChip label={short ? t.replace(/^Rückruf /, "") : t.replace(/^Rückruf /, "Rückruf: ")} tone="info" />;

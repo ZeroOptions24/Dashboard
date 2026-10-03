@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { Viewer } from "@/server/workspace";
 
@@ -61,7 +62,7 @@ describe("Closer-Kalender und Buchung", () => {
 
   it("Closer dürfen nicht buchen; ein Slot lässt sich nur einmal buchen", async () => {
     await expect(ws.bookSlot(closer2, slotId, { id: "PD-1", kunde: "Kunde", ort: "Leipzig" })).rejects.toThrow(/Berechtigung/);
-    const a = await ws.bookSlot(setter, slotId, { id: "PD-1", kunde: "Familie Test", ort: "Leipzig" });
+    const a = await ws.bookSlot(presetter, slotId, { id: "PD-1", kunde: "Familie Test", ort: "Leipzig" });
     expect(a.closer).toBe("u-closer");
     await expect(ws.bookSlot(presetter, slotId, { id: "PD-2", kunde: "Andere", ort: "" })).rejects.toThrow(/nicht mehr frei/);
     expect((await notifsOf("u-closer")).some((t) => t.startsWith("Neuer Aufmaßtermin: Familie Test"))).toBe(true);
@@ -69,7 +70,8 @@ describe("Closer-Kalender und Buchung", () => {
 
   it("Termine sieht der zuständige Closer und wer gebucht hat – andere Closer nicht", async () => {
     expect((await ws.loadWorkspace(closer)).appointments).toHaveLength(1);
-    expect((await ws.loadWorkspace(setter)).appointments).toHaveLength(1);
+    expect((await ws.loadWorkspace(setter)).appointments).toHaveLength(0); /* gebucht hat die Presetterin */
+    expect((await ws.loadWorkspace(presetter)).appointments).toHaveLength(1);
     expect((await ws.loadWorkspace(closer2)).appointments).toHaveLength(0);
     expect(await ws.leadIdsForCloser("u-closer")).toEqual(new Set(["PD-1"]));
   });
@@ -180,5 +182,45 @@ describe("Benachrichtigungen und Einstellungen", () => {
     expect((await ws.loadWorkspace(setter)).moneyGoal).toBe(4500);
     await ws.setMoneyGoal(setter, -5);
     expect((await ws.loadWorkspace(setter)).moneyGoal).toBe(0);
+  });
+});
+
+describe("Termin vormerken (Zwei-Schritte-System)", () => {
+  const inThreeDays = (() => {
+    const d = new Date(Date.now() + 3 * 864e5);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+
+  it("Zwei-Schritte-System: Setter merkt nur vor, Presetter bestätigt – erst dann wird der Closer informiert", async () => {
+    const [slot] = await ws.addSlots(closer2, [{ date: inThreeDays, start: 15 }]);
+    const r = await ws.bookSlot(setter, slot.id, { id: "PD-9", kunde: "Familie Vormerk", ort: "Halle" }, "setter");
+    expect(r.reserved).toBe(true);
+    expect((await notifsOf("u-closer2")).some((t) => t.includes("Familie Vormerk"))).toBe(false);
+    expect((await notifsOf("u-pre")).some((t) => t.startsWith("Termin vorgemerkt: Familie Vormerk"))).toBe(true);
+    /* Closer sieht nur „reserviert“ ohne Kunde, und der Lead ist für ihn nicht freigegeben */
+    const seen = (await ws.loadWorkspace({ id: "u-closer2", roles: ["closer"] })).appointments.find((x) => x.id === r.id)!;
+    expect(seen).toMatchObject({ reserved: true, lead: "", kunde: null });
+    expect((await ws.leadIdsForCloser("u-closer2")).has("PD-9")).toBe(false);
+    /* Setter darf nicht bestätigen, Presetter schon */
+    await expect(ws.confirmReservation(setter, r.id)).rejects.toThrow(/Presetter/);
+    await ws.confirmReservation(presetter, r.id);
+    expect((await notifsOf("u-closer2")).some((t) => t.startsWith("Neuer Aufmaßtermin: Familie Vormerk"))).toBe(true);
+    expect((await ws.leadIdsForCloser("u-closer2")).has("PD-9")).toBe(true);
+    await expect(ws.confirmReservation(presetter, r.id)).rejects.toThrow(/Vormerkung/);
+  });
+
+  it("Vormerkung lösen gibt den Slot wieder frei; unbestätigte Vormerkungen verfallen 24 Std. vorher", async () => {
+    const [slot] = await ws.addSlots(closer2, [{ date: inThreeDays, start: 16 }]);
+    const r = await ws.bookSlot(setter, slot.id, { id: "PD-10", kunde: "Familie Lösen", ort: "" }, "setter");
+    await ws.releaseReservation(presetter, r.id, "passt nicht");
+    const slots = await db.select().from(schema.closerSlot);
+    expect(slots.some((x) => x.date === inThreeDays && x.start === 16)).toBe(true);
+    expect((await notifsOf("u-setter")).some((t) => t.includes("Vormerkung") && t.includes("passt nicht"))).toBe(true);
+    /* in drei Tagen 16 Uhr: heute noch nicht fällig, aus Sicht „in drei Tagen“ schon */
+    const [slot2] = await db.select().from(schema.closerSlot).where(eq(schema.closerSlot.start, 16));
+    const r2 = await ws.bookSlot(setter, slot2.id, { id: "PD-11", kunde: "Familie Verfall", ort: "" }, "setter");
+    expect(await ws.releaseStaleReservations()).toBe(0);
+    expect(await ws.releaseStaleReservations(new Date(Date.now() + 3 * 864e5))).toBeGreaterThanOrEqual(1);
+    expect((await db.select().from(schema.appointment).where(eq(schema.appointment.id, r2.id))).length).toBe(0);
   });
 });

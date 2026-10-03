@@ -11,7 +11,9 @@ const TIMES = Array.from({ length: 27 }, (_, i) => 8 + i * 0.5); /* 08:00 – 21
 
 /** Termin direkt eintragen, wenn kein passender freier Slot da ist (Datum, Uhrzeit, Closer). */
 export default function DirectBooking({ lead, onBooked }: { lead: Lead; onBooked?: () => void }) {
-  const { now, person, toast, me } = useDashboard();
+  const { now, person, toast, me, role } = useDashboard();
+  /* Setter merken nur vor – der Presetter bestätigt (Zwei-Schritte-System) */
+  const verb = role === "setter" ? "vormerken" : "eintragen";
   const closers = closerOptions();
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(dkey(now));
@@ -22,7 +24,7 @@ export default function DirectBooking({ lead, onBooked }: { lead: Lead; onBooked
   if (!open)
     return (
       <button className="ee-btn ee-btn--ghost ee-btn--sm" type="button" onClick={() => setOpen(true)} data-component="DirectBookingOpen">
-        <Icon name="cal" small /> Termin direkt eintragen (ohne freien Slot)
+        <Icon name="cal" small /> Termin direkt {verb} (ohne freien Slot)
       </button>
     );
   return (
@@ -35,7 +37,11 @@ export default function DirectBooking({ lead, onBooked }: { lead: Lead; onBooked
         if (!closer) return toast("Bitte einen Closer wählen", "info");
         const err = bookDirect(lead, date, start, closer);
         if (err) return toast(err, "info");
-        toast(`Termin eingetragen: ${fmtDay(date)} ${fmtHour(start)} · ${person(closer).first} informiert`);
+        toast(
+          role === "setter"
+            ? `Termin vorgemerkt: ${fmtDay(date)} ${fmtHour(start)} · Presetting bestätigt nach dem Anruf`
+            : `Termin eingetragen: ${fmtDay(date)} ${fmtHour(start)} · ${person(closer).first} informiert`,
+        );
         setOpen(false);
         onBooked?.();
       }}
@@ -69,7 +75,7 @@ export default function DirectBooking({ lead, onBooked }: { lead: Lead; onBooked
       </div>
       <div className="row">
         <button className="ee-btn ee-btn--primary" type="submit" disabled={!closers.length}>
-          <Icon name="cal" small /> Termin {fmtDay(date)} {fmtHour(start)} eintragen
+          <Icon name="cal" small /> Termin {fmtDay(date)} {fmtHour(start)} {verb}
         </button>
         <button className="ee-btn ee-btn--ghost" type="button" onClick={() => setOpen(false)}>
           Abbrechen

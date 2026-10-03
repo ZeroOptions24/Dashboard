@@ -21,7 +21,7 @@ import { toast } from "@/lib/ui";
 /* Lead erfassen (Setter) – 1:1 nach dem bestehenden Setting-Formular
    Schritt 1 „Lead anlegen“      → später n8n-Webhook POST /webhook/wp-lead
    Schritt 2 „Vorqualifizieren“  → später n8n-Webhook POST /webhook/wp-vorqual (optional)
-   Schritt 3 „Termin legen“      → bucht einen freien Closer-Slot (optional) */
+   Schritt 3 „Termin vormerken“  → reserviert einen freien Closer-Slot (optional); der Presetter bestätigt nach dem Anruf */
 
 const PRESETTER = "inan"; /* Prototyp: fester Presetter; echte Daten: „das Presetting“ */
 
@@ -35,7 +35,7 @@ function Stepper() {
   const idx = { 1: 0, created: 1, 2: 1, ko: 1, 3: 2, done: 3 }[step];
   return (
     <ol className="ee-stepper" data-component="Stepper">
-      {["Lead anlegen", "Vorqualifizieren", "Termin legen"].map((s, i) => (
+      {["Lead anlegen", "Vorqualifizieren", "Termin vormerken"].map((s, i) => (
         <li key={s} className={i < idx ? "is-done" : i === idx ? "is-current" : undefined}>
           <span>{i < idx ? <Icon name="check" small /> : i + 1}</span>
           <b>{s}</b>
@@ -277,7 +277,7 @@ function Created() {
           <Icon name="check" small /> Jetzt vorqualifizieren
         </button>
         <button className="ee-btn" onClick={() => go(3)}>
-          <Icon name="cal" small /> Direkt Termin legen
+          <Icon name="cal" small /> Direkt Termin vormerken
         </button>
         <button className="ee-btn ee-btn--ghost" onClick={reset}>
           <Icon name="plus" small /> Weiteren Kunden anlegen
@@ -302,6 +302,7 @@ function Step2() {
     if (!l) return;
     const vq = w.vq;
     l.vq = Object.fromEntries(Object.entries(vq).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v ?? ""]));
+    l.door = Object.keys(l.vq).filter((k) => String(l.vq![k]).trim());
     setWizard({ vqSent: true });
     const sum = vqSummary(vq);
     if (phone) {
@@ -391,7 +392,7 @@ function Ko() {
             Als „Abgesagt“ markieren
           </button>
           <button className="ee-btn" onClick={() => go(3)}>
-            Trotzdem Termin legen (Eigentümer kommt zum Termin)
+            Trotzdem Termin vormerken (Eigentümer kommt zum Termin)
           </button>
         </div>
       </section>
@@ -399,7 +400,7 @@ function Ko() {
   );
 }
 
-/* ---------- Schritt 3: Termin legen ---------- */
+/* ---------- Schritt 3: Termin vormerken (Zwei-Schritte-System: Presetter bestätigt) ---------- */
 function Step3() {
   const { data, now, person, toast } = useDashboard();
   const w = store.wiz;
@@ -420,6 +421,13 @@ function Step3() {
           </span>
         </div>
       )}
+      <div className="ee-alert ee-alert--info">
+        <Icon name="info" small />
+        <span>
+          Der Termin wird nur <b>vorgemerkt</b>. Das Presetting ruft den Kunden an, klärt die offenen Fragen und bestätigt – erst dann wird der Closer
+          informiert.
+        </span>
+      </div>
       <section className="ee-card" data-component="SlotPicker">
         <div className="ee-card__head">
           <h2>Freie Termine</h2>
@@ -468,13 +476,17 @@ function Step3() {
           onClick={() => {
             const l = data.LEADS.find((x) => x.id === w.leadId);
             if (!sel || !l) return;
-            bookSlot(l, sel);
-            toast(`Termin gebucht: ${fmtDay(sel.date)} ${fmtHour(sel.start)} · ${person(sel.closer).first} informiert`);
+            const reserved = bookSlot(l, sel);
+            toast(
+              reserved
+                ? `Termin vorgemerkt: ${fmtDay(sel.date)} ${fmtHour(sel.start)} · Presetting bestätigt nach dem Anruf`
+                : `Termin gebucht: ${fmtDay(sel.date)} ${fmtHour(sel.start)} · ${person(sel.closer).first} informiert`,
+            );
             setWizard({ slot: null });
             go("done");
           }}
         >
-          <Icon name="cal" small /> {sel ? `Termin ${fmtDay(sel.date)} ${fmtHour(sel.start)} eintragen` : "Termin auswählen"}
+          <Icon name="cal" small /> {sel ? `Termin ${fmtDay(sel.date)} ${fmtHour(sel.start)} vormerken` : "Termin auswählen"}
         </button>
       </div>
     </>
@@ -510,7 +522,7 @@ function Done() {
         <Row ok={w.vqSent}>
           {w.vqSent ? `Vorqualifizierung übertragen${w.phone ? ` – Rest klärt ${LIVE ? "das Presetting" : person(PRESETTER).first} telefonisch` : ""}` : "Vorqualifizierung übersprungen – macht das Presetting"}
         </Row>
-        <Row ok={!!a}>{a ? `Termin: ${fmtDay(a.date)} ${fmtHour(a.start)} mit ${person(a.closer).first}` : `Kein Termin – ${LIVE ? "das Presetting" : person(PRESETTER).first} ruft den Kunden an`}</Row>
+        <Row ok={!!a}>{a ? `Termin ${a.reserved ? "vorgemerkt" : "gebucht"}: ${fmtDay(a.date)} ${fmtHour(a.start)} mit ${person(a.closer).first}${a.reserved ? " – Presetting bestätigt nach dem Anruf" : ""}` : `Kein Termin – ${LIVE ? "das Presetting" : person(PRESETTER).first} ruft den Kunden an`}</Row>
       </ul>
       <p className="muted">
         Heute:{" "}

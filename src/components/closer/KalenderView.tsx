@@ -25,6 +25,16 @@ function CalCell({ k, h }: { k: string; h: number }) {
   const t = parseKey(k);
   t.setHours(h);
   const past = t < now;
+  if (a?.reserved)
+    return (
+      <div className="ee-cal__cell" style={{ cursor: "default" }}>
+        <div className={`ee-slot ee-slot--reserved ${past ? "ee-slot--past" : ""}`} style={{ height: `${a.dur * 52 - 6}px` }} title="Vom Setter vorgemerkt – das Presetting bestätigt noch">
+          <b>{fmtHour(a.start)}</b>
+          <span>reserviert</span>
+          <small>wird noch bestätigt</small>
+        </div>
+      </div>
+    );
   if (a) {
     const l = data.LEADS.find((x) => x.id === a.lead);
     return (

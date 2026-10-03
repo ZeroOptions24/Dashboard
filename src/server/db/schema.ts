@@ -234,6 +234,8 @@ export const appointment = pgTable(
     feedbackResult: text("feedback_result"),
     feedbackNote: text("feedback_note"),
     feedbackAt: timestamp("feedback_at"),
+    /** vom Setter an der Tür nur vorgemerkt – erst die Bestätigung durch den Presetter bucht ihn (Closer wird dann informiert) */
+    reserved: boolean("reserved").notNull().default(false),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

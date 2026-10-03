@@ -289,6 +289,8 @@ button.ee-list__row:hover .ee-list__title{color:var(--forest-text)}
 .ee-slot--free{background:var(--accent-soft);color:var(--accent-text);box-shadow:inset 0 0 0 1.5px var(--accent);border-style:dashed}
 .ee-slot--free b{font-weight:700}
 .ee-slot--appt{background:var(--forest);color:var(--on-forest)}
+.ee-slot--reserved{background:var(--surface-2);color:var(--ink-2);box-shadow:inset 0 0 0 1.5px var(--line-strong);border-style:dashed}
+.ee-slot--reserved small{display:block;opacity:.8}
 .ee-slot--appt small{display:block;opacity:.8}
 .ee-slot--past{opacity:.55}
 .ee-calday{display:flex;flex-direction:column}
@@ -996,3 +998,8 @@ button.ee-todo2:hover{background:var(--surface-2)}
   .ee-todo2{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto;gap:10px;padding:11px 12px}
   .ee-todo2__what b,.ee-todo2__who b{font-size:.98rem}
 }
+
+/* ---------- Leitfaden: Antworten von der Tür ---------- */
+.ee-doorbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 12px;border-radius:10px;background:var(--forest-soft);color:var(--forest-text);font-size:.88rem}
+.ee-doorfield{display:flex;flex-direction:column;gap:2px}
+.ee-ftag--door{background:var(--forest-soft);color:var(--forest-text);align-self:flex-start;margin-left:0}

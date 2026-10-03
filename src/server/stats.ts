@@ -32,7 +32,7 @@ export interface StatsForUser {
 /** Termine der letzten 120 Tage (für Closer-Kennzahlen) */
 async function recentAppointments() {
   const since = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
-  const rows = await db.select().from(schema.appointment).where(gte(schema.appointment.date, since));
+  const rows = (await db.select().from(schema.appointment).where(gte(schema.appointment.date, since))).filter((a) => !a.reserved);
   return rows.map((a) => ({ closerId: a.closerId, leadId: a.leadId, kind: a.kind, date: a.date, kunde: a.kunde, feedbackResult: a.feedbackResult, feedbackAt: a.feedbackAt?.toISOString() ?? null }));
 }
 

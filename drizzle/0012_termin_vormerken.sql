@@ -1,0 +1,1 @@
+ALTER TABLE "appointment" ADD COLUMN "reserved" boolean DEFAULT false NOT NULL;

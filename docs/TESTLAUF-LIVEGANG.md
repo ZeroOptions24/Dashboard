@@ -26,7 +26,8 @@ Test-Kunde (bitte genau so, damit man ihn erkennt):
 | Rückrufwunsch | morgen, 18:00 |
 | Notizen | „Testlauf – bitte nicht anrufen“ |
 
-→ „Direkt an der Tür vorqualifizieren“ → 3–4 Fragen beantworten (z. B. Wohnfläche 140, Heizung Gas) → „Rest telefonisch“.
+→ „Direkt an der Tür vorqualifizieren“ → 3–4 Fragen beantworten (z. B. Wohnfläche 140, Heizung Gas) → „Rest telefonisch“ → **Termin vormerken** (freier Slot des Closers).
+**Prüfen:** Closer bekommt noch **keine** Nachricht, sieht im Kalender nur „reserviert“. Presetter bekommt „Termin vorgemerkt …“.
 
 **Prüfen:** Meldung „angelegt“ ohne Warnung. In Pipedrive: neue Person **mit Adresse**, Deal „Wärmepumpe – TEST Livegang“ in der Pipeline „MB-Dashboard Wärmepumpe“, Stufe „An Presetter übergeben“, Felder MB Setter-Notiz, MB Rückrufwunsch, MB PLZ/Ort, Setter, VQ-Felder befüllt.
 
@@ -35,8 +36,8 @@ Test-Kunde (bitte genau so, damit man ihn erkennt):
 1. Übersicht → Anrufliste: „TEST Livegang“ suchen.
 2. „Anrufen“ → Leitfaden. **Prüfen:** Adresse, Rückrufwunsch, Setter-Notiz und die Vorqualifizierung von der Tür sind sichtbar.
 3. „Mailbox“ drücken → **Dashboard:** Lead steht in „Terminierung“. **Pipedrive:** Stufe „2.–4. Kontaktversuch“, Feld „MB Anrufversuche“ = 1, Notiz „Nicht erreicht (Versuch 1) – Mailbox“.
-4. Lead wieder öffnen, restliche Vorqualifizierung ergänzen (1–2 Fragen).
-5. Termin legen: freien Slot des Closers wählen (oder „Termin direkt eintragen“).
+4. Lead wieder öffnen. **Prüfen:** Hinweis „… Antworten hat … schon an der Tür aufgenommen“, diese Fragen sind ausgeblendet. Restliche Vorqualifizierung ergänzen (1–2 Fragen).
+5. Unten „Vorgemerkten Termin bestätigen“ → **Termin bestätigen**. (Ohne Vormerkung: freien Slot wählen oder „Termin direkt eintragen“.)
    **Pipedrive:** Stufe „An Closer übergeben · Aufmaßtermin“, Felder „MB Closer“, „MB Termin“, „MB Presetter“ befüllt. Der Setter hat eine Benachrichtigung.
 
 ## 3. Closer: ansehen und weiterverarbeiten

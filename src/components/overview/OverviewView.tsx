@@ -130,7 +130,7 @@ function CloserOverview() {
   const { data, me, now, go } = useDashboard();
   const todos = useTodos();
   const open = todos.filter((t) => t.group !== "later" && t.tone !== "ok").length;
-  const next = data.APPTS.filter((a) => a.closer === me && apptEnd(a) > now).sort((a, b) => apptStart(a).getTime() - apptStart(b).getTime())[0];
+  const next = data.APPTS.filter((a) => a.closer === me && !a.reserved && apptEnd(a) > now).sort((a, b) => apptStart(a).getTime() - apptStart(b).getTime())[0];
   const { CLOSER_DAY: C, BENCH } = data;
   return (
     <OverviewLayout

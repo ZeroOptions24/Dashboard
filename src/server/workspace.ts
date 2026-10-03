@@ -119,7 +119,8 @@ export async function defaultPresetterId(): Promise<string | null> {
 
 /** Leads, bei denen die Person Closer eines Termins ist */
 export async function leadIdsForCloser(userId: string) {
-  const rows = await db.select({ leadId: schema.appointment.leadId }).from(schema.appointment).where(eq(schema.appointment.closerId, userId));
+  /* nur fest gebuchte Termine – Vormerkungen sieht der Closer erst nach der Bestätigung */
+  const rows = await db.select({ leadId: schema.appointment.leadId }).from(schema.appointment).where(and(eq(schema.appointment.closerId, userId), eq(schema.appointment.reserved, false)));
   return new Set(rows.map((r) => r.leadId));
 }
 
@@ -220,6 +221,8 @@ export async function loadWorkspace(v: Viewer): Promise<Workspace> {
     isNew: Date.now() - e.createdAt.getTime() < 3 * DAY,
   }));
 
+  /* unbestätigte Vormerkungen 24 Std. vor dem Termin freigeben (zusätzlich zum täglichen Lauf) */
+  await releaseStaleReservations().catch(() => 0);
   /* Slots: alle künftigen (Setter/Presetter buchen daraus); Termine: Admin/Presetter alle, Closer eigene, sonst selbst gebuchte */
   const slots = (await db.select().from(schema.closerSlot).where(gte(schema.closerSlot.date, today))).map(
     (s): Slot => ({ id: s.id, closer: s.closerId, date: s.date, start: s.start }),
@@ -227,16 +230,22 @@ export async function loadWorkspace(v: Viewer): Promise<Workspace> {
   const apptRows = await db.select().from(schema.appointment).where(gte(schema.appointment.date, pastKey));
   const appointments = apptRows
     .filter((a) => can(v, "presetter") || a.closerId === v.id || a.createdBy === v.id)
-    .map((a) => ({
+    .map((a) => {
+      /* Closer sehen eine Vormerkung nur als belegte Zeit – ohne Kunde */
+      const hidden = a.reserved && !can(v, "presetter") && a.createdBy !== v.id;
+      return { a, hidden };
+    })
+    .map(({ a, hidden }) => ({
       id: a.id,
-      lead: a.leadId,
+      lead: hidden ? "" : a.leadId,
       closer: a.closerId,
       kind: a.kind as Appointment["kind"],
       date: a.date,
       start: a.start,
       dur: a.dur,
-      ort: a.ort,
-      kunde: a.kunde,
+      ort: hidden ? "" : a.ort,
+      kunde: hidden ? null : a.kunde,
+      reserved: a.reserved || undefined,
       feedback: a.feedbackResult ? { result: a.feedbackResult, at: fmtStamp(a.feedbackAt ?? new Date()), note: a.feedbackNote ?? "" } : null,
     }));
 
@@ -374,9 +383,35 @@ async function setterOfLead(leadId: string): Promise<string | null> {
   }
 }
 
-/** Ersttermin in einem freien Slot buchen: Slot wird zum Termin, Closer und Setter werden benachrichtigt */
-export async function bookSlot(v: Viewer, slotId: string, lead: { id: string; kunde: string; ort: string }) {
+/** Zwei-Schritte-System (Ablauf A05): Der Setter merkt an der Tür nur vor, der Presetter bestätigt nach der Qualifizierung.
+ *  asRole = Rolle, in der gebucht wird (Setter → vormerken, Presetter/Admin → fest buchen). */
+const reservesAs = (v: Viewer, asRole?: Role) => {
+  if (asRole === "setter") must(can(v, "setter"), "Keine Berechtigung zum Buchen");
+  return asRole === "setter" || (!can(v, "presetter") && v.roles.includes("setter"));
+};
+
+/** Presetter (ohne gesperrte), die über Vormerkungen informiert werden */
+async function presetterIds() {
+  const rows = await db.select({ id: schema.user.id, role: schema.user.role, banned: schema.user.banned }).from(schema.user);
+  return rows.filter((u) => !u.banned && parseRoles(u.role).includes("presetter")).map((u) => u.id);
+}
+
+const whenText = (date: string, start: number) => {
+  const [, m, d] = date.split("-");
+  return `${d}.${m}. ${pad(Math.floor(start))}:${start % 1 ? "30" : "00"}`;
+};
+
+/** Nach dem Anlegen eines Termins: fest gebucht → Closer informieren; vorgemerkt → nur Presetter */
+async function announceBooking(v: Viewer & { name?: string }, reserved: boolean, closerId: string, kunde: string, ort: string, date: string, start: number) {
+  const when = whenText(date, start);
+  if (reserved) await notify(await presetterIds(), `Termin vorgemerkt: ${kunde}, ${when}${ort ? ` (${ort})` : ""} – bitte anrufen, qualifizieren und bestätigen`, "terminierung");
+  else if (closerId !== v.id) await notify([closerId], `Neuer Aufmaßtermin: ${kunde}, ${when}${ort ? ` (${ort})` : ""}`, "aufmass");
+}
+
+/** Aufmaßtermin in einem freien Slot buchen (bzw. als Setter vormerken) */
+export async function bookSlot(v: Viewer, slotId: string, lead: { id: string; kunde: string; ort: string }, asRole?: Role) {
   must(can(v, "setter", "presetter"), "Keine Berechtigung zum Buchen");
+  const reserved = reservesAs(v, asRole);
   const leadId = clean(lead.id, 60);
   must(!!leadId, "Lead fehlt");
   /* DELETE … RETURNING ist atomar: bei gleichzeitigen Buchungen bekommt nur eine den Slot */
@@ -385,11 +420,10 @@ export async function bookSlot(v: Viewer, slotId: string, lead: { id: string; ku
   const id = randomUUID();
   const kunde = clean(lead.kunde, 120),
     ort = clean(lead.ort, 120);
-  await db.insert(schema.appointment).values({ id, leadId, closerId: s.closerId, kind: "erst", date: s.date, start: s.start, dur: 1.5, ort, kunde, createdBy: v.id });
-  const [, m, d] = s.date.split("-");
-  await notify([s.closerId], `Neuer Aufmaßtermin: ${kunde}, ${d}.${m}. ${pad(s.start)}:00${ort ? ` (${ort})` : ""}`, "aufmass");
+  await db.insert(schema.appointment).values({ id, leadId, closerId: s.closerId, kind: "erst", date: s.date, start: s.start, dur: 1.5, ort, kunde, reserved, createdBy: v.id });
+  await announceBooking(v, reserved, s.closerId, kunde, ort, s.date, s.start);
   if (isOwnLeadId(leadId)) await syncOwnLead(leadId); /* Closer + Termin in Pipedrive eintragen */
-  return { id, closer: s.closerId, date: s.date, start: s.start };
+  return { id, closer: s.closerId, date: s.date, start: s.start, reserved };
 }
 
 export type FeedbackResult = "checks" | "nicht_angetroffen" | "verloren" | "verkauft" | "entscheidung";
@@ -453,8 +487,9 @@ export async function saveFeedback(
 
 /** Termin direkt eintragen (ohne freien Slot): Datum, Uhrzeit, Closer frei wählbar.
  *  Abgelehnt, wenn der Closer zu der Zeit schon einen Termin hat; ein passender freier Slot wird verbraucht. */
-export async function bookDirect(v: Viewer, lead: { id: string; kunde: string; ort: string }, input: { date: string; start: number; closerId: string }) {
+export async function bookDirect(v: Viewer, lead: { id: string; kunde: string; ort: string }, input: { date: string; start: number; closerId: string }, asRole?: Role) {
   must(can(v, "setter", "presetter"), "Keine Berechtigung zum Buchen");
+  const reserved = reservesAs(v, asRole);
   const leadId = clean(lead.id, 60);
   must(!!leadId, "Lead fehlt");
   must(isDateKey(input.date) && input.date >= todayKey(), "Bitte ein Datum ab heute wählen");
@@ -469,12 +504,60 @@ export async function bookDirect(v: Viewer, lead: { id: string; kunde: string; o
   const id = randomUUID();
   const kunde = clean(lead.kunde, 120),
     ort = clean(lead.ort, 120);
-  await db.insert(schema.appointment).values({ id, leadId, closerId: closer.id, kind: "erst", date: input.date, start, dur, ort, kunde, createdBy: v.id });
-  const [, m, d] = input.date.split("-");
-  const time = `${pad(Math.floor(start))}:${start % 1 ? "30" : "00"}`;
-  if (closer.id !== v.id) await notify([closer.id], `Neuer Aufmaßtermin: ${kunde}, ${d}.${m}. ${time}${ort ? ` (${ort})` : ""}`, "aufmass");
+  await db.insert(schema.appointment).values({ id, leadId, closerId: closer.id, kind: "erst", date: input.date, start, dur, ort, kunde, reserved, createdBy: v.id });
+  await announceBooking(v, reserved, closer.id, kunde, ort, input.date, start);
   if (isOwnLeadId(leadId)) await syncOwnLead(leadId);
-  return { id, closer: closer.id, date: input.date, start };
+  return { id, closer: closer.id, date: input.date, start, reserved };
+}
+
+/** Vorgemerkten Termin bestätigen (Presetter nach der Qualifizierung): jetzt fest, Closer und Setter werden informiert.
+ *  Den Lead-Status („Aufmaßtermin“) speichert der Client wie beim normalen Buchen. */
+export async function confirmReservation(v: Viewer, apptId: string) {
+  must(can(v, "presetter"), "Nur Presetter bestätigen vorgemerkte Termine");
+  const [a] = await db.update(schema.appointment).set({ reserved: false }).where(and(eq(schema.appointment.id, apptId), eq(schema.appointment.reserved, true))).returning();
+  must(!!a, "Die Vormerkung gibt es nicht mehr – bitte einen neuen Termin legen");
+  const when = whenText(a.date, a.start);
+  if (a.closerId) await notify([a.closerId], `Neuer Aufmaßtermin: ${a.kunde ?? "Kunde"}, ${when}${a.ort ? ` (${a.ort})` : ""}`, "aufmass");
+  if (a.createdBy && a.createdBy !== v.id) await notify([a.createdBy], `${a.kunde ?? "Kunde"}: vorgemerkter Termin ${when} ist bestätigt`, "aufmass");
+  if (isOwnLeadId(a.leadId)) await syncOwnLead(a.leadId);
+  return { id: a.id };
+}
+
+/** Vormerkung lösen: Termin entfällt, der Slot wird wieder frei (Presetter, Admin oder der Setter selbst) */
+export async function releaseReservation(v: Viewer, apptId: string, why = "") {
+  const [a] = await db.select().from(schema.appointment).where(and(eq(schema.appointment.id, apptId), eq(schema.appointment.reserved, true)));
+  must(!!a, "Die Vormerkung gibt es nicht mehr");
+  must(can(v, "presetter") || a.createdBy === v.id);
+  await freeReservation(a);
+  if (a.createdBy && a.createdBy !== v.id) await notify([a.createdBy], `${a.kunde ?? "Kunde"}: Vormerkung ${whenText(a.date, a.start)} wurde gelöst${why ? ` – ${clean(why, 200)}` : ""}`, "terminierung");
+  return { id: a.id };
+}
+
+async function freeReservation(a: typeof schema.appointment.$inferSelect) {
+  await db.delete(schema.appointment).where(eq(schema.appointment.id, a.id));
+  /* volle Stunde in der Zukunft → wieder als freier Slot anbieten */
+  if (a.closerId && a.start % 1 === 0 && a.date >= todayKey())
+    await db.insert(schema.closerSlot).values({ id: randomUUID(), closerId: a.closerId, date: a.date, start: a.start }).onConflictDoNothing();
+  if (isOwnLeadId(a.leadId)) await syncOwnLead(a.leadId);
+}
+
+/** Täglicher Lauf: Vormerkungen, die 24 Std. vor dem Termin noch nicht bestätigt sind, freigeben */
+export async function releaseStaleReservations(now = new Date()) {
+  const rows = await db.select().from(schema.appointment).where(eq(schema.appointment.reserved, true));
+  /* Termine sind in deutscher Zeit gespeichert – Vergleich als „JJJJ-MM-TT hh:mm“ in Europe/Berlin */
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(new Date(now.getTime() + 24 * 36e5))
+      .map((x) => [x.type, x.value]),
+  );
+  const limit = `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+  const stale = rows.filter((a) => `${a.date} ${pad(Math.floor(a.start))}:${a.start % 1 ? "30" : "00"}` <= limit);
+  for (const a of stale) {
+    await freeReservation(a);
+    const text = `${a.kunde ?? "Kunde"}: vorgemerkter Termin ${whenText(a.date, a.start)} wurde nicht bestätigt und ist wieder frei`;
+    await notify([...(a.createdBy ? [a.createdBy] : []), ...(await presetterIds())], text, "terminierung");
+  }
+  return stale.length;
 }
 
 /* ---------- Wettbewerb ---------- */

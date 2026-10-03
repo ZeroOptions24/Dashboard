@@ -10,7 +10,8 @@ import { openDrawer } from "@/lib/ui";
 
 export default function TermineView() {
   const { data, me, now } = useDashboard();
-  const mine = data.APPTS.filter((a) => a.closer === me).sort((a, b) => apptStart(a).getTime() - apptStart(b).getTime());
+  /* Vormerkungen (noch nicht bestätigt) erscheinen nur im Kalender als „reserviert“ */
+  const mine = data.APPTS.filter((a) => a.closer === me && !a.reserved).sort((a, b) => apptStart(a).getTime() - apptStart(b).getTime());
   const due = mine.filter((a) => needsFeedback(a, now)),
     up = mine.filter((a) => apptEnd(a) > now),
     done = mine.filter((a) => a.feedback).reverse();

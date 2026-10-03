@@ -176,5 +176,12 @@ describe("Closer-Kennzahlen und To-Dos", () => {
     ]);
     const s = todoItems({ ...base, role: "setter", me: "anna", leads, leadsToday: 2, dayGoal: 5, openContracts: 0 });
     expect(s.map((t) => t.what)).toEqual(["Noch 3 Leads"]);
+    /* vom Setter vorgemerkter Termin übermorgen → „bestätigen“, unter 48 Std. rot */
+    const appts = [{ id: "t1", lead: "1", closer: "leo", kind: "erst" as const, date: "2026-10-01", start: 14, dur: 1.5, ort: "", feedback: null, reserved: true }];
+    const r = todoItems({ ...base, role: "presetter", me: "pia", leads, appts, openContracts: 0 });
+    expect(r[0]).toMatchObject({ group: "over", tone: "bad", what: "Vorgemerkten Termin bestätigen", who: "Kunde 1" });
+    /* alter Rückrufwunsch (> 7 Tage) ist nicht mehr überfällig */
+    const alt = todoItems({ ...base, role: "presetter", me: "pia", leads: [mk("3", "eingereicht", { nextTry: "Rückruf 01.09. 18:00", hist: [["Lead eingereicht", "28.08. 09:00"]] })], openContracts: 0 });
+    expect(alt[0]).toMatchObject({ group: "today", tone: "warn", what: "Wartet auf Anruf" });
   });
 });

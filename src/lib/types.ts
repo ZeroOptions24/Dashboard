@@ -111,6 +111,8 @@ export interface Lead {
   pdChangedAt?: string;
   /** Antworten aus der Vorqualifizierung (Feldnamen wie im Formular wp-vorqual) */
   vq?: Record<string, string>;
+  /** Fragen der Vorqualifizierung, die der Setter schon an der Haustür beantwortet hat (der Presetter fragt nur den Rest) */
+  door?: string[];
   themen?: string[];
 }
 
@@ -136,6 +138,8 @@ export interface Appointment {
   ort: string;
   /** Pflicht-Rückmeldung des Closers nach dem Termin */
   feedback: AppointmentFeedback | null;
+  /** vom Setter nur vorgemerkt – der Presetter bestätigt (Zwei-Schritte-System) */
+  reserved?: boolean;
 }
 
 export interface Slot {

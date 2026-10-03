@@ -5,10 +5,11 @@ import CustomerBrief from "@/components/leads/CustomerBrief";
 import Icon from "@/components/ui/Icon";
 import { TryChip } from "@/components/ui/Chips";
 import { PageHead } from "@/components/ui/Kpi";
-import { bookSlot, setLeadPreNote, setLeadStatus, setLeadVq } from "@/lib/actions";
+import { useState } from "react";
+import { bookSlot, confirmReservation, releaseReservation, setLeadPreNote, setLeadStatus, setLeadVq } from "@/lib/actions";
 import { CallbackAlerts, LeadLockBanner } from "@/components/presetter/CallTools";
 import DirectBooking from "@/components/booking/DirectBooking";
-import { bookableSlots } from "@/lib/appointments";
+import { bookableSlots, reservationOf } from "@/lib/appointments";
 import { GUIDES } from "@/lib/domain";
 import { fmtDay, fmtHour } from "@/lib/format";
 import { inCallPool, isCalling, telFull, telHref, urgencySort } from "@/lib/leads";
@@ -44,6 +45,8 @@ function Script({ text, anrede }: { text: string; anrede: string }) {
 
 export default function LeitfadenView() {
   const { data, ui, me, now, person, toast } = useDashboard();
+  /* Fragen, die der Setter schon an der Tür beantwortet hat, sind ausgeblendet – „Alle anzeigen“ holt sie zurück */
+  const [showDoor, setShowDoor] = useState(false);
   const queue = data.LEADS.filter((l) => inCallPool(l, me) && isCalling(l.status)).sort(urgencySort(now));
   const l = queue.find((x) => x.id === ui.guideLead) || queue[0];
   if (!l)
@@ -75,6 +78,12 @@ export default function LeitfadenView() {
   const sel = data.SLOTS.find((s) => s.id === ui.guideSlot);
   const idx = queue.indexOf(l),
     next = queue[idx + 1];
+  const door = new Set(l.door ?? []);
+  const isDoor = (n: string) => door.has(n) && vq[n] !== undefined && vq[n] !== "";
+  const doorCount = [...door].filter(isDoor).length;
+  const openIn = (fields: (typeof VQ_SECTIONS)[number]["fields"]) => fields.filter((f) => fieldVisible(f, vq) && !isDoor(f.n));
+  const firstOpen = VQ_SECTIONS.findIndex((s) => openIn(s.fields).some((f) => vq[f.n] === undefined || vq[f.n] === ""));
+  const reservation = reservationOf(data.APPTS, l.id);
   const secCount = (fields: (typeof VQ_SECTIONS)[number]["fields"]) => {
     const fs = fields.filter((f) => fieldVisible(f, vq));
     return `${fs.filter((f) => vq[f.n] !== undefined && vq[f.n] !== "").length}/${fs.length}`;
@@ -121,9 +130,7 @@ export default function LeitfadenView() {
       <section className="ee-callbar" data-component="CallBar">
         <div className="ee-callbar__who">
           <b>{l.kunde}</b>
-          <span>
-            {[l.ort, l.attempts ? `${l.attempts}. Versuch` : "Erstanruf"].filter(Boolean).join(" · ")}
-          </span>
+          <span>{[l.ort, l.attempts ? `${l.attempts}. Versuch` : "Erstanruf"].filter(Boolean).join(" · ")}</span>
         </div>
         <a className="ee-btn ee-btn--primary" href={telHref(l)}>
           <Icon name="phone" small /> {telFull(l)}
@@ -143,6 +150,9 @@ export default function LeitfadenView() {
           </button>
           <button className="ee-btn ee-btn--sm ee-btn--ghost" title="Absage mit Grund „Falsche Kontaktdaten“" onClick={wrongNumber}>
             Falsche Nummer
+          </button>
+          <button className="ee-btn ee-btn--sm ee-btn--ghost" onClick={() => openDrawer({ kind: "objections", id: l.id })} data-component="ObjectionButton">
+            <Icon name="msg" small /> Einwände
           </button>
           {next && (
             <button className="ee-btn ee-btn--ghost ee-btn--sm" onClick={() => pick(next.id)}>
@@ -173,7 +183,12 @@ export default function LeitfadenView() {
                   <dt>Adresse</dt>
                   <dd>
                     {l.adresse}{" "}
-                    <a className="ee-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresse)}`} target="_blank" rel="noopener">
+                    <a
+                      className="ee-link"
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresse)}`}
+                      target="_blank"
+                      rel="noopener"
+                    >
                       Karte
                     </a>
                   </dd>
@@ -247,25 +262,49 @@ export default function LeitfadenView() {
                   </div>
                 </div>
               </div>
-              {p.done ? (
-                <div className="ee-alert ee-alert--ok">
-                  <Icon name="check" small /> {p.done} Antworten kommen schon von der Tür – nur Offenes fragen
+              <div className="ee-alert ee-alert--info">
+                <Icon name="info" small />
+                <span>
+                  Vorbereiten: <b>Jahresverbrauch</b> in der richtigen Einheit (Abrechnung bereitlegen lassen) und bei Selbstnutzern die <b>Einkommensfrage</b>{" "}
+                  ganz am Ende.
+                </span>
+              </div>
+              {doorCount ? (
+                <div className="ee-doorbar" data-component="DoorFilter">
+                  <span>
+                    <b>{doorCount}</b> {doorCount === 1 ? "Antwort hat" : "Antworten hat"} {l.setter === "unbekannt" ? "der Setter" : person(l.setter).first}{" "}
+                    schon an der Tür aufgenommen – {showDoor ? "alle Fragen werden gezeigt" : "nur offene Fragen werden gezeigt"}
+                  </span>
+                  <button type="button" className="ee-btn ee-btn--sm" onClick={() => setShowDoor(!showDoor)}>
+                    {showDoor ? "Nur offene zeigen" : "Alle anzeigen"}
+                  </button>
                 </div>
               ) : null}
               <form className="stack" style={{ gap: 8 }} noValidate data-component="VqForm" onSubmit={(e) => e.preventDefault()}>
-                {VQ_SECTIONS.map((s, i) => (
-                  <details key={`${l.id}-${s.key}`} className="ee-vqsec" open={i === 0 && !p.done ? true : undefined}>
-                    <summary>
-                      <span>{s.title}</span>
-                      <span className="ee-vqsec__count num">{secCount(s.fields)}</span>
-                    </summary>
-                    <div className="ee-form">
-                      {s.fields.map((f) => (
-                        <Field key={f.n} f={f} values={vq} scope="pq" onChange={(n, v) => setLeadVq(l.id, n, v)} />
-                      ))}
-                    </div>
-                  </details>
-                ))}
+                {VQ_SECTIONS.map((s, i) => {
+                  const shown = s.fields.filter((f) => showDoor || !isDoor(f.n));
+                  if (!shown.length) return null;
+                  return (
+                    <details key={`${l.id}-${s.key}`} className="ee-vqsec" open={i === firstOpen ? true : undefined}>
+                      <summary>
+                        <span>{s.title}</span>
+                        <span className="ee-vqsec__count num">{secCount(s.fields)}</span>
+                      </summary>
+                      <div className="ee-form">
+                        {shown.map((f) =>
+                          isDoor(f.n) ? (
+                            <div key={f.n} className="ee-doorfield">
+                              <span className="ee-ftag ee-ftag--door">von der Tür</span>
+                              <Field f={f} values={vq} scope="pq" onChange={(n, v) => setLeadVq(l.id, n, v)} />
+                            </div>
+                          ) : (
+                            <Field key={f.n} f={f} values={vq} scope="pq" onChange={(n, v) => setLeadVq(l.id, n, v)} />
+                          ),
+                        )}
+                      </div>
+                    </details>
+                  );
+                })}
               </form>
               <div className="ee-field">
                 <label htmlFor="guideNote">Notiz für den Closer</label>
@@ -289,38 +328,84 @@ export default function LeitfadenView() {
               ))}
             </div>
             <div className="ee-phase" data-step="4">
-              <h3>Termin legen</h3>
-              <Script text={fill(g.close)} anrede={l.anrede} />
-              {paused.length > 0 && (
-                <div className="ee-alert ee-alert--bad">
-                  <Icon name="lock" small /> {paused.map((k) => person(k).first).join(", ")} {paused.length > 1 ? "sind" : "ist"} pausiert – offene Rückmeldungen
+              <h3>{reservation ? "Vorgemerkten Termin bestätigen" : "Termin legen"}</h3>
+              {reservation ? (
+                <div className="ee-alert ee-alert--warn" data-component="ReservationConfirm">
+                  <div className="stack" style={{ gap: 10, width: "100%" }}>
+                    <span>
+                      <b>{person(l.setter).first}</b> hat an der Tür einen Termin vorgemerkt:{" "}
+                      <b>
+                        {fmtDay(reservation.date)} {fmtHour(reservation.start)} bei {person(reservation.closer).first}
+                      </b>
+                      . Erst durchqualifizieren, dann bestätigen – der Closer wird erst jetzt informiert.
+                    </span>
+                    <div className="row">
+                      <button
+                        className="ee-btn ee-btn--primary"
+                        onClick={() => {
+                          confirmReservation(l, reservation.id);
+                          toast(
+                            `Termin bestätigt: ${fmtDay(reservation.date)} ${fmtHour(reservation.start)} · ${person(reservation.closer).first} und ${person(l.setter).first} informiert`,
+                          );
+                          advance();
+                        }}
+                      >
+                        <Icon name="check" small /> Termin bestätigen
+                      </button>
+                      <button
+                        className="ee-btn"
+                        onClick={() => {
+                          releaseReservation(l, reservation.id, "passt nicht – neuer Termin wird gesucht");
+                          toast("Vormerkung gelöst – bitte einen anderen Termin wählen", "info");
+                        }}
+                      >
+                        Anderen Termin wählen
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              ) : null}
+              {!reservation && (
+                <>
+                  <Script text={fill(g.close)} anrede={l.anrede} />
+                  {paused.length > 0 && (
+                    <div className="ee-alert ee-alert--bad">
+                      <Icon name="lock" small /> {paused.map((k) => person(k).first).join(", ")} {paused.length > 1 ? "sind" : "ist"} pausiert – offene
+                      Rückmeldungen
+                    </div>
+                  )}
+                  <div data-component="SlotPicker">
+                    {Object.keys(byDay).length ? (
+                      Object.entries(byDay)
+                        .slice(0, 5)
+                        .map(([k, ss]) => (
+                          <div key={k} className="ee-slotpick__day">
+                            <b>{fmtDay(k)}</b>
+                            <div className="ee-slotpick">
+                              {ss.map((s) => (
+                                <button
+                                  key={s.id}
+                                  className="ee-slotpick__btn"
+                                  aria-pressed={ui.guideSlot === s.id}
+                                  onClick={() => updateUi({ guideSlot: s.id })}
+                                >
+                                  {fmtHour(s.start)}
+                                  {closers.length > 1 ? ` · ${person(s.closer).first}` : ""}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                    ) : (
+                      <p className="muted">Keine freien Termine.</p>
+                    )}
+                  </div>
+                  <button className="ee-btn ee-btn--primary" disabled={!sel} onClick={book}>
+                    <Icon name="cal" small /> {sel ? `Termin ${fmtDay(sel.date)} ${fmtHour(sel.start)} eintragen` : "Termin auswählen"}
+                  </button>
+                  <DirectBooking key={l.id} lead={l} onBooked={advance} />
+                </>
               )}
-              <div data-component="SlotPicker">
-                {Object.keys(byDay).length ? (
-                  Object.entries(byDay)
-                    .slice(0, 5)
-                    .map(([k, ss]) => (
-                      <div key={k} className="ee-slotpick__day">
-                        <b>{fmtDay(k)}</b>
-                        <div className="ee-slotpick">
-                          {ss.map((s) => (
-                            <button key={s.id} className="ee-slotpick__btn" aria-pressed={ui.guideSlot === s.id} onClick={() => updateUi({ guideSlot: s.id })}>
-                              {fmtHour(s.start)}
-                              {closers.length > 1 ? ` · ${person(s.closer).first}` : ""}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                ) : (
-                  <p className="muted">Keine freien Termine.</p>
-                )}
-              </div>
-              <button className="ee-btn ee-btn--primary" disabled={!sel} onClick={book}>
-                <Icon name="cal" small /> {sel ? `Termin ${fmtDay(sel.date)} ${fmtHour(sel.start)} eintragen` : "Termin auswählen"}
-              </button>
-              <DirectBooking key={l.id} lead={l} onBooked={advance} />
             </div>
           </div>
         </section>
