@@ -12,6 +12,8 @@ import {
   updateMemberAction,
   importAssignmentsAction,
   ensurePipelineAction,
+  getTargetsAction,
+  setTargetsAction,
   listAuditAction,
   pipelineStatusAction,
   retryOwnLeadSyncAction,
@@ -27,8 +29,9 @@ import { useDashboard } from "@/lib/useDashboard";
 import type { Role } from "@/lib/types";
 import type { OnboardingRow, OnboardingStatus } from "@/server/onboarding";
 import type { AssignmentLine } from "@/server/setter-assignment";
+import type { Targets } from "@/server/targets";
 import type { AuditEntry, ImportLine, MemberDetails, UnsentMail } from "@/server/team";
-import { reloadLeads } from "@/lib/live";
+import { reloadLeads, reloadWorkspace } from "@/lib/live";
 
 const STATUS: Record<OnboardingStatus, { label: string; tone: string; next: string }> = {
   eingeladen: { label: "Eingeladen", tone: "info", next: "wartet auf Daten" },
@@ -726,6 +729,14 @@ function AssignCard() {
             {valid ? `${valid} übernehmen` : "Übernehmen"}
           </button>
         </div>
+        <div className="row" style={{ gap: 8 }}>
+          <a className="ee-btn ee-btn--ghost ee-btn--sm" href="/api/admin/export?liste=ohne-setter" download>
+            <Icon name="doc" small /> Leads ohne Setter (Excel/CSV)
+          </a>
+          <a className="ee-btn ee-btn--ghost ee-btn--sm" href="/api/admin/export?liste=dubletten" download>
+            <Icon name="doc" small /> Mögliche Dubletten (Excel/CSV)
+          </a>
+        </div>
       </div>
     </section>
   );
@@ -809,6 +820,72 @@ function PipelineCard() {
   );
 }
 
+/* ---------- Zielwerte (färben Kennzahlen ein, Tagesziele) ---------- */
+const TARGET_FIELDS: [keyof Targets, string, string][] = [
+  ["terminQuote", "Terminquote", "% der Leads"],
+  ["checksQuote", "Checks-Quote", "% der Termine"],
+  ["verkaufQuote", "Verkaufsquote", "% der Checks"],
+  ["verkaufMonat", "Verkäufe pro Monat", "Team"],
+  ["leadsProTag", "Leads pro Setter und Tag", "Tagesziel"],
+  ["anrufeProTag", "Anrufe pro Presetter und Tag", "Tagesziel"],
+  ["erstanrufStunden", "Erstanruf spätestens nach", "Stunden"],
+];
+
+function TargetsCard() {
+  const { toast } = useDashboard();
+  const [t, setT] = useState<Record<string, string> | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let off = false;
+    getTargetsAction().then((res) => !off && res.ok && setT(Object.fromEntries(Object.entries(res.data).map(([k, v]) => [k, String(v)]))));
+    return () => {
+      off = true;
+    };
+  }, []);
+  if (!t) return null;
+  return (
+    <section className="ee-card" data-component="TargetsCard">
+      <details>
+        <summary style={{ cursor: "pointer" }}>
+          <h2 style={{ display: "inline" }}>Zielwerte</h2> <span className="muted">färben Kennzahlen grün/rot, Tagesziele</span>
+        </summary>
+        <form
+          className="stack"
+          style={{ gap: 10, marginTop: 12 }}
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            const res = await setTargetsAction(Object.fromEntries(Object.entries(t).map(([k, v]) => [k, Number(String(v).replace(",", "."))])) as Partial<Targets>);
+            setBusy(false);
+            if (!res.ok) return toast(res.error, "info");
+            toast("Zielwerte gespeichert – gelten ab dem nächsten Laden für alle", "check");
+            void reloadWorkspace();
+          }}
+        >
+          <div className="ee-grid g-2" style={{ gap: 10 }}>
+            {TARGET_FIELDS.map(([k, label, unit]) => (
+              <div key={k} className="ee-field">
+                <label htmlFor={`target-${k}`}>{label}</label>
+                <input
+                  className="ee-input num"
+                  id={`target-${k}`}
+                  inputMode="decimal"
+                  value={t[k] ?? ""}
+                  onChange={(e) => setT({ ...t, [k]: e.target.value })}
+                />
+                <span className="ee-hint">{unit}</span>
+              </div>
+            ))}
+          </div>
+          <button className="ee-btn ee-btn--primary" type="submit" disabled={busy}>
+            Zielwerte speichern
+          </button>
+        </form>
+      </details>
+    </section>
+  );
+}
+
 export default function TeamView() {
   const { toast } = useDashboard();
   const [rows, setRows] = useState<OnboardingRow[] | null>(null);
@@ -885,6 +962,7 @@ export default function TeamView() {
           <InviteForm onDone={load} />
           <ImportCard onDone={load} />
           <AssignCard />
+          <TargetsCard />
           <AuditCard />
         </div>
       </div>

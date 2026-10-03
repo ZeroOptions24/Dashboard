@@ -3,6 +3,7 @@ import { computeStats, type LeadStats } from "@/lib/stats";
 import type { AdminKpi, MbStats, PersonKey } from "@/lib/types";
 import { isAdmin } from "@/lib/roles";
 import { presetterStats, type PresetterStats } from "@/lib/lead-activity";
+import { getTargets } from "./targets";
 import { enrichLeads, loadLeadsFromPipedrive, type LeadContext, type LeadUser } from "./pipedrive/leads";
 
 /* Kennzahlen je Rolle: berechnet über ALLE Leads, ausgeliefert nur das Erlaubte.
@@ -25,6 +26,7 @@ export interface StatsForUser {
 
 export async function statsForUser(user: LeadUser, ctx: LeadContext): Promise<StatsForUser> {
   const now = new Date();
+  await getTargets(); /* aktuelle Zielwerte (z. B. Leads pro Tag für die Serie) */
   const activities = ctx.activities ?? [];
   const leads = enrichLeads(await loadLeadsFromPipedrive(), ctx);
   const s = computeStats(leads, now);

@@ -43,4 +43,14 @@ describe("Admin-Werkzeuge", () => {
     expect(w.boardArchive[0].title).toBe("Cup Oktober");
     expect((await team.listAudit())[0].label).toBe("Wettbewerb abgeschlossen");
   });
+
+  it("Zielwerte: Standard, speichern, Grenzen, wirken auf die Berechnung", async () => {
+    const { getTargets, setTargets } = await import("@/server/targets");
+    const { TARGETS } = await import("@/lib/domain");
+    expect(await getTargets()).toMatchObject({ terminQuote: 42, anrufeProTag: 30, erstanrufStunden: 2 });
+    await setTargets({ terminQuote: 50, leadsProTag: 7 }, "u-admin");
+    expect(await getTargets()).toMatchObject({ terminQuote: 50, leadsProTag: 7, checksQuote: 65 });
+    expect(TARGETS.leadsProTag).toBe(7);
+    await expect(setTargets({ terminQuote: 150 }, "u-admin")).rejects.toThrow(/Ungültiger Wert/);
+  });
 });

@@ -14,6 +14,7 @@ import type { Workspace } from "@/server/workspace";
 import { setMoneyGoalAction } from "@/app/actions/workspace";
 
 import { LIVE } from "./source";
+import { TARGETS } from "./domain";
 export { LIVE };
 
 /* ---------- Assistent „Lead erfassen“ ---------- */
@@ -189,6 +190,11 @@ export function applyWorkspace(w: Workspace) {
   Object.assign(d.PAYOUTS, w.payouts);
   if (w.moneyGoal != null) d.MONEY_GOAL[w.me] = w.moneyGoal;
   store.live.closers = w.closers;
+  /* Zielwerte aus den Admin-Einstellungen */
+  Object.assign(TARGETS, { terminQuote: w.targets.terminQuote, checksQuote: w.targets.checksQuote, verkaufQuote: w.targets.verkaufQuote, verkaufMonat: w.targets.verkaufMonat, leadsProTag: w.targets.leadsProTag });
+  d.DAY_GOAL.goal = w.targets.leadsProTag;
+  d.CALL_DAY.goal = w.targets.anrufeProTag;
+  d.BENCH.firstCallH = w.targets.erstanrufStunden;
   store.live.ready = true;
   rerender();
 }

@@ -6,6 +6,7 @@ import type { Appointment, Board, BoardArchiveEntry, Notification, Payout, Payou
 import { db, schema } from "./db";
 import { loadLeadsFromPipedrive, setterKey, withAssignments } from "./pipedrive/leads";
 import { getOwnLead, isOwnLeadId, syncOwnLead } from "./own-leads";
+import { getTargets, type Targets } from "./targets";
 import { loadSetterAssignments } from "./setter-assignment";
 
 /* Team-Alltag aus der Datenbank: Personen, Benachrichtigungen, Events, Closer-Kalender,
@@ -143,6 +144,8 @@ export interface Workspace {
   people: Person[];
   /** aktive Personen mit Closer-Rolle (Auswahl beim direkten Termin) */
   closers: PersonKey[];
+  /** Zielwerte (Admin-Einstellung) */
+  targets: Targets;
   notifications: Notification[];
   events: TeamEvent[];
   slots: Slot[];
@@ -293,6 +296,7 @@ export async function loadWorkspace(v: Viewer): Promise<Workspace> {
     me: v.id,
     people,
     closers: closerIds,
+    targets: await getTargets(),
     notifications: notifs.map((n) => ({ t: n.text, time: relTime(n.createdAt), status: (n.status as StatusKey) ?? null, unread: !n.readAt })),
     events,
     slots,

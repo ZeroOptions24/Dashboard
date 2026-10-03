@@ -7,6 +7,7 @@ import { requireAdmin } from "@/server/auth";
 import { deleteOwnLead, ownLeadStats, retryOwnLeadSync } from "@/server/own-leads";
 import { ensurePipeline, getPipelineConfig, PIPELINE_NAME } from "@/server/pipedrive/dashboard-pipeline";
 import * as sa from "@/server/setter-assignment";
+import { getTargets, setTargets, type Targets } from "@/server/targets";
 import * as team from "@/server/team";
 import { setterIdMap } from "@/server/workspace";
 
@@ -123,4 +124,14 @@ export async function deleteOwnLeadAction(leadId: string) {
     await deleteOwnLead(leadId, adminId);
     return null;
   });
+}
+
+/* ---------- Zielwerte ---------- */
+
+export async function getTargetsAction() {
+  return asAdmin(() => getTargets());
+}
+
+export async function setTargetsAction(input: Partial<Targets>) {
+  return asAdmin((adminId) => setTargets(input, adminId));
 }
