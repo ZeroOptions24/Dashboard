@@ -428,7 +428,7 @@ function FeedbackDrawer({ id }: { id: string }) {
           </fieldset>
           <div className="ee-form" hidden={res !== "checks"}>
             <div className="ee-field">
-              <label htmlFor="fbDate">2. Termin am (falls schon fest)</label>
+              <label htmlFor="fbDate">Verkaufstermin am (falls schon fest)</label>
               <select className="ee-select" id="fbDate" value={date} onChange={(e) => setDate(e.target.value)}>
                 <option value="">noch offen</option>
                 {dates.map((x) => (

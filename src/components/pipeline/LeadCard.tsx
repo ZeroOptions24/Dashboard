@@ -1,7 +1,7 @@
 import Icon from "@/components/ui/Icon";
 import { AgeBadge, TryChip } from "@/components/ui/Chips";
 import { fmtDay, fmtHour, eur } from "@/lib/format";
-import { apptStart, isOverdue, provFor } from "@/lib/leads";
+import { apptStart, isCalling, isOverdue, provFor } from "@/lib/leads";
 import type { Appointment, Lead, Person, Role } from "@/lib/types";
 
 interface Ctx {
@@ -14,9 +14,9 @@ interface Ctx {
 /** Nächster Schritt je Lead in Klartext. */
 function NextStep({ lead: l, now, appts, person }: { lead: Lead } & Omit<Ctx, "role">) {
   const day = (i: number) => l.hist[i][1].split(" ")[0];
-  if (l.status === "eingereicht" && !l.attempts && !l.nextTry) return <AgeBadge lead={l} now={now} />;
-  if (l.status === "eingereicht") return <TryChip lead={l} now={now} />;
-  if (l.status === "termin") {
+  if (isCalling(l.status) && !l.attempts && !l.nextTry) return <AgeBadge lead={l} now={now} />;
+  if (isCalling(l.status)) return <TryChip lead={l} now={now} />;
+  if (l.status === "aufmass") {
     const appt = appts.filter((a) => a.lead === l.id).sort((a, b) => apptStart(b).getTime() - apptStart(a).getTime())[0];
     if (!appt) return null;
     return (
@@ -26,15 +26,21 @@ function NextStep({ lead: l, now, appts, person }: { lead: Lead } & Omit<Ctx, "r
       </span>
     );
   }
-  if (l.status === "checks") {
-    const c = appts.find((a) => a.lead === l.id && a.kind === "closing" && !a.feedback);
+  if (l.status === "checks")
+    return (
+      <span className="ee-lcard__when">
+        <Icon name="clock" small /> in den Checks seit {day(0)}
+      </span>
+    );
+  if (l.status === "verkaufstermin") {
+    const c = appts.filter((a) => a.lead === l.id && a.kind === "closing").sort((a, b) => apptStart(b).getTime() - apptStart(a).getTime())[0];
     return c ? (
       <span className="ee-lcard__when">
-        <Icon name="cal" small /> 2. Termin {fmtDay(c.date)} {fmtHour(c.start)}
+        <Icon name="cal" small /> Verkaufstermin {fmtDay(c.date)} {fmtHour(c.start)}
       </span>
     ) : (
       <span className="ee-lcard__when">
-        <Icon name="clock" small /> in den Checks seit {day(0)}
+        <Icon name="clock" small /> Verkaufstermin wird geplant
       </span>
     );
   }

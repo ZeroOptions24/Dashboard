@@ -15,7 +15,7 @@ export default function TermineView() {
     up = mine.filter((a) => apptEnd(a) > now),
     done = mine.filter((a) => a.feedback).reverse();
   const inChecks = data.LEADS.filter(
-    (l) => l.closer === me && l.status === "checks" && !data.APPTS.some((a) => a.lead === l.id && a.kind === "closing" && !a.feedback),
+    (l) => l.closer === me && ["checks", "verkaufstermin"].includes(l.status) && !data.APPTS.some((a) => a.lead === l.id && a.kind === "closing" && !a.feedback),
   );
   return (
     <>

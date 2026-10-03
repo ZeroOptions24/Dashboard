@@ -1,4 +1,4 @@
-import { STATUS } from "@/lib/domain";
+import { PIPELINE, STATUS } from "@/lib/domain";
 import { ageH, callbackLate, isCallback } from "@/lib/leads";
 import type { Lead, StatusKey } from "@/lib/types";
 
@@ -16,22 +16,25 @@ export function StatusChip({ status }: { status: StatusKey }) {
   return <ToneChip label={s.label} tone={s.tone} />;
 }
 
-/* Segmente: Eingereicht · Termin · Checks · Verkauf · Ausgezahlt */
-const STEP_MAP: Record<StatusKey, string[]> = {
-  eingereicht: ["on", "", "", "", ""],
-  termin: ["on", "on", "", "", ""],
-  checks: ["on", "on", "on", "", ""],
-  verkauft: ["on", "on", "on", "win", ""],
-  ausgezahlt: ["on", "on", "on", "win", "paid"],
-  abgesagt: ["fail", "", "", "", ""],
-  verloren: ["on", "on", "fail", "", ""],
-};
+/* 7 Segmente = PIPELINE: Eingereicht · Terminierung · Aufmaß · Checks · Verkaufstermin · Verkauf · Ausgezahlt */
+function stepClasses(status: StatusKey): string[] {
+  const idx = PIPELINE.indexOf(status);
+  const seg: string[] = PIPELINE.map((_, i) => (i <= idx ? "on" : ""));
+  if (status === "verkauft" || status === "ausgezahlt") seg[5] = "win";
+  if (status === "ausgezahlt") seg[6] = "paid";
+  if (status === "abgesagt") seg[0] = "fail";
+  if (status === "verloren") {
+    seg[0] = seg[1] = seg[2] = "on";
+    seg[3] = "fail";
+  }
+  return seg;
+}
 
 export function PipelineSteps({ status }: { status: StatusKey }) {
   return (
     <div data-component="PipelineSteps" title={STATUS[status].label}>
       <div className="ee-steps">
-        {STEP_MAP[status].map((c, i) => (
+        {stepClasses(status).map((c, i) => (
           <i key={i} className={c || undefined} />
         ))}
       </div>

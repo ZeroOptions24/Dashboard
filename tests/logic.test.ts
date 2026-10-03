@@ -92,10 +92,10 @@ describe("Kennzahlen aus Leads", () => {
   const now = new Date(2026, 8, 30, 12, 0);
   const leads = [
     lead("1", "anna", "29.09.2026", "eingereicht"),
-    lead("2", "anna", "28.09.2026", "termin"),
+    lead("2", "anna", "28.09.2026", "aufmass"),
     lead("3", "ben", "10.09.2026", "verkauft"),
     lead("4", "ben", "11.09.2026", "verloren", "Zu teuer"),
-    lead("5", "anna", "20.08.2026", "termin"),
+    lead("5", "anna", "20.08.2026", "aufmass"),
     lead("6", "unbekannt", "15.09.2026", "eingereicht"),
   ];
   const s = computeStats(leads, now);

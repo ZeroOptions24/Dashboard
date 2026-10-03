@@ -1,5 +1,6 @@
 import "server-only";
-import { STATUS } from "@/lib/domain";
+import { AFTER_TERMIN, STATUS } from "@/lib/domain";
+import { isCalling } from "@/lib/leads";
 import { isAdmin } from "@/lib/roles";
 import type { HistoryEntry, Lead, Role, StatusKey } from "@/lib/types";
 import { applyActivities, type ActivityRow } from "@/lib/lead-activity";
@@ -48,7 +49,9 @@ export function statusOf(deal: PdDeal): StatusKey {
   if (deal.status === "won") return "verkauft";
   const s = STAGE_TO_STATUS[deal.stage_id] ?? "eingereicht";
   /* Verloren nach einem Termin, sonst abgesagt */
-  if (deal.status === "lost") return ["termin", "checks", "verkauft"].includes(s) ? "verloren" : "abgesagt";
+  if (deal.status === "lost") return AFTER_TERMIN.includes(s) ? "verloren" : "abgesagt";
+  /* schon angerufen (Kontaktieren 2 …) → Terminierung */
+  if (s === "eingereicht" && STAGE_ATTEMPTS[deal.stage_id]) return "terminierung";
   return s;
 }
 
@@ -99,7 +102,7 @@ export function dealToLead(deal: PdDeal, person: PdPerson | undefined, note?: Le
     preNote: "",
     hist,
     attempts: STAGE_ATTEMPTS[deal.stage_id] ?? 0,
-    nextTry: status === "eingereicht" && wunschMitDatum ? `Rückruf ${wunschMitDatum}` : null,
+    nextTry: isCalling(status) && wunschMitDatum ? `Rückruf ${wunschMitDatum}` : null,
     reason: deal.lost_reason,
     reasonNote: "",
     eigenlead: true,
@@ -228,7 +231,7 @@ export async function loadLeadsForUser(user: LeadUser, ctx: LeadContext): Promis
   if (user.roles.includes("presetter")) keys.presetter = user.id;
   if (user.roles.includes("closer")) keys.closer = user.id;
   const touched = new Set(activities.filter((a) => a.userId === user.id && a.role === "presetter").map((a) => a.leadId));
-  const inPool = (l: Lead) => !!keys.presetter && (l.status === "eingereicht" || touched.has(l.id) || l.presetter === user.id);
+  const inPool = (l: Lead) => !!keys.presetter && (isCalling(l.status) || touched.has(l.id) || l.presetter === user.id);
   if (isAdmin(user.roles)) return { leads: all, keys };
   const leads = all
     .filter((l) => (keys.setter && l.setter === keys.setter) || closerLeadIds.has(l.id) || inPool(l))

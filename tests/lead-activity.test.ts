@@ -49,14 +49,14 @@ describe("Aktivitäten auf Leads", () => {
         act("PD-1", "u-aimee", "vq", "2026-09-30T09:02:00Z", { answers: { wohnflaeche: "140" } }),
       ],
     );
-    expect(l).toMatchObject({ attempts: 1, nextTry: "Rückruf 01.10. 18:00", preNote: "Frau entscheidet mit", vq: { wohnflaeche: "140" }, presetter: "u-aimee", status: "eingereicht" });
+    expect(l).toMatchObject({ attempts: 1, nextTry: "Rückruf 01.10. 18:00", preNote: "Frau entscheidet mit", vq: { wohnflaeche: "140" }, presetter: "u-aimee", status: "terminierung" });
     expect(l.hist[0][0]).toBe("Rückruf vereinbart: 01.10. 18:00");
     expect(l.hist[0][1]).toBe("30.09. 11:00"); /* deutsche Zeit */
   });
 
   it("Dashboard-Status gilt, bis Pipedrive danach selbst geändert wurde", () => {
-    const status = act("PD-1", "u-aimee", "status", "2026-09-30T10:00:00Z", { status: "termin" });
-    expect(applyActivities([lead("PD-1")], [status])[0].status).toBe("termin");
+    const status = act("PD-1", "u-aimee", "status", "2026-09-30T10:00:00Z", { status: "aufmass" });
+    expect(applyActivities([lead("PD-1")], [status])[0].status).toBe("aufmass");
     expect(applyActivities([lead("PD-1", { status: "checks", pdChangedAt: "2026-09-30T12:00:00Z" })], [status])[0].status).toBe("checks");
   });
 
@@ -70,7 +70,7 @@ describe("Aktivitäten auf Leads", () => {
     const leads = [lead("PD-1"), lead("PD-2"), lead("PD-3")];
     const rows = [
       act("PD-1", "u-a", "attempt", "2026-09-30T08:00:00Z", { attempt: 1 }) /* 2 Std. nach Eingang */,
-      act("PD-1", "u-a", "status", "2026-09-30T09:00:00Z", { status: "termin" }),
+      act("PD-1", "u-a", "status", "2026-09-30T09:00:00Z", { status: "aufmass" }),
       act("PD-2", "u-a", "attempt", "2026-09-30T10:00:00Z", { attempt: 1 }) /* 4 Std. */,
       act("PD-3", "u-b", "status", "2026-09-30T07:00:00Z", { status: "abgesagt" }) /* 1 Std. */,
     ];
@@ -157,11 +157,11 @@ describe("Lead-Aktionen auf dem Server", () => {
     await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "note", text: "Heizung von 1995" });
     await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "vq", answers: { wohnflaeche: "140" } });
     expect(pd.updateDeal).toHaveBeenCalledTimes(1); /* Notiz/VQ schreiben nichts */
-    await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "termin" });
+    await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "aufmass" });
     expect(pd.updateDeal).toHaveBeenLastCalledWith(7, { stage_id: 181 });
     const note = pd.addDealNote.mock.calls.at(-1) as unknown as [number, string];
     expect(note[0]).toBe(7);
-    expect(note[1]).toContain("Termin gelegt – Aimée (MB-Dashboard)");
+    expect(note[1]).toContain("Aufmaßtermin – Aimée (MB-Dashboard)");
     expect(note[1]).toContain("Gespräch: Heizung von 1995");
     expect(note[1]).toContain("140 m²");
     await expect(la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "abgesagt" })).rejects.toThrow(/Grund/);
@@ -174,7 +174,7 @@ describe("Lead-Aktionen auf dem Server", () => {
     pd.updateDeal.mockRejectedValueOnce(new Error("HTTP 403"));
     const r = await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "callback", date: "2026-10-01", time: "18:00" });
     expect(r.warning ?? "").toBe("");
-    const r2 = await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "termin" });
+    const r2 = await la.recordLeadAction(aimee, "presetter", "PD-7", { type: "status", status: "aufmass" });
     expect(r2.warning).toMatch(/HTTP 403/);
     const acts = await la.loadActivities();
     expect(acts.filter((a) => a.leadId === "PD-7").length).toBe(9);
@@ -183,7 +183,7 @@ describe("Lead-Aktionen auf dem Server", () => {
   it("Setter wird über Ergebnisse informiert", async () => {
     const { loadWorkspace } = await import("@/server/workspace");
     const texts = (await loadWorkspace({ id: "u-max", roles: ["setter"] })).notifications.map((n) => n.t);
-    expect(texts).toContain("Kunde 7: Termin gelegt");
+    expect(texts).toContain("Kunde 7: Aufmaßtermin");
     expect(texts).toContain("Kunde 7: Rückruf vereinbart: 01.10. 18:00");
   });
 });

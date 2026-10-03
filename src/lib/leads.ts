@@ -2,7 +2,7 @@
    Provision je Lead. Reine Funktionen – dieselben Regeln gelten später
    serverseitig für echte Daten. */
 
-import { PROV, STATUS } from "./domain";
+import { AFTER_TERMIN, CALLING, PROV, STATUS } from "./domain";
 import { eur, parseKey } from "./format";
 import { LIVE } from "./source";
 import type { Appointment, Lead, PersonKey, Role, StatusKey } from "./types";
@@ -17,7 +17,10 @@ export function leadsForUser(leads: Lead[], role: Role, user: PersonKey): Lead[]
 
 /** Anrufliste eines Presetters: echte Daten = gemeinsamer Pool aller offenen Leads + selbst bearbeitete;
  *  Beispieldaten = fest zugeordnete Leads. */
-export const inCallPool = (l: Lead, user: PersonKey) => l.presetter === user || (LIVE && l.status === "eingereicht");
+export const inCallPool = (l: Lead, user: PersonKey) => l.presetter === user || (LIVE && isCalling(l.status));
+
+/** Presetter ruft an: noch nicht angerufen oder in der Terminierung */
+export const isCalling = (s: StatusKey) => CALLING.includes(s);
 
 export const isLost = (l: Lead) => !!STATUS[l.status].fail;
 export const activeLeads = (leads: Lead[]) => leads.filter((l) => !isLost(l));
@@ -40,7 +43,7 @@ export const ageH = (l: Lead, now: Date) => (now.getTime() - eingang(l, now).get
 
 /** Überfällig: eingereicht, noch nie angerufen und älter als 24 Std. */
 export const isOverdue = (l: Lead, now: Date) =>
-  l.status === "eingereicht" && !l.attempts && !l.nextTry && ageH(l, now) >= 24;
+  isCalling(l.status) && !l.attempts && !l.nextTry && ageH(l, now) >= 24;
 
 /** Fälligkeit aus „nextTry“ (z. B. „Rückruf heute 18:00“, „Do 24.09. ab 18:00“, „Fr 25.09. vormittags“) */
 function dueAt(l: Lead, now: Date): Date | null {
@@ -84,7 +87,7 @@ export function provFor(l: Lead, role: Role): Provision {
   if (STATUS[l.status].fail) return { txt: "–", amount: 0 };
   if (r === "presetter") {
     const t = PROV.presetter.termin;
-    if (["termin", "checks", "verkauft", "ausgezahlt"].includes(l.status)) return { txt: `${eur(t)} verdient`, amount: 0 };
+    if (AFTER_TERMIN.includes(l.status)) return { txt: `${eur(t)} verdient`, amount: 0 };
     return { txt: `+${eur(t)} bei Termin`, amount: t };
   }
   const a = PROV[r].abschluss; /* Setter und Closer: pauschal je Abschluss */
@@ -101,7 +104,7 @@ export function urgencySort(now: Date) {
 }
 
 /** Lead hatte bereits einen Termin (für Terminquoten). */
-export const hadTermin = (s: StatusKey) => ["termin", "checks", "verkauft", "ausgezahlt", "verloren"].includes(s);
+export const hadTermin = (s: StatusKey) => AFTER_TERMIN.includes(s) || s === "verloren";
 
 /** Volle Nummer, falls der Server sie für diese Person mitliefert – sonst die maskierte.
  *  Nur die Beispieldaten ergänzen die maskierte Demo-Nummer; echte Nummern werden nie erraten. */

@@ -64,7 +64,7 @@ describe("Closer-Kalender und Buchung", () => {
     const a = await ws.bookSlot(setter, slotId, { id: "PD-1", kunde: "Familie Test", ort: "Leipzig" });
     expect(a.closer).toBe("u-closer");
     await expect(ws.bookSlot(presetter, slotId, { id: "PD-2", kunde: "Andere", ort: "" })).rejects.toThrow(/nicht mehr frei/);
-    expect((await notifsOf("u-closer")).some((t) => t.startsWith("Neuer Ersttermin: Familie Test"))).toBe(true);
+    expect((await notifsOf("u-closer")).some((t) => t.startsWith("Neuer Aufmaßtermin: Familie Test"))).toBe(true);
   });
 
   it("Termine sieht der zuständige Closer und wer gebucht hat – andere Closer nicht", async () => {

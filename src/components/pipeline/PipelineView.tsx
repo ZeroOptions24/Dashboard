@@ -12,7 +12,10 @@ import type { Lead, Person, PersonKey, StatusKey } from "@/lib/types";
 import { openLead } from "@/lib/ui";
 
 
-/* ---------- PipelineBar: die 5 Stufen als Pfeilleiste mit Anzahl (klickbar) ---------- */
+/** Stufenname mit Trennstellen, damit er in schmalen Pfeilen umbricht */
+const shy = (label: string) => label.replace(/(Verkaufs|Aufmaß)(termin)/, "$1\u00AD$2").replace("Lead eingereicht", "Lead ein\u00ADgereicht").replace("Terminierung", "Termi\u00ADnierung");
+
+/* ---------- PipelineBar: die 7 Stufen als Pfeilleiste mit Anzahl (klickbar) ---------- */
 function PipelineBar({ leads, filter }: { leads: Lead[]; filter: LeadFilter }) {
   const act = activeLeads(leads);
   const lost = leads.filter(isLost).length;
@@ -27,7 +30,7 @@ function PipelineBar({ leads, filter }: { leads: Lead[]; filter: LeadFilter }) {
         {PIPELINE.map((k) => (
           <button key={k} className={`ee-pbar__stage is-${k}`} aria-pressed={filter === k} onClick={set(k as LeadFilter)}>
             <b className="num">{act.filter((l) => l.status === k).length}</b>
-            <span>{STATUS[k].label}</span>
+            <span>{shy(STATUS[k].label)}</span>
           </button>
         ))}
       </div>

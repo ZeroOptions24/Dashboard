@@ -387,19 +387,27 @@ export async function bookSlot(v: Viewer, slotId: string, lead: { id: string; ku
     ort = clean(lead.ort, 120);
   await db.insert(schema.appointment).values({ id, leadId, closerId: s.closerId, kind: "erst", date: s.date, start: s.start, dur: 1.5, ort, kunde, createdBy: v.id });
   const [, m, d] = s.date.split("-");
-  await notify([s.closerId], `Neuer Ersttermin: ${kunde}, ${d}.${m}. ${pad(s.start)}:00${ort ? ` (${ort})` : ""}`, "termin");
+  await notify([s.closerId], `Neuer Aufmaßtermin: ${kunde}, ${d}.${m}. ${pad(s.start)}:00${ort ? ` (${ort})` : ""}`, "aufmass");
   if (isOwnLeadId(leadId)) await syncOwnLead(leadId); /* Closer + Termin in Pipedrive eintragen */
   return { id, closer: s.closerId, date: s.date, start: s.start };
 }
 
 export type FeedbackResult = "checks" | "nicht_angetroffen" | "verloren" | "verkauft" | "entscheidung";
 const FEEDBACK_TEXT: Record<FeedbackResult, string> = {
-  checks: "Ersttermin fand statt – Kunde ist in den Checks",
-  nicht_angetroffen: "beim Ersttermin nicht angetroffen – neuer Termin wird gelegt",
+  checks: "Aufmaßtermin fand statt – Kunde ist in den Checks",
+  nicht_angetroffen: "beim Aufmaßtermin nicht angetroffen – neuer Termin wird gelegt",
   verloren: "Termin fand statt – leider verloren",
   verkauft: "Verkauft!",
-  entscheidung: "2. Termin fand statt – Kunde entscheidet noch",
+  entscheidung: "Verkaufstermin fand statt – Kunde entscheidet noch",
 };
+
+/** Lead-Status nach der Rückmeldung (den Status selbst speichert der Client über recordLeadAction) */
+export function feedbackStatus(result: FeedbackResult, verkaufstermin: boolean): StatusKey {
+  if (result === "verkauft" || result === "verloren") return result;
+  if (result === "nicht_angetroffen") return "terminierung";
+  if (result === "entscheidung") return "verkaufstermin";
+  return verkaufstermin ? "verkaufstermin" : "checks";
+}
 
 /** Pflicht-Rückmeldung des Closers. apptId = Termin-ID oder „LEAD:<id>“ (Lead in den Checks ohne Termin).
  *  Optional wird der 2. Termin gleich mit angelegt. Der Lead-Status in Pipedrive wird (noch) nicht geschrieben. */
@@ -438,7 +446,7 @@ export async function saveFeedback(
   }
   if (second && isOwnLeadId(leadId)) await syncOwnLead(leadId);
   const setter = await setterOfLead(leadId);
-  const status: StatusKey = input.result === "verkauft" ? "verkauft" : input.result === "verloren" ? "verloren" : input.result === "nicht_angetroffen" ? "eingereicht" : "checks";
+  const status = feedbackStatus(input.result, !!second);
   if (setter) await notify([setter], `${kunde}: ${FEEDBACK_TEXT[input.result]}`, status);
   return { second };
 }
@@ -464,7 +472,7 @@ export async function bookDirect(v: Viewer, lead: { id: string; kunde: string; o
   await db.insert(schema.appointment).values({ id, leadId, closerId: closer.id, kind: "erst", date: input.date, start, dur, ort, kunde, createdBy: v.id });
   const [, m, d] = input.date.split("-");
   const time = `${pad(Math.floor(start))}:${start % 1 ? "30" : "00"}`;
-  if (closer.id !== v.id) await notify([closer.id], `Neuer Ersttermin: ${kunde}, ${d}.${m}. ${time}${ort ? ` (${ort})` : ""}`, "termin");
+  if (closer.id !== v.id) await notify([closer.id], `Neuer Aufmaßtermin: ${kunde}, ${d}.${m}. ${time}${ort ? ` (${ort})` : ""}`, "aufmass");
   if (isOwnLeadId(leadId)) await syncOwnLead(leadId);
   return { id, closer: closer.id, date: input.date, start };
 }

@@ -1,7 +1,8 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db";
-import { createDealField, createPipeline, createStage, listDealFields, listPipelines, listStages } from "./client";
+import { createDealField, createPipeline, createStage, listDealFields, listPipelines, listStages, updateStage } from "./client";
+import type { StatusKey } from "@/lib/types";
 import { DEAL_FIELDS, VQ_DEAL_FIELDS } from "./config";
 
 /* Die Pipeline in Pipedrive, in die das Dashboard neue Leads legt (Dashboard = Quelle der Wahrheit).
@@ -10,14 +11,43 @@ import { DEAL_FIELDS, VQ_DEAL_FIELDS } from "./config";
 
 export const PIPELINE_NAME = "MB-Dashboard Wärmepumpe";
 
-/** Dashboard-Status → Stufe in der neuen Pipeline (abgesagt/verloren = Deal verloren mit Grund) */
+/** Stufen der neuen Pipeline – genau wie in Tims Ablauf „Wenn-Dann“ (Stand 03.10.2026).
+ *  Abgesagt/Verloren = Deal verloren mit Grund. Zuordnung zum Dashboard-Status: stageFor() */
 export const PIPELINE_STAGES = [
   ["eingereicht", "Lead eingereicht"],
-  ["termin", "Termin gelegt"],
-  ["checks", "In den Checks"],
+  ["uebergeben", "An Presetter übergeben"],
+  ["kontakt", "2.–4. Kontaktversuch"],
+  ["anruf5", "5. Anruf +"],
+  ["aufmass", "An Closer übergeben · Aufmaßtermin"],
+  ["checks", "Checks"],
+  ["verkaufstermin", "Verkaufstermin"],
   ["verkauft", "Verkauf"],
+  ["auszahlung", "Auszahlung"],
 ] as const;
 export type StageStatus = (typeof PIPELINE_STAGES)[number][0];
+
+/** Stufennamen der ersten Einrichtung (4 Stufen, bis 03.10.2026) → heutige Stufe. Werden beim erneuten Einrichten umbenannt. */
+const LEGACY_STAGE_NAMES: Record<string, StageStatus> = { "Termin gelegt": "aufmass", "In den Checks": "checks" };
+
+/** Ab so vielen erfolglosen Anrufen: Stufe „5. Anruf +“ */
+export const ANRUF5_AB = 5;
+
+/** Dashboard-Status (+ Anrufversuche) → Stufe. Ein neuer Lead geht sofort an den Presetter (Stufe 2). */
+export function stageFor(status: StatusKey, versuche: number): StageStatus {
+  switch (status) {
+    case "terminierung":
+      return versuche >= ANRUF5_AB ? "anruf5" : "kontakt";
+    case "aufmass":
+    case "checks":
+    case "verkaufstermin":
+    case "verkauft":
+      return status;
+    case "ausgezahlt":
+      return "auszahlung";
+    default:
+      return "uebergeben";
+  }
+}
 
 /** Eigene Deal-Felder (Name in Pipedrive, Typ) – alles, was an der Tür und danach erfasst wird, als echte Eigenschaft */
 export const OWN_FIELDS = {
@@ -75,14 +105,23 @@ export async function ensurePipeline(adminId: string): Promise<SetupReport> {
   const stages = {} as Record<StageStatus, number>;
   for (const [status, name] of PIPELINE_STAGES) {
     const hit = existingStages.find((s) => s.name === name);
+    const legacy = existingStages.find((s) => LEGACY_STAGE_NAMES[s.name] === status);
     if (hit) {
       stages[status] = hit.id;
       reused.push(`Stufe „${name}“`);
+    } else if (legacy) {
+      const alt = legacy.name;
+      await updateStage(legacy.id, { name });
+      stages[status] = legacy.id;
+      created.push(`Stufe „${alt}“ → „${name}“`);
     } else {
       stages[status] = await createStage(pipelineId, name);
       created.push(`Stufe „${name}“`);
     }
   }
+  /* Reihenfolge wie im Ablauf (neue Stufen hängt Pipedrive sonst hinten an) */
+  const order = new Map(existingStages.map((s) => [s.id, s.order_nr]));
+  for (const [i, [status]] of PIPELINE_STAGES.entries()) if (order.get(stages[status]) !== i + 1) await updateStage(stages[status], { order_nr: i + 1 });
 
   const dealFields = await listDealFields();
   const fields = { setter: DEAL_FIELDS.setter } as PipelineConfig["fields"];

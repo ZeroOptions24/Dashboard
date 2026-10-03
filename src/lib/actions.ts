@@ -22,7 +22,7 @@ import { persist } from "./live";
 import { dkey, eur, fmtDay, fmtHour, nowStamp, pad, parseKey } from "./format";
 import { apptEnd } from "./appointments";
 import { STATUS } from "./domain";
-import { inCallPool, isStoredLeadId, urgencySort } from "./leads";
+import { inCallPool, isCalling, isStoredLeadId, urgencySort } from "./leads";
 import { ranked } from "./ranking";
 import { currentUser, LIVE, notify, rerender, store } from "./store";
 import type { Board, Lead, PersonKey, Slot, StatusKey, TeamEvent } from "./types";
@@ -187,15 +187,15 @@ export function setLeadStatus(id: string, status: StatusKey | "nicht_erreicht", 
   const l = leadById(id);
   if (!l) return "";
   const attempt = status === "nicht_erreicht";
-  if (store.ui.role === "presetter" && l.status === "eingereicht") d().CALL_DAY.done++;
+  if (store.ui.role === "presetter" && isCalling(l.status)) d().CALL_DAY.done++;
   let st: StatusKey;
   if (attempt) {
     l.attempts++;
     l.nextTry = nextTryText(l.attempts);
-    st = "eingereicht";
+    st = "terminierung";
   } else {
     st = status;
-    if (st === "termin" || st === "checks") l.nextTry = null;
+    if (!isCalling(st)) l.nextTry = null;
   }
   l.status = st;
   /* beim Anrufversuch ist „reason“ nur eine Angabe wie „Mailbox“, kein Absagegrund */
@@ -219,7 +219,7 @@ export function setLeadStatus(id: string, status: StatusKey | "nicht_erreicht", 
 /** Telefonleitfaden: zum dringendsten offenen Lead (außer fromId) weiter; liefert dessen Namen */
 export function guideAdvance(fromId: string): string | null {
   const nxt = d()
-    .LEADS.filter((x) => inCallPool(x, currentUser()) && x.status === "eingereicht" && x.id !== fromId)
+    .LEADS.filter((x) => inCallPool(x, currentUser()) && isCalling(x.status) && x.id !== fromId)
     .sort(urgencySort(d().NOW))[0];
   store.ui.guideSlot = null;
   if (nxt) store.ui.guideLead = nxt.id;
@@ -234,9 +234,10 @@ export function saveCallback(id: string, date: string, time: string, note: strin
   const when = `${date === dkey(d().NOW) ? "heute" : fmtDay(date)} ${time}`;
   if (store.ui.role === "presetter") d().CALL_DAY.done++;
   l.nextTry = `Rückruf ${when}`;
+  if (l.status === "eingereicht") l.status = "terminierung";
   l.hist.unshift([`Rückruf vereinbart: ${when}${note ? " – " + note : ""}`, nowStamp(d().NOW)]);
   if (note) l.preNote = [l.preNote, note].filter(Boolean).join(" · ");
-  pushNotif(l.setter, `${l.kunde}: Rückruf vereinbart (${when})`, "eingereicht");
+  pushNotif(l.setter, `${l.kunde}: Rückruf vereinbart (${when})`, "terminierung");
   rerender();
   persistLead(id, { type: "callback", date, time, note });
   return when;
@@ -254,20 +255,23 @@ export function applyFeedback(apptId: string, res: FeedbackResult, o: { note: st
   if (real) real.feedback = { result: res, at: nowStamp(d().NOW), note: o.note || "" };
   if (res === "checks") {
     if (o.date) d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer: a.closer, kind: "closing", date: o.date, start: o.hour ?? 17, dur: 1.5, ort: a.ort, feedback: null });
-    setLeadStatus(l.id, "checks", undefined, undefined, { silent: true });
-    l.hist[0][0] = `Ersttermin fand statt – in den Checks${o.date ? `, 2. Termin ${fmtDay(o.date)} ${fmtHour(o.hour ?? 17)}` : ""}`;
-    d().NOTIFS[l.setter][0].t = `${l.kunde}: Ersttermin fand statt – Kunde ist in den Checks`;
+    /* mit eingetragenem Verkaufstermin direkt in „Verkaufstermin“, sonst „Checks“ */
+    setLeadStatus(l.id, o.date ? "verkaufstermin" : "checks", undefined, undefined, { silent: true });
+    l.hist[0][0] = `Aufmaßtermin fand statt – in den Checks${o.date ? `, Verkaufstermin ${fmtDay(o.date)} ${fmtHour(o.hour ?? 17)}` : ""}`;
+    d().NOTIFS[l.setter][0].t = `${l.kunde}: Aufmaßtermin fand statt – Kunde ist in den Checks`;
   } else if (res === "verkauft") setLeadStatus(l.id, "verkauft", undefined, undefined, { silent: true });
   else if (res === "verloren") setLeadStatus(l.id, "verloren", o.reason, o.note, { silent: true });
   else if (res === "nicht_angetroffen") {
-    l.status = "eingereicht";
+    /* zurück an den Presetter zum Neu-Terminieren */
+    setLeadStatus(l.id, "terminierung", undefined, undefined, { silent: true });
     l.nextTry = "Neuen Termin legen";
-    l.hist.unshift(["Kunde nicht angetroffen – neuer Termin wird gelegt", nowStamp(d().NOW)]);
-    pushNotif(l.setter, `${l.kunde}: beim Ersttermin nicht angetroffen – neuer Termin wird gelegt`, "eingereicht");
-    if (l.presetter) pushNotif(l.presetter, `${l.kunde}: nicht angetroffen – bitte neuen Termin legen`, "eingereicht");
+    l.hist[0][0] = "Kunde nicht angetroffen – neuer Termin wird gelegt";
+    d().NOTIFS[l.setter][0].t = `${l.kunde}: beim Aufmaßtermin nicht angetroffen – neuer Termin wird gelegt`;
+    if (l.presetter) pushNotif(l.presetter, `${l.kunde}: nicht angetroffen – bitte neuen Termin legen`, "terminierung");
   } else if (res === "entscheidung") {
-    l.hist.unshift(["2. Termin fand statt – Kunde entscheidet noch", nowStamp(d().NOW)]);
-    pushNotif(l.setter, `${l.kunde}: 2. Termin fand statt – Kunde entscheidet noch`, "checks");
+    if (l.status !== "verkaufstermin") setLeadStatus(l.id, "verkaufstermin", undefined, undefined, { silent: true });
+    l.hist.unshift(["Verkaufstermin fand statt – Kunde entscheidet noch", nowStamp(d().NOW)]);
+    pushNotif(l.setter, `${l.kunde}: Verkaufstermin fand statt – Kunde entscheidet noch`, "verkaufstermin");
   }
   if (o.note && res !== "verloren") l.hist[0][0] += ` – ${o.note}`;
   rerender();
@@ -296,11 +300,11 @@ export function markAllNotifRead() {
 /** Demo: Statusänderung aus Pipedrive simulieren (Setter); liefert den Kundennamen */
 export function simulatePipedriveUpdate(): string | null {
   const me = currentUser();
-  const cand = d().LEADS.find((l) => l.setter === me && l.status === "eingereicht");
+  const cand = d().LEADS.find((l) => l.setter === me && isCalling(l.status));
   if (!cand) return null;
-  cand.status = "termin";
-  cand.hist.unshift([STATUS.termin.label, nowStamp(d().NOW)]);
-  pushNotif(me, `${cand.kunde}: Status → ${STATUS.termin.label}`, "termin");
+  cand.status = "aufmass";
+  cand.hist.unshift([STATUS.aufmass.label, nowStamp(d().NOW)]);
+  pushNotif(me, `${cand.kunde}: Status → ${STATUS.aufmass.label}`, "aufmass");
   rerender();
   return cand.kunde;
 }
@@ -327,8 +331,8 @@ export function bookSlot(l: Lead, s: Slot) {
   if (i >= 0) d().SLOTS.splice(i, 1);
   d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer: s.closer, kind: "erst", date: s.date, start: s.start, dur: 1.5, ort: l.ort, feedback: null });
   l.closer = s.closer;
-  setLeadStatus(l.id, "termin");
-  if (!LIVE) pushNotif(s.closer, `Neuer Ersttermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, "termin");
+  setLeadStatus(l.id, "aufmass");
+  if (!LIVE) pushNotif(s.closer, `Neuer Aufmaßtermin: ${l.kunde}, ${fmtDay(s.date)} ${fmtHour(s.start)} (${l.ort})`, "aufmass");
   rerender();
   persist(() => bookSlotAction(s.id, { id: l.id, kunde: l.kunde, ort: l.ort }), { reload: true });
 }
@@ -345,8 +349,8 @@ export function bookDirect(l: Lead, date: string, start: number, closer: PersonK
   if (i >= 0) d().SLOTS.splice(i, 1);
   d().APPTS.push({ id: `T-${rnd()}`, lead: l.id, closer, kind: "erst", date, start, dur: 1.5, ort: l.ort, feedback: null });
   l.closer = closer;
-  setLeadStatus(l.id, "termin");
-  if (!LIVE) pushNotif(closer, `Neuer Ersttermin: ${l.kunde}, ${fmtDay(date)} ${fmtHour(start)} (${l.ort})`, "termin");
+  setLeadStatus(l.id, "aufmass");
+  if (!LIVE) pushNotif(closer, `Neuer Aufmaßtermin: ${l.kunde}, ${fmtDay(date)} ${fmtHour(start)} (${l.ort})`, "aufmass");
   rerender();
   persist(() => bookDirectAction({ id: l.id, kunde: l.kunde, ort: l.ort }, { date, start, closerId: closer }), { reload: true });
   return null;

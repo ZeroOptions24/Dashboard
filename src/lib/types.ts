@@ -45,8 +45,10 @@ export type ProductKey = "wp";
 
 export type StatusKey =
   | "eingereicht"
-  | "termin"
+  | "terminierung"
+  | "aufmass"
   | "checks"
+  | "verkaufstermin"
   | "verkauft"
   | "ausgezahlt"
   | "abgesagt"
@@ -56,10 +58,9 @@ export type Tone = "set" | "term" | "closing" | "done" | "paid" | "bad" | "ok" |
 
 export interface StatusDef {
   label: string;
-  /** Pipeline-Stufe 1–5 */
+  /** grobe Phase: 1 Presetting · 2 Aufmaß · 3 Checks/Verkaufstermin · 4 Verkauf · 5 Ausgezahlt */
   stage: number;
   tone: Tone;
-  step?: number;
   /** Ausstieg mit Pflichtgrund (Abgesagt / Verloren) */
   fail?: boolean;
   /** Wann der Ausstieg passiert ist (nur bei fail) */
@@ -124,7 +125,7 @@ export interface Appointment {
   id: string;
   lead: string;
   closer: PersonKey;
-  /** erst = Ersttermin (vom Presetter gelegt), closing = 2. Termin (Verkauf) */
+  /** erst = Aufmaßtermin (vom Presetter gelegt), closing = Verkaufstermin */
   kind: "erst" | "closing";
   /** „JJJJ-MM-TT“ */
   date: string;
@@ -241,9 +242,10 @@ export interface AdminKpi {
   /** eingereichte Leads im Monat */
   leads: number;
   leadsVormonat: number;
-  /** davon mit Termin / in den Checks oder weiter / verkauft */
+  /** davon mit Aufmaßtermin / in den Checks oder weiter / mit Verkaufstermin oder weiter / verkauft */
   termin: number;
   checks: number;
+  verkaufstermin: number;
   verkauft: number;
   /** Leads, die diese Woche in die Checks gekommen sind */
   checksWoche: number;

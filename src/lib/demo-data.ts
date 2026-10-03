@@ -34,7 +34,7 @@ export function createDemoData() {
   const ROLE_USER: Record<Role, PersonKey> = { setter:'romy', presetter:'inan', closer:'leo', admin:'tim' };
 
   const LEADS_RAW: LeadSeed[] = [
-    { id:'L-2418', pd:48213, kunde:'Familie Brandt', anrede:'Frau Brandt', tel:'0176 •••• 4412', ort:'Leipzig-Gohlis', produkt:'wp', status:'termin', setter:'romy', presetter:'inan', closer:'leo', datum:'15.09.2026',
+    { id:'L-2418', pd:48213, kunde:'Familie Brandt', anrede:'Frau Brandt', tel:'0176 •••• 4412', ort:'Leipzig-Gohlis', produkt:'wp', status:'aufmass', setter:'romy', presetter:'inan', closer:'leo', datum:'15.09.2026',
       setNote:'EFH Bj. 1994, Gasheizung 18 Jahre alt, beide Eigentümer zuhause angetroffen.',
       preNote:'145 m² Wohnfläche, ca. 21.000 kWh Gas/Jahr, Heizkörper (Vorlauf ~55 °C), Interesse an KfW-Förderung.',
       hist:[['Termin gelegt','23.09. 11:40'],['Lead eingereicht','15.09. 18:47']] },
@@ -58,7 +58,7 @@ export function createDemoData() {
     { id:'L-2441', pd:48297, kunde:'Uwe Köhler', anrede:'Herr Köhler', tel:'0171 •••• 3319', ort:'Leipzig-Connewitz', produkt:'wp', status:'abgesagt', setter:'romy', presetter:'inan', datum:'10.09.2026',
       setNote:'Mehrfamilienhaus, 3 Parteien.', preNote:'Kein Eigentümer – Vermieter nicht interessiert.',
       hist:[['Abgesagt','12.09. 11:05'],['Lead eingereicht','10.09. 17:15']] },
-    { id:'L-2444', pd:48305, kunde:'Familie Richter', anrede:'Frau Richter', tel:'0151 •••• 9045', ort:'Zwenkau', produkt:'wp', status:'termin', setter:'romy', presetter:'inan', closer:'leo', datum:'17.09.2026',
+    { id:'L-2444', pd:48305, kunde:'Familie Richter', anrede:'Frau Richter', tel:'0151 •••• 9045', ort:'Zwenkau', produkt:'wp', status:'aufmass', setter:'romy', presetter:'inan', closer:'leo', datum:'17.09.2026',
       setNote:'Neubau 2004, Gasbrennwert, hohe Abschläge.', preNote:'180 m², 24.000 kWh Gas, Fußbodenheizung komplett – sehr gute Voraussetzungen.',
       hist:[['Termin gelegt','22.09. 09:30'],['Lead eingereicht','17.09. 18:02']] },
     { id:'L-2446', pd:48311, kunde:'Dana Schubert', anrede:'Frau Schubert', tel:'0177 •••• 1180', ort:'Grimma', produkt:'wp', status:'verloren', setter:'romy', presetter:'inan', closer:'leo', datum:'02.09.2026',
@@ -75,13 +75,13 @@ export function createDemoData() {
       setNote:'Altbau saniert 2018.', preNote:'130 m², 17.500 kWh Gas.', hist:[['Ersttermin fand statt – in den Checks, 2. Termin am 22.09.','19.09. 12:00'],['Termin gelegt','17.09. 11:10'],['Lead eingereicht','14.09. 17:20']] },
     { id:'L-2420', pd:48224, kunde:'Petra Hoffmann', anrede:'Frau Hoffmann', tel:'0341 •••• 4410', ort:'Leipzig-Schönefeld', produkt:'wp', status:'verkauft', setter:'lara', presetter:'daniel', closer:'leo', datum:'08.09.2026',
       setNote:'', preNote:'', hist:[['Verkauf','19.09. 17:00'],['Lead eingereicht','08.09. 18:00']] },
-    { id:'L-2427', pd:48250, kunde:'Familie Zimmermann', anrede:'Herr Zimmermann', tel:'0176 •••• 8830', ort:'Naunhof', produkt:'wp', status:'termin', setter:'lara', presetter:'inan', closer:'leo', datum:'16.09.2026',
+    { id:'L-2427', pd:48250, kunde:'Familie Zimmermann', anrede:'Herr Zimmermann', tel:'0176 •••• 8830', ort:'Naunhof', produkt:'wp', status:'aufmass', setter:'lara', presetter:'inan', closer:'leo', datum:'16.09.2026',
       setNote:'EFH 1988, Nachtspeicheröfen.', preNote:'120 m², Stromheizung ~14.000 kWh, großes Einsparpotenzial.', hist:[['Termin gelegt','21.09. 10:00'],['Lead eingereicht','16.09. 19:00']] },
     { id:'L-2435', pd:48275, kunde:'Klaus Werner', anrede:'Herr Werner', tel:'0162 •••• 2217', ort:'Eilenburg', produkt:'wp', status:'eingereicht', setter:'lara', presetter:'daniel', datum:'18.09.2026',
       setNote:'', preNote:'140 m², 2.000 l Öl/Jahr.', hist:[['Lead eingereicht','18.09. 18:30']] },
     { id:'L-2429', pd:48258, kunde:'Marion Schulze', anrede:'Frau Schulze', tel:'0157 •••• 6612', ort:'Leipzig-Lindenau', produkt:'wp', status:'eingereicht', setter:'eric', presetter:'inan', datum:'21.09.2026',
       setNote:'Gasheizung, Abschlag 240 €/Monat, will wechseln.', preNote:'', hist:[['Lead eingereicht','21.09. 17:45']] },
-    { id:'L-2448', pd:48320, kunde:'Familie Becker', anrede:'Herr Becker', tel:'0173 •••• 9921', ort:'Machern', produkt:'wp', status:'termin', setter:'eric', presetter:'inan', closer:'leo', datum:'19.09.2026',
+    { id:'L-2448', pd:48320, kunde:'Familie Becker', anrede:'Herr Becker', tel:'0173 •••• 9921', ort:'Machern', produkt:'wp', status:'aufmass', setter:'eric', presetter:'inan', closer:'leo', datum:'19.09.2026',
       setNote:'Holz-/Ölkombi, will weg vom Öl.', preNote:'170 m², 2.100 l Öl + Kamin.', hist:[['Termin gelegt','23.09. 09:15'],['Lead eingereicht','19.09. 16:10']] },
     { id:'L-2439', pd:48292, kunde:'Steffen Lorenz', anrede:'Herr Lorenz', tel:'0170 •••• 1348', ort:'Wurzen', produkt:'wp', status:'eingereicht', setter:'ugur', presetter:'inan', datum:'20.09.2026',
       setNote:'', preNote:'Möchte Unterlagen per Mail.', hist:[['Lead eingereicht','20.09. 18:15']] },
@@ -206,7 +206,7 @@ export function createDemoData() {
   /* Benachrichtigungen je Person (bei Statusänderung eines Leads via Pipedrive-Webhook → n8n) */
   const NOTIFS: Record<PersonKey, Notification[]> = {
     romy:[
-      { t:'Familie Brandt: Termin gelegt (Do 24.09., 10:00 mit Leo)', time:'vor 2 Std.', status:'termin', unread:true },
+      { t:'Familie Brandt: Termin gelegt (Do 24.09., 10:00 mit Leo)', time:'vor 2 Std.', status:'aufmass', unread:true },
       { t:'Sabine Weigel: Rückruf vereinbart (Do 10:00)', time:'gestern, 15:20', status:'eingereicht', unread:true },
       { t:'Familie Nguyen: Nicht erreicht – nächster Versuch Do ab 18 Uhr', time:'gestern, 17:40', status:'eingereicht', unread:true },
       { t:'Jörg & Anke Lindner: Verkauft. +1.000 € Provision vorgemerkt', time:'So, 20.09.', status:'verkauft', unread:false },
@@ -219,8 +219,8 @@ export function createDemoData() {
     ],
     leo:[
       { t:'Rückmeldung fällig: Familie Zimmermann (Ersttermin heute 10:00)', time:'vor 2 Std.', status:null, unread:true },
-      { t:'Neuer Termin: Familie Becker, Sa 26.09., 11:00 (Machern)', time:'vor 5 Std.', status:'termin', unread:true },
-      { t:'Neuer Termin: Familie Brandt, Do 24.09., 10:00 (Gohlis)', time:'vor 2 Std.', status:'termin', unread:true },
+      { t:'Neuer Termin: Familie Becker, Sa 26.09., 11:00 (Machern)', time:'vor 5 Std.', status:'aufmass', unread:true },
+      { t:'Neuer Termin: Familie Brandt, Do 24.09., 10:00 (Gohlis)', time:'vor 2 Std.', status:'aufmass', unread:true },
     ],
     tim:[
       { t:'Leo hat den Vertrag „Datenschutzvereinbarung“ unterschrieben', time:'So, 20.09.', status:null, unread:true },
@@ -231,7 +231,7 @@ export function createDemoData() {
 
   /* Einreichungen (Leads) je Kalenderwoche – Team gesamt */
   /* Admin-Kennzahlen September (Beispiel) */
-  const ADMIN_KPI: AdminKpi = { monat:'September', vormonat:'August', leads:146, leadsVormonat:130, termin:58, checks:39, verkauft:27, checksWoche:11 };
+  const ADMIN_KPI: AdminKpi = { monat:'September', vormonat:'August', leads:146, leadsVormonat:130, termin:58, checks:39, verkaufstermin:33, verkauft:27, checksWoche:11 };
 
   const WEEKLY: [string, number][] = [['KW 32',24],['KW 33',31],['KW 34',27],['KW 35',35],['KW 36',38],['KW 37',33],['KW 38',41],['KW 39',19]];
 

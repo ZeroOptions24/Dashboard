@@ -745,7 +745,7 @@ function AssignCard() {
 /* ---------- Dashboard-Pipeline in Pipedrive (Quelle der Wahrheit für neue Leads) ---------- */
 function PipelineCard() {
   const { toast } = useDashboard();
-  const [st, setSt] = useState<{ name: string; config: { pipelineId: number; createdAt: string } | null; leads: { total: number; inPipedrive: number; fehler: number } } | null>(null);
+  const [st, setSt] = useState<{ name: string; config: { pipelineId: number; createdAt: string } | null; veraltet: boolean; leads: { total: number; inPipedrive: number; fehler: number } } | null>(null);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -774,6 +774,12 @@ function PipelineCard() {
             {st.leads.total} Leads im Dashboard erfasst · {st.leads.inPipedrive} in Pipedrive
             {st.leads.fehler ? ` · ${st.leads.fehler} noch nicht übertragen` : ""}
           </span>
+          {st.veraltet && (
+            <div className="ee-alert ee-alert--warn">
+              Die Pipeline hat noch die alten 4 Stufen. Bitte einmal „Stufen aktualisieren“ – alte Stufen werden umbenannt, die fehlenden ergänzt und alles
+              in die Reihenfolge des Ablaufs gebracht (9 Stufen). Bis dahin werden neue Leads im Dashboard gespeichert und danach übertragen.
+            </div>
+          )}
         </div>
       ) : (
         <div className="ee-alert ee-alert--warn">Noch nicht eingerichtet – bis dahin gehen neue Leads wie bisher über n8n in die alte Pipeline.</div>
@@ -781,7 +787,7 @@ function PipelineCard() {
       {report && <p className="ee-hint" style={{ whiteSpace: "pre-line" }}>{report}</p>}
       <div className="row" style={{ marginTop: 10 }}>
         <button
-          className={st.config ? "ee-btn ee-btn--sm" : "ee-btn ee-btn--primary ee-btn--sm"}
+          className={st.config && !st.veraltet ? "ee-btn ee-btn--sm" : "ee-btn ee-btn--primary ee-btn--sm"}
           disabled={busy}
           onClick={async () => {
             if (!window.confirm(st.config ? "Pipeline, Stufen und Felder in Pipedrive prüfen und Fehlendes ergänzen?" : `Pipeline „${st.name}“ mit Stufen und Feldern jetzt in Pipedrive anlegen?`)) return;
@@ -796,7 +802,7 @@ function PipelineCard() {
             void load();
           }}
         >
-          {st.config ? "Prüfen & ergänzen" : "Pipeline in Pipedrive anlegen"}
+          {st.veraltet ? "Stufen aktualisieren" : st.config ? "Prüfen & ergänzen" : "Pipeline in Pipedrive anlegen"}
         </button>
         {st.config && st.leads.total > st.leads.inPipedrive + 0 && (
           <button

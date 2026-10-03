@@ -33,7 +33,8 @@ export function isoWeek(d: Date) {
   return Math.ceil(((t.getTime() - yearStart.getTime()) / DAY + 1) / 7);
 }
 
-const reachedChecks = (l: Lead) => ["checks", "verkauft", "ausgezahlt"].includes(l.status);
+const reachedChecks = (l: Lead) => ["checks", "verkaufstermin", "verkauft", "ausgezahlt"].includes(l.status);
+const reachedVerkaufstermin = (l: Lead) => ["verkaufstermin", "verkauft", "ausgezahlt"].includes(l.status);
 const isSold = (l: Lead) => ["verkauft", "ausgezahlt"].includes(l.status);
 /** „TT.MM. hh:mm“ des letzten Verlaufseintrags → Date (Jahr aus dem Eingangsdatum) */
 const lastChange = (l: Lead) => {
@@ -78,6 +79,7 @@ export function computeStats(leads: Lead[], now: Date): LeadStats {
     leadsVormonat: leads.filter((l) => inMonth(l, prev.getFullYear(), prev.getMonth())).length,
     termin: month.filter((l) => hadTermin(l.status)).length,
     checks: month.filter(reachedChecks).length,
+    verkaufstermin: month.filter(reachedVerkaufstermin).length,
     verkauft: month.filter(isSold).length,
     checksWoche: leads.filter((l) => l.status === "checks" && lastChange(l) >= weekStart).length,
   };

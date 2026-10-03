@@ -9,25 +9,35 @@ export const PRODUCTS: Record<ProductKey, { label: string; short: string }> = {
   wp: { label:'Wärmepumpe', short:'WP' },
 };
 
-/* Pipeline (5 Stufen): Lead eingereicht → Termin gelegt → In den Checks → Verkauf → Ausgezahlt
-   „Lead eingereicht“ umfasst auch die Bearbeitung durch den Presetter (Anrufversuche, vereinbarte Rückrufe)
+/* Pipeline (7 Stufen, wie Tims Ablauf „Wenn-Dann“):
+   Lead eingereicht → Terminierung → Aufmaßtermin → Checks → Verkaufstermin → Verkauf → Ausgezahlt
+   „Lead eingereicht“ = noch nicht angerufen; „Terminierung“ = Presetter in Kontakt (Versuche, Rückrufe).
+   Ab „Checks“ arbeitet der Closer im Enpal-Partnerportal (EPP).
    Ausstieg mit Pflichtgrund: Abgesagt (vor dem Termin) bzw. Verloren (nach dem Termin) */
 export const STATUS: Record<StatusKey, StatusDef> = {
-  eingereicht:    { label:'Lead eingereicht',     stage:1, tone:'set',     step:1 }, /* neu oder in Bearbeitung beim Presetter */
-  termin:         { label:'Termin gelegt',        stage:2, tone:'term',    step:3 },
-  checks:         { label:'In den Checks',        stage:3, tone:'closing', step:4 },
-  ausgezahlt:     { label:'Ausgezahlt',           stage:5, tone:'paid',    step:6 }, /* Provision ist beim MB angekommen */
-  verkauft:       { label:'Verkauf',             stage:4, tone:'done',    step:5 },
-  abgesagt:       { label:'Abgesagt',             stage:1, tone:'bad',     fail:true, phase:'vor dem Termin' },
-  verloren:       { label:'Verloren',             stage:3, tone:'bad',     fail:true, phase:'nach dem Termin' },
+  eingereicht:    { label:'Lead eingereicht', stage:1, tone:'set' },     /* neu, noch nicht angerufen */
+  terminierung:   { label:'Terminierung',     stage:1, tone:'set' },     /* Presetter in Kontakt: Versuche, Rückrufe */
+  aufmass:        { label:'Aufmaßtermin',     stage:2, tone:'term' },    /* Ersttermin beim Kunden gelegt */
+  checks:         { label:'Checks',           stage:3, tone:'closing' }, /* technische Prüfung nach dem Aufmaß */
+  verkaufstermin: { label:'Verkaufstermin',   stage:3, tone:'closing' }, /* Termin zum Abschluss gelegt */
+  verkauft:       { label:'Verkauf',          stage:4, tone:'done' },
+  ausgezahlt:     { label:'Ausgezahlt',       stage:5, tone:'paid' },    /* Provision ist beim MB angekommen */
+  abgesagt:       { label:'Abgesagt',         stage:1, tone:'bad', fail:true, phase:'vor dem Termin' },
+  verloren:       { label:'Verloren',         stage:3, tone:'bad', fail:true, phase:'nach dem Termin' },
 };
-export const PIPELINE: StatusKey[] = ['eingereicht','termin','checks','verkauft','ausgezahlt'];
+export const PIPELINE: StatusKey[] = ['eingereicht','terminierung','aufmass','checks','verkaufstermin','verkauft','ausgezahlt'];
+/** Status, in denen der Presetter anruft */
+export const CALLING: StatusKey[] = ['eingereicht','terminierung'];
+/** Status ab gelegtem Aufmaßtermin (für Terminquoten und Presetter-Provision) */
+export const AFTER_TERMIN: StatusKey[] = ['aufmass','checks','verkaufstermin','verkauft','ausgezahlt'];
+/** Alte Schlüssel (vor Oktober 2026) → neue */
+export const normStatus = (s: string): StatusKey => (s === 'termin' ? 'aufmass' : s in STATUS ? (s as StatusKey) : 'eingereicht');
 
 /* Pflicht-Rückmeldung des Closers nach jedem Termin */
 export const FEEDBACK_FRIST_H: number = 24; /* Stunden nach Terminende; danach werden die Slots des Closers für neue Leads pausiert */
 export const FEEDBACK_OPTIONS: Record<"erst" | "closing", [string, string][]> = {
-  erst:    [['checks','Ersttermin fand statt – Kunde in den Checks'],['nicht_angetroffen','Kunde nicht angetroffen'],['verloren','Verloren']],
-  closing: [['verkauft','Verkauft'],['entscheidung','Kunde entscheidet noch'],['verloren','Verloren']],
+  erst:    [['checks','Aufmaß fand statt – Kunde in den Checks'],['nicht_angetroffen','Kunde nicht angetroffen'],['verloren','Verloren']],
+  closing: [['verkauft','Verkauft'],['entscheidung','Kunde entscheidet noch (2. Verkaufstermin)'],['verloren','Verloren']],
 };
 
 export const PAYOUT_STATUS: Record<PayoutStatusKey, { label: string; tone: Tone }> = { pruefung:{label:'In Prüfung',tone:'warn'}, freigegeben:{label:'Freigegeben',tone:'info'}, ausgezahlt:{label:'Ausgezahlt',tone:'ok'} };

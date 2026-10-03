@@ -152,7 +152,7 @@ export const addDealNote = (dealId: number, content: string) => pdSend("POST", `
 
 const V1 = () => BASE.replace(/\/v2$/, "/v1");
 
-async function pdCall<T>(method: "GET" | "POST" | "PATCH" | "DELETE", url: string, body?: unknown): Promise<T> {
+async function pdCall<T>(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, body?: unknown): Promise<T> {
   const token = process.env.PIPEDRIVE_API_TOKEN;
   if (!token) throw new PipedriveNotConfigured();
   const res = await fetch(url, {
@@ -171,6 +171,10 @@ export const createPipeline = async (name: string) => (await pdCall<{ data: { id
 export const listStages = async (pipelineId: number) =>
   (await pdCall<{ data: { id: number; name: string; order_nr: number }[] | null }>("GET", `${V1()}/stages?pipeline_id=${pipelineId}`)).data ?? [];
 export const createStage = async (pipelineId: number, name: string) => (await pdCall<{ data: { id: number } }>("POST", `${V1()}/stages`, { name, pipeline_id: pipelineId })).data.id;
+/** Stufe umbenennen und/oder an eine Position setzen (order_nr ab 1) */
+export const updateStage = async (stageId: number, patch: { name?: string; order_nr?: number }) => {
+  await pdCall("PUT", `${V1()}/stages/${stageId}`, patch);
+};
 export const listDealFields = async () =>
   (await pdCall<{ data: { key: string; name: string; field_type: string }[] | null }>("GET", `${V1()}/dealFields?limit=500`)).data ?? [];
 export const createDealField = async (name: string, fieldType: "varchar" | "text" | "double") =>

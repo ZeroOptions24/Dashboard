@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Icon from "@/components/ui/Icon";
-import { PAYOUT_STATUS, PROV } from "@/lib/domain";
+import { AFTER_TERMIN, PAYOUT_STATUS, PROV } from "@/lib/domain";
 import { WD, dkey, eur } from "@/lib/format";
 import { leadsForUser } from "@/lib/leads";
 import { rankOf, ranked } from "@/lib/ranking";
@@ -63,11 +63,11 @@ export function MoneyCard() {
   };
   const liveEarned =
     role === "presetter"
-      ? L.filter((l) => l.presetter === me && ["termin", "checks", "verkauft", "ausgezahlt"].includes(l.status) && thisMonth(l)).length * rate
+      ? L.filter((l) => l.presetter === me && AFTER_TERMIN.includes(l.status) && thisMonth(l)).length * rate
       : L.filter((l) => ["verkauft", "ausgezahlt"].includes(l.status) && thisMonth(l)).length * rate;
   const goal = data.MONEY_GOAL[me] || 3000,
     earned = cur ? cur.betrag : LIVE ? liveEarned : 0;
-  const soonLeads = role === "presetter" ? [] : L.filter((l) => ["termin", "checks"].includes(l.status));
+  const soonLeads = role === "presetter" ? [] : L.filter((l) => ["aufmass", "checks", "verkaufstermin"].includes(l.status));
   const soon = soonLeads.length * rate;
   const pE = Math.min(100, (earned / goal) * 100),
     pS = Math.min(100 - pE, (soon / goal) * 100);
@@ -150,7 +150,7 @@ export function CloserMoneyHero() {
     rate = PROV.closer.abschluss;
   const goal = data.MONEY_GOAL[me] || 8000,
     earned = cur ? cur.betrag : 0;
-  const open = leadsForUser(data.LEADS, role, me).filter((l) => ["termin", "checks"].includes(l.status)).length,
+  const open = leadsForUser(data.LEADS, role, me).filter((l) => ["aufmass", "checks", "verkaufstermin"].includes(l.status)).length,
     soon = open * rate;
   const pE = Math.min(100, (earned / goal) * 100),
     pS = Math.min(100 - pE, (soon / goal) * 100);

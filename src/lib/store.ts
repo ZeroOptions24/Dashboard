@@ -9,7 +9,7 @@ import type { LeadStats } from "./stats";
 import type { PresetterStats } from "./lead-activity";
 import type { FormValues } from "./vq";
 import type { IconName } from "./icons";
-import type { AdminKpi, Appointment, Lead, MbStats, PersonKey, Role } from "./types";
+import type { AdminKpi, Appointment, Lead, MbStats, PersonKey, Role, StatusKey } from "./types";
 import type { Workspace } from "@/server/workspace";
 import { setMoneyGoalAction } from "@/app/actions/workspace";
 
@@ -40,7 +40,7 @@ export const newWizard = (): WizardState => ({
   phone: false,
 });
 
-export type LeadFilter = "alle" | "eingereicht" | "termin" | "checks" | "verkauft" | "ausgezahlt" | "verloren";
+export type LeadFilter = "alle" | Exclude<StatusKey, "abgesagt">;
 
 export interface UiState {
   role: Role;

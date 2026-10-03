@@ -38,7 +38,7 @@ export type LeadAction =
   | { type: "vq"; answers: Record<string, string> }
   | { type: "note"; text: string };
 
-/** Pipedrive-Stufen (Pipeline „Empfehlung kommt“) – siehe config.ts */
+/** Pipedrive-Stufen der bisherigen Pipeline „Empfehlung kommt“ – siehe config.ts (Verkaufstermin gibt es dort nicht → Checks) */
 const STAGE = { kontaktieren: 245, kontaktieren2: 249, uebergeben: 181, checks: 183, verkauf: 184 };
 
 const clean = (s: unknown, max = 500) => String(s ?? "").trim().slice(0, max);
@@ -110,9 +110,9 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
     text = STATUS[status].label + (reason ? ` – ${reason}` : "");
     data = { status, reason, note };
     patch =
-      status === "termin"
+      status === "aufmass"
         ? { stage_id: STAGE.uebergeben }
-        : status === "checks"
+        : status === "checks" || status === "verkaufstermin"
           ? { stage_id: STAGE.checks }
           : status === "verkauft"
             ? { stage_id: STAGE.verkauf, status: "won" }
@@ -156,7 +156,10 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
         ? { status: data.status as StatusKey, reason: (data.reason as string) || null, reasonNote: (data.note as string) || null }
         : kind === "vq"
           ? { vq: data.answers as Record<string, string> }
-          : {};
+          : /* erster Anrufversuch bzw. Rückruf: Presetter ist in Kontakt */
+            (kind === "attempt" || kind === "callback") && lead.status === "eingereicht"
+            ? { status: "terminierung" as StatusKey }
+            : {};
     const sync = await updateOwnLead(leadId, upd);
     if (!sync.error && pdNote && sync.dealId) await addDealNote(sync.dealId, pdNote).catch(() => {});
     if (sync.error) result.warning = `In Pipedrive noch nicht übernommen (${sync.error}) – im Dashboard gespeichert, wird erneut versucht`;
@@ -190,5 +193,5 @@ export async function recordLeadAction(v: Viewer & { name: string }, role: Role,
 async function notifySetter(kind: ActivityKind, action: LeadAction, text: string, lead: Lead, setterUserId: string | null, actorId: string) {
   if (!setterUserId || setterUserId === actorId) return;
   if (action.type === "status" && !action.silent && kind === "status") await notify([setterUserId], `${lead.kunde}: ${text}`, action.status as StatusKey);
-  else if (action.type === "callback") await notify([setterUserId], `${lead.kunde}: ${text}`, "eingereicht");
+  else if (action.type === "callback") await notify([setterUserId], `${lead.kunde}: ${text}`, "terminierung");
 }

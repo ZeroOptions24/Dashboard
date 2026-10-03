@@ -12,7 +12,7 @@ import { Kpi, PageHead, VsTeam } from "@/components/ui/Kpi";
 import { apptEnd, bookableSlots, closerPaused, feedbackDue, kindLabel, pendingFeedback } from "@/lib/appointments";
 import { TARGETS } from "@/lib/domain";
 import { WD, dkey, eur, fmtDay, fmtDue, fmtHour, pad, parseKey } from "@/lib/format";
-import { activeLeads, apptStart, callbackLate, hadTermin, isOverdue, leadsForUser, newestFirst, urgencySort } from "@/lib/leads";
+import { activeLeads, apptStart, callbackLate, hadTermin, isCalling, isOverdue, leadsForUser, newestFirst, urgencySort } from "@/lib/leads";
 import { perfTone } from "@/lib/ranking";
 import { useStore } from "@/lib/store";
 import { useDashboard } from "@/lib/useDashboard";
@@ -106,7 +106,7 @@ function SetterOverview() {
 function PresetterOverview() {
   const { data, role, me, now, person, firstName } = useDashboard();
   const L = leadsForUser(data.LEADS, role, me);
-  const queue = L.filter((l) => l.status === "eingereicht").sort(urgencySort(now));
+  const queue = L.filter((l) => isCalling(l.status)).sort(urgencySort(now));
   const overdue = queue.filter((l) => isOverdue(l, now) || callbackLate(l, now)).length;
   const { CALL_DAY, BENCH } = data;
   const booking = bookableSlots(data.SLOTS, data.APPTS, now);
@@ -235,7 +235,7 @@ function CloserOverview() {
   const up = data.APPTS.filter((a) => a.closer === me && apptEnd(a) > now).sort((a, b) => apptStart(a).getTime() - apptStart(b).getTime());
   const due = pendingFeedback(data.APPTS, me, now).sort((a, b) => feedbackDue(a).getTime() - feedbackDue(b).getTime());
   const inChecks = data.LEADS.filter(
-    (l) => l.closer === me && l.status === "checks" && !data.APPTS.some((a) => a.lead === l.id && a.kind === "closing" && !a.feedback),
+    (l) => l.closer === me && ["checks", "verkaufstermin"].includes(l.status) && !data.APPTS.some((a) => a.lead === l.id && a.kind === "closing" && !a.feedback),
   );
   /* freie Slots in der kommenden Kalenderwoche (Mo–So) */
   const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ((8 - now.getDay()) % 7 || 7)),
@@ -438,8 +438,9 @@ function AdminOverview() {
   ];
   const flow: [string, number, number | null, string | null][] = [
     ["Eingereicht", K.leads, null, null],
-    ["Termin gelegt", K.termin, TARGETS.terminQuote, "termin"],
-    ["In den Checks", K.checks, TARGETS.checksQuote, "checks"],
+    ["Aufmaßtermin", K.termin, TARGETS.terminQuote, "aufmass"],
+    ["Checks", K.checks, TARGETS.checksQuote, "checks"],
+    ["Verkaufstermin", K.verkaufstermin, null, "verkaufstermin"],
     ["Verkauf", K.verkauft, TARGETS.verkaufQuote, "verkauft"],
   ];
   const terminQuote = pct(K.termin, K.leads);

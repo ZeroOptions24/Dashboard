@@ -1,12 +1,13 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { desc, eq, gte, isNotNull, isNull, or } from "drizzle-orm";
-import { STATUS } from "@/lib/domain";
+import { normStatus, STATUS } from "@/lib/domain";
+import { isCalling } from "@/lib/leads";
 import type { HistoryEntry, Lead, StatusKey } from "@/lib/types";
 import type { FormValues } from "@/lib/vq";
 import { db, schema } from "./db";
 import { createDeal, createPerson, deleteDeal, patchDeal } from "./pipedrive/client";
-import { getPipelineConfig, type PipelineConfig } from "./pipedrive/dashboard-pipeline";
+import { getPipelineConfig, PIPELINE_STAGES, stageFor, type PipelineConfig } from "./pipedrive/dashboard-pipeline";
 import { maskPhone } from "./pipedrive/leads";
 
 /* Leads aus „Lead erfassen“: vollständig in der eigenen Datenbank (jedes Feld einzeln) und als Person + Deal
@@ -120,12 +121,11 @@ async function dealFields(row: Row, cfg: PipelineConfig) {
 }
 
 /** Stufe/Status in Pipedrive aus dem Dashboard-Status */
-function dealState(row: Row, cfg: PipelineConfig) {
-  const st = row.status as StatusKey;
+function dealState(row: Row, cfg: PipelineConfig, versuche: number) {
+  const st = normStatus(row.status);
   if (st === "abgesagt" || st === "verloren") return { status: "lost" as const, lost_reason: [row.reason, row.reasonNote].filter(Boolean).join(" – ") || STATUS[st].label };
-  if (st === "verkauft" || st === "ausgezahlt") return { status: "won" as const, stage_id: cfg.stages.verkauft };
-  const stage = st === "termin" ? cfg.stages.termin : st === "checks" ? cfg.stages.checks : cfg.stages.eingereicht;
-  return { status: "open" as const, stage_id: stage };
+  const stage_id = cfg.stages[stageFor(st, versuche)];
+  return { status: st === "verkauft" || st === "ausgezahlt" ? ("won" as const) : ("open" as const), stage_id };
 }
 
 /** Person + Deal anlegen bzw. aktualisieren. Fehler werden am Lead vermerkt (syncError) und beim nächsten Abgleich erneut versucht. */
@@ -138,9 +138,10 @@ export async function syncOwnLead(id: string): Promise<{ dealId: number | null; 
     return { dealId: row.pdDealId, error };
   };
   if (!cfg) return fail("Die Dashboard-Pipeline in Pipedrive ist noch nicht eingerichtet");
+  if (PIPELINE_STAGES.some(([k]) => !cfg.stages[k])) return fail("Die Stufen der Dashboard-Pipeline sind veraltet – bitte unter Team „Pipeline anlegen“ erneut ausführen");
   try {
     const custom = await dealFields(row, cfg);
-    const state = dealState(row, cfg);
+    const state = dealState(row, cfg, Number(custom[cfg.fields.versuche]) || 0);
     let { pdPersonId: personId, pdDealId: dealId } = row;
     if (!personId) {
       personId = await createPerson({
@@ -197,14 +198,14 @@ export function ownLeadToLead(r: Row): Lead {
     adresse: `${r.strasse} ${r.hausnummer}, ${r.plz} ${r.ort}`,
     email: r.email ?? undefined,
     produkt: "wp",
-    status: r.status as StatusKey,
+    status: normStatus(r.status),
     setter: r.setterId ?? "unbekannt",
     datum: fmtDate(created),
     setNote: r.notizen ?? "",
     preNote: "",
     hist,
     attempts: 0,
-    nextTry: r.status === "eingereicht" && r.rueckrufDatum ? `Rückruf ${isoToDe(r.rueckrufDatum)}${r.rueckrufUhrzeit ? ` ${r.rueckrufUhrzeit}` : ""}` : null,
+    nextTry: isCalling(normStatus(r.status)) && r.rueckrufDatum ? `Rückruf ${isoToDe(r.rueckrufDatum)}${r.rueckrufUhrzeit ? ` ${r.rueckrufUhrzeit}` : ""}` : null,
     reason: r.reason,
     reasonNote: r.reasonNote ?? "",
     eigenlead: true,

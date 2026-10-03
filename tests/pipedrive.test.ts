@@ -51,7 +51,7 @@ describe("Pipedrive-Leads", () => {
       ]),
     );
     expect(leads.some((l) => l.id === "PD-4")).toBe(false);
-    expect(leads.find((l) => l.id === "PD-5")).toMatchObject({ kunde: "Kunde 5", setter: "florian", attempts: 2 });
+    expect(leads.find((l) => l.id === "PD-5")).toMatchObject({ kunde: "Kunde 5", setter: "florian", attempts: 2, status: "terminierung" });
     expect(leads.find((l) => l.id === "PD-1")!.tel).toBe("0170 •••• 4501");
     /* aus der Lead-Notiz: Adresse, Setter-Notiz, Rückrufwunsch */
     expect(leads.find((l) => l.id === "PD-1")).toMatchObject({

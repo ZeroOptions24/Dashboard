@@ -5,7 +5,7 @@ import { ALL_ROLES } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 import { requireAdmin } from "@/server/auth";
 import { deleteOwnLead, ownLeadStats, retryOwnLeadSync } from "@/server/own-leads";
-import { ensurePipeline, getPipelineConfig, PIPELINE_NAME } from "@/server/pipedrive/dashboard-pipeline";
+import { ensurePipeline, getPipelineConfig, PIPELINE_NAME, PIPELINE_STAGES } from "@/server/pipedrive/dashboard-pipeline";
 import * as sa from "@/server/setter-assignment";
 import { getTargets, setTargets, type Targets } from "@/server/targets";
 import * as team from "@/server/team";
@@ -103,7 +103,12 @@ export async function listAuditAction() {
 /* ---------- Dashboard-Pipeline in Pipedrive ---------- */
 
 export async function pipelineStatusAction() {
-  return asAdmin(async () => ({ name: PIPELINE_NAME, config: await getPipelineConfig(), leads: await ownLeadStats() }));
+  return asAdmin(async () => {
+    const config = await getPipelineConfig();
+    /* Einrichtung von vor dem 03.10.2026 (4 Stufen) → muss einmal aktualisiert werden */
+    const veraltet = !!config && PIPELINE_STAGES.some(([k]) => !config.stages[k]);
+    return { name: PIPELINE_NAME, config, veraltet, leads: await ownLeadStats() };
+  });
 }
 
 /** Pipeline, Stufen und Felder in Pipedrive anlegen bzw. prüfen (vorhandene werden wiederverwendet) */

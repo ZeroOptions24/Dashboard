@@ -12,7 +12,7 @@ Eine Seite je Rolle. Wer mehrere Rollen hat, wechselt oben rechts unter „Rolle
 4. **Aufs Handy holen:** Seite im Handy-Browser öffnen →
    - iPhone (Safari): Teilen-Symbol → „Zum Home-Bildschirm“
    - Android (Chrome): Menü ⋮ → „App installieren“ bzw. „Zum Startbildschirm hinzufügen“
-5. Glocke oben rechts = Benachrichtigungen (Termin gelegt, Rückmeldung, Abrechnung …).
+5. Glocke oben rechts = Benachrichtigungen (Aufmaßtermin gelegt, Rückmeldung, Abrechnung …).
 
 ---
 
@@ -30,7 +30,7 @@ Eine Seite je Rolle. Wer mehrere Rollen hat, wechselt oben rechts unter „Rolle
 Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und Closer sehen Adresse, Rückrufwunsch, Notizen und Vorqualifizierung direkt.
 
 **Übersicht**: Dein Geld (Monat), Tagesziel (5 Leads), deine Quote im Vergleich zum Team, Setter-Rangliste, letzte Leads.
-**Pipeline**: alle deine Leads mit Stand. Lead antippen → Verlauf (auch, wann das Presetting angerufen hat).
+**Pipeline**: alle deine Leads mit Stand – 7 Stufen: Lead eingereicht · Terminierung (Presetter in Kontakt) · Aufmaßtermin · Checks · Verkaufstermin · Verkauf · Ausgezahlt. Lead antippen → Verlauf (auch, wann das Presetting angerufen hat).
 
 > Fehlt ein Lead bei dir? Dann steht in Pipedrive ein anderer oder kein Setter. Kurz beim Admin melden – er weist ihn dir im Dashboard zu.
 
@@ -58,7 +58,7 @@ Alles wird als eigenes Feld gespeichert (nicht nur als Notiz) – Presetter und 
 
 **Kalender** → „Slots eintragen“: Tag, von–bis, optional „4 Wochen wiederholen“. Freie Slots sieht das Presetting zum Buchen.
 **Termine** → anstehende Termine mit Adresse, Route, Telefon, Kundensteckbrief.
-**Rückmeldung nach jedem Termin – Pflicht innerhalb 24 Std.**: In den Checks (mit 2. Termin) · Nicht angetroffen · Verloren (Grund) · Verkauft. Ohne Rückmeldung bekommst du keine neuen Termine.
+**Rückmeldung nach jedem Termin – Pflicht innerhalb 24 Std.**: Aufmaß fand statt (Checks, mit Verkaufstermin) · Nicht angetroffen (zurück an den Presetter) · Verloren (Grund) · Verkauft. Ohne Rückmeldung bekommst du keine neuen Termine.
 **Wärmepumpen-Cup**: dein Platz im Wettbewerb.
 
 ---

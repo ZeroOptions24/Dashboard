@@ -7,14 +7,15 @@ import type { StatusKey } from "@/lib/types";
 
 export const PIPEDRIVE_PIPELINE_ID = 21;
 
-/** Pipedrive-Stufe → Dashboard-Status (fachlich bestätigt am 25.09.2026). */
+/** Pipedrive-Stufe → Dashboard-Status (fachlich bestätigt am 25.09.2026; „Termin gelegt“ heißt seit 03.10. „Aufmaßtermin“).
+ *  Kontaktieren/Kontaktieren 2 mit Versuchen werden in leads.ts zur „Terminierung“. */
 export const STAGE_TO_STATUS: Record<number, StatusKey> = {
   180: "eingereicht", // Empfehlung kommt
   248: "eingereicht", // QUALI
   245: "eingereicht", // Kontaktieren
   249: "eingereicht", // Kontaktieren 2
-  181: "termin", // An Mitarbeiter übergeben
-  182: "termin", // Mitarbeiter in Bearbeitung
+  181: "aufmass", // An Mitarbeiter übergeben
+  182: "aufmass", // Mitarbeiter in Bearbeitung
   183: "checks", // Checks
   184: "verkauft", // Verkauf
   247: "abgesagt", // Später Interessant

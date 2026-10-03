@@ -1,7 +1,9 @@
 /* Dashboard-Aktionen an Pipedrive-Leads (Anrufversuch, Rückruf, Status, Notiz, Vorqualifizierung)
    auf die Leads anwenden und daraus Presetter-Kennzahlen berechnen. Reine Funktionen – laufen auf dem Server. */
 
-import type { Lead, PersonKey, Role, StatusKey } from "./types";
+import { normStatus } from "./domain";
+import { isCalling } from "./leads";
+import type { Lead, PersonKey, Role } from "./types";
 
 export type ActivityKind = "attempt" | "callback" | "status" | "note" | "vq";
 
@@ -61,13 +63,15 @@ export function applyActivities(leads: Lead[], rows: ActivityRow[], defaultPrese
     const statuses = acts.filter((a) => a.kind === "status");
     const lastStatus = statuses[statuses.length - 1];
     if (lastStatus && (!l.pdChangedAt || lastStatus.createdAt > l.pdChangedAt)) {
-      l.status = lastStatus.data.status as StatusKey;
+      l.status = normStatus(String(lastStatus.data.status));
       if (lastStatus.data.reason) {
         l.reason = String(lastStatus.data.reason);
         l.reasonNote = String(lastStatus.data.note ?? "");
       }
-      if (l.status !== "eingereicht") l.nextTry = null;
+      if (!isCalling(l.status)) l.nextTry = null;
     }
+    /* angerufen, aber noch kein Ergebnis → Terminierung */
+    if (l.status === "eingereicht" && (attempts.length || callbacks.length)) l.status = "terminierung";
     const notes = acts.filter((a) => a.kind === "note");
     if (notes.length) l.preNote = String(notes[notes.length - 1].data.text ?? "");
     const vqs = acts.filter((a) => a.kind === "vq");
@@ -114,7 +118,7 @@ export function presetterStats(leads: Lead[], rows: ActivityRow[], userId: Perso
   const quote = (who?: string) => {
     const mine = calls.filter((r) => berlinDay(new Date(r.createdAt)).startsWith(month) && (!who || r.userId === who));
     const called = new Set(mine.map((r) => r.leadId));
-    const termin = new Set(mine.filter((r) => r.kind === "status" && r.data.status === "termin").map((r) => r.leadId));
+    const termin = new Set(mine.filter((r) => r.kind === "status" && normStatus(String(r.data.status)) === "aufmass").map((r) => r.leadId));
     return called.size ? Math.round((termin.size / called.size) * 100) : null;
   };
   return {
