@@ -289,3 +289,20 @@ export interface AdminKpi {
   /** Leads, die diese Woche in die Checks gekommen sind */
   checksWoche: number;
 }
+
+/** Quoten je Presetter / Closer für die Admin-Übersicht (laufender Monat) */
+export interface PresetterRow {
+  key: PersonKey;
+  /** angerufene Leads */
+  leads: number;
+  reachQuote: number | null;
+  terminQuote: number | null;
+  firstCallH: number | null;
+}
+export interface CloserRow {
+  key: PersonKey;
+  /** stattgefundene Aufmaßtermine */
+  termine: number;
+  checksQuote: number | null;
+  verkaufQuote: number | null;
+}

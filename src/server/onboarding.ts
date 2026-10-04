@@ -165,9 +165,12 @@ export function validateFormData(d: OnboardingFormData): Partial<Record<keyof On
   req("geburtsdatum", "Geburtsdatum");
   req("strasse", "Straße und Hausnummer");
   req("ort", "Ort");
-  req("kontoinhaber", "Kontoinhaber");
   if (!/^\d{5}$/.test(d.plz.trim())) e.plz = "Bitte 5-stellige PLZ";
-  if (!isValidIban(d.iban)) e.iban = "IBAN ist ungültig – bitte prüfen";
+  /* IBAN ist freiwillig (kann später im Profil nachgetragen werden) – wenn angegeben, muss sie stimmen */
+  if (d.iban.trim()) {
+    if (!isValidIban(d.iban)) e.iban = "IBAN ist ungültig – bitte prüfen";
+    req("kontoinhaber", "Kontoinhaber");
+  }
   if (d.geburtsdatum) {
     const age = (Date.now() - new Date(d.geburtsdatum).getTime()) / (365.25 * 864e5);
     if (!(age >= 18 && age < 100)) e.geburtsdatum = "Du musst mindestens 18 Jahre alt sein";
@@ -181,7 +184,7 @@ export async function submitFormData(token: string, d: OnboardingFormData) {
   if (!row) throw new Error("Der Link ist ungültig oder abgelaufen");
   const errors = validateFormData(d);
   if (Object.keys(errors).length) return { ok: false as const, errors };
-  const iban = normalizeIban(d.iban);
+  const iban = d.iban.trim() ? normalizeIban(d.iban) : null;
   await db
     .update(schema.profile)
     .set({
@@ -190,9 +193,9 @@ export async function submitFormData(token: string, d: OnboardingFormData) {
       strasse: d.strasse.trim(),
       plz: d.plz.trim(),
       ort: d.ort.trim(),
-      ibanEnc: encrypt(iban),
-      ibanLast4: iban.slice(-4),
-      kontoinhaber: d.kontoinhaber.trim(),
+      ibanEnc: iban ? encrypt(iban) : null,
+      ibanLast4: iban ? iban.slice(-4) : null,
+      kontoinhaber: d.kontoinhaber.trim() || null,
       steuernummer: d.steuernummer.trim() || null,
       kleinunternehmer: d.kleinunternehmer,
       gewerbeAngemeldet: d.gewerbeAngemeldet,
@@ -326,11 +329,11 @@ export async function listOnboarding(): Promise<OnboardingRow[]> {
     pipedriveSetterName: p?.pipedriveSetterName ?? null,
     setterCode: p?.setterCode ?? null,
     data:
-      p && p.ibanLast4
+      p && p.strasse
         ? {
             adresse: `${p.strasse}, ${p.plz} ${p.ort}`,
             geburtsdatum: p.geburtsdatum ? p.geburtsdatum.split("-").reverse().join(".") : "",
-            iban: `•••• •••• •••• •••• ${p.ibanLast4}`,
+            iban: p.ibanLast4 ? `•••• •••• •••• •••• ${p.ibanLast4}` : "",
             kontoinhaber: p.kontoinhaber ?? "",
             steuernummer: p.steuernummer ?? "",
             kleinunternehmer: p.kleinunternehmer,

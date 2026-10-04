@@ -1,6 +1,7 @@
 "use server";
 
 import { parseRoles } from "@/lib/roles";
+import { effectiveRoles } from "@/server/academy";
 import { getSession } from "@/server/auth";
 import type { Role } from "@/lib/types";
 import type { FormValues } from "@/lib/vq";
@@ -19,7 +20,8 @@ async function run<T>(fn: (v: ws.Viewer & { name: string }) => Promise<T>): Prom
   try {
     const s = await getSession();
     if (!s || s.user.banned) throw new Error("Nicht angemeldet");
-    return { ok: true, data: await fn({ id: s.user.id, roles: parseRoles(s.user.role), name: s.user.name }) };
+    /* gesperrte Rollen (Akademie-Test nicht bestanden) fallen weg – der Server gibt dafür nichts heraus */
+    return { ok: true, data: await fn({ id: s.user.id, roles: await effectiveRoles(s.user.id, parseRoles(s.user.role)), name: s.user.name }) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Unbekannter Fehler" };
   }
@@ -40,6 +42,7 @@ export const saveFeedbackAction = async (apptId: string, input: Parameters<typeo
 export const publishBoardAction = async (input: Parameters<typeof ws.publishBoard>[1]) => run((v) => ws.publishBoard(v, input));
 export const archiveBoardAction = async () => run((v) => ws.archiveBoard(v));
 export const releasePayoutAction = async (payoutId: string) => run((v) => ws.releasePayout(v, payoutId));
+export const releaseAllPayoutsAction = async () => run((v) => prov.releaseAllPayouts(v));
 /* Provisionen: TBK / Storno (Admin), Rückfrage (MB) und Antwort (Admin), Abrechnung von Hand erstellen (Admin) */
 export const markTbkAction = async (leadId: string) => run((v) => prov.markTbk(v, leadId));
 export const stornoAction = async (leadId: string, grund: string) => run((v) => prov.storno(v, leadId, grund));

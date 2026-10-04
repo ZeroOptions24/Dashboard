@@ -1,10 +1,11 @@
 import "server-only";
 import { computeStats, type LeadStats } from "@/lib/stats";
-import type { AdminKpi, MbStats, PersonKey } from "@/lib/types";
+import type { AdminKpi, CloserRow, MbStats, PersonKey, PresetterRow } from "@/lib/types";
+import { parseRoles } from "@/lib/roles";
 import { isAdmin } from "@/lib/roles";
 import { gte } from "drizzle-orm";
 import { closerStats, type CloserStats } from "@/lib/closer-stats";
-import { presetterStats, type PresetterStats } from "@/lib/lead-activity";
+import { calledLeadsMonth, presetterStats, type PresetterStats } from "@/lib/lead-activity";
 import { db, schema } from "./db";
 import { getTargets } from "./targets";
 import { enrichLeads, loadLeadsFromPipedrive, type LeadContext, type LeadUser } from "./pipedrive/leads";
@@ -27,6 +28,9 @@ export interface StatsForUser {
   dayGoal?: LeadStats["dayGoal"][string];
   presetter?: PresetterStats;
   closer?: CloserStats;
+  /** nur Admin: Quoten aller Presetter und Closer */
+  presetterRows?: PresetterRow[];
+  closerRows?: CloserRow[];
 }
 
 /** Termine der letzten 120 Tage (für Closer-Kennzahlen) */
@@ -49,8 +53,21 @@ export async function statsForUser(user: LeadUser, ctx: LeadContext): Promise<St
   if (user.roles.includes("closer") || isAdmin(user.roles)) base.closer = closerStats(await recentAppointments(), user.id, now);
   const key = user.roles.includes("setter") ? user.id : null;
   const setterPart = key ? { bench: s.bench, setterBoardRows: s.setterBoardRows, dayGoal: s.dayGoal[key] ?? { week: [], streak: 0 } } : {};
-  if (isAdmin(user.roles))
+  if (isAdmin(user.roles)) {
+    /* Quoten je Presetter und Closer (laufender Monat) für die Admin-Übersicht */
+    const people = (await db.select({ id: schema.user.id, role: schema.user.role, banned: schema.user.banned }).from(schema.user)).filter((u) => !u.banned);
+    const withRole = (r: "presetter" | "closer") => people.filter((u) => parseRoles(u.role).includes(r)).map((u) => u.id);
+    const appts = await recentAppointments();
+    base.presetterRows = withRole("presetter").map((id) => {
+      const p = presetterStats(leads, activities, id, now, targets.anrufeProTag);
+      return { key: id, leads: calledLeadsMonth(activities, id, now), reachQuote: p.reachQuote, terminQuote: p.terminQuote, firstCallH: p.firstCallH };
+    });
+    base.closerRows = withRole("closer").map((id) => {
+      const c = closerStats(appts, id, now);
+      return { key: id, termine: c.heldMonth, checksQuote: c.checksQuote, verkaufQuote: c.verkaufQuote };
+    });
     return { ...base, ...setterPart, adminKpi: s.adminKpi, mbStats: s.perSetter, weekly: s.weekly, lossStats: s.lossStats, bench: s.bench, setterBoardRows: s.setterBoardRows };
+  }
   if (key) return { ...base, ...setterPart, mbStats: s.perSetter.filter((x) => x.key === key) };
   return base;
 }

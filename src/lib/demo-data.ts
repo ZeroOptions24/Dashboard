@@ -8,7 +8,7 @@
    ===================================================================== */
 
 import type {
-  AdminKpi, Appointment, Board, BoardArchiveEntry, Contract, Lead, MbStats, Notification,
+  AdminKpi, Appointment, Board, BoardArchiveEntry, CloserRow, Contract, Lead, MbStats, Notification, PresetterRow,
   Payout, PayoutItem, Person, PersonKey, Profile, ProvisionItem, Role, Slot, TeamEvent, TeamMember,
 } from "./types";
 import type { DoneItem } from "./lead-activity";
@@ -277,13 +277,20 @@ export function createDemoData() {
     { key:'florian', leads:6,  termin:1,  checks:0,  verkauft:0, last:'18.09.2026', days:5 },
   ];
 
+  /* Quoten je Presetter und Closer (Admin-Übersicht) */
+  const PRESETTER_ROWS: PresetterRow[] = [
+    { key:'inan',   leads:62, reachQuote:68, terminQuote:41, firstCallH:2.1 },
+    { key:'daniel', leads:48, reachQuote:57, terminQuote:33, firstCallH:3.4 },
+  ];
+  const CLOSER_ROWS: CloserRow[] = [{ key:'leo', termine:21, checksQuote:67, verkaufQuote:54 }];
+
   /* Vergleichswerte für die Einfärbung von Zahlen (grün = deutlich besser, rot = deutlich schlechter als der Vergleich) */
   const BENCH: Record<string, number> = { setterLeads:23, setterTermin:32, setterVerkauf:11, presetterTermin:35, presetterTerminMe:41, reach:60, reachMe:68, closerQuote:45, closerQuoteMe:54, checks:70, checksMe:78, closerAbschluesse:3, firstCallH:2, firstCallMe:3.4 };
 
   /* Monatsziel Verdienst je Person (vom MB selbst einstellbar) */
   const MONEY_GOAL: Record<PersonKey, number> = { romy:3000, inan:2500, leo:8000 };
 
-  return { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, PROVISIONS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, CLOSER_DAY, DAY_GOAL, SETTER_BOARD, PRESETTER_BOARD, MB_STATS, BENCH, MONEY_GOAL, ADMIN_KPI };
+  return { NOW, PEOPLE, ROLE_USER, LEADS, APPTS, SLOTS, PAYOUTS, PROVISIONS, CONTRACTS, EVENTS, BOARD, BOARD_ARCHIVE, PROFILES, TEAM, NOTIFS, WEEKLY, LOSS_STATS, CALL_DAY, CLOSER_DAY, DAY_GOAL, SETTER_BOARD, PRESETTER_BOARD, MB_STATS, PRESETTER_ROWS, CLOSER_ROWS, BENCH, MONEY_GOAL, ADMIN_KPI };
 }
 
 export type DemoData = ReturnType<typeof createDemoData>;

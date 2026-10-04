@@ -155,6 +155,12 @@ const hhmm = (iso: string) => stamp(iso).split(" ")[1];
 
 const CALL_KINDS: ActivityKind[] = ["attempt", "callback", "status"];
 
+/** Anzahl der Leads, die diese Person im laufenden Monat angerufen hat (Versuch, Rückruf oder Ergebnis) */
+export function calledLeadsMonth(rows: ActivityRow[], userId: PersonKey, now: Date): number {
+  const month = berlinDay(now).slice(0, 7);
+  return new Set(rows.filter((r) => r.role === "presetter" && r.userId === userId && CALL_KINDS.includes(r.kind) && berlinDay(new Date(r.createdAt)).startsWith(month)).map((r) => r.leadId)).size;
+}
+
 export function presetterStats(leads: Lead[], rows: ActivityRow[], userId: PersonKey, now: Date, goal = 0): PresetterStats {
   const today = berlinDay(now);
   const month = today.slice(0, 7);

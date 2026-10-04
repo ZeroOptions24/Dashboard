@@ -101,7 +101,7 @@ export default function OnboardingForm({ token, name, email, direct }: { token: 
           {field("telefon", "Telefon (WhatsApp)", text("telefon", { type: "tel", autoComplete: "tel", required: true }))}
           {field(
             "iban",
-            "IBAN",
+            "IBAN (optional)",
             <input
               className={errors.iban ? "ee-input is-invalid" : "ee-input"}
               id="iban"
@@ -111,12 +111,11 @@ export default function OnboardingForm({ token, name, email, direct }: { token: 
               placeholder="DE00 0000 0000 0000 0000 00"
               onChange={(e) => set("iban", e.target.value)}
               onBlur={() => d.iban && set("iban", formatIban(d.iban))}
-              required
             />,
             true,
-            ibanOk ? "✓ IBAN gültig" : "Für die Auszahlung deiner Provision",
+            ibanOk ? "✓ IBAN gültig" : "Kannst du auch später nachtragen – ohne IBAN können wir aber noch nichts auszahlen",
           )}
-          {field("kontoinhaber", "Kontoinhaber/in", text("kontoinhaber", { required: true }))}
+          {field("kontoinhaber", "Kontoinhaber/in", text("kontoinhaber"))}
           {field("steuernummer", "Steuernummer (falls vorhanden)", text("steuernummer"))}
           <label className="ee-check ee-field--full">
             <input type="checkbox" checked={d.gewerbeAngemeldet} onChange={(e) => set("gewerbeAngemeldet", e.target.checked)} />

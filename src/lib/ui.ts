@@ -2,6 +2,7 @@
    Seitenleisten, Menüs, Kurzmeldungen. */
 
 import type { IconName } from "./icons";
+import { stepsFor } from "./engel";
 import { allowedView, ROLE_LABEL } from "./nav";
 import { notify, store, type Drawer } from "./store";
 import { guideAdvance, setLeadStatus } from "./actions";
@@ -44,7 +45,7 @@ export function toggleNotif(open = !store.overlay.notif) {
 
 /** Zu einer Ansicht wechseln (schließt Overlays, scrollt nach oben) */
 export function go(view: string) {
-  store.ui.view = allowedView(store.ui.role, view);
+  store.ui.view = allowedView(store.ui.role, view, store.session?.locked);
   Object.assign(store.overlay, { drawerOpen: false, more: false, notif: false });
   notify();
   window.scrollTo({ top: 0 });
@@ -75,4 +76,28 @@ export function changeStatus(id: string, status: StatusKey | "nicht_erreicht") {
     const next = guideAdvance(id);
     if (next) toast(`Nächster Anruf: ${next}`, "phone");
   }
+}
+
+/* ---------- „Frag den Engel“ und Rundgang ---------- */
+
+export const openAngel = () => openDrawer({ kind: "angel" });
+
+/** Rundgang starten; img = Bild des Engels für die Sprechblase */
+export function tourStart(img = "") {
+  closeOverlays();
+  Object.assign(store.tour, { on: true, i: 0, img });
+  notify();
+}
+export function tourEnd() {
+  if (!store.tour.on) return;
+  store.tour.on = false;
+  notify();
+}
+export function tourGo(delta: number) {
+  const steps = stepsFor(store.ui.role, store.session?.locked);
+  const i = store.tour.i + delta;
+  if (i < 0) return;
+  if (i >= steps.length) return tourEnd();
+  store.tour.i = i;
+  notify();
 }

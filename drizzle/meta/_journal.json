@@ -99,6 +99,13 @@
       "when": 1791066013213,
       "tag": "0013_provisionen",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791143095433,
+      "tag": "0014_akademie",
+      "breakpoints": true
     }
   ]
 }

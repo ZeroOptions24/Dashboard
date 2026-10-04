@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { formatIban, isValidIban, normalizeIban } from "@/lib/iban";
 import { parseRoles } from "@/lib/roles";
 import type { Role } from "@/lib/types";
@@ -88,8 +88,9 @@ export async function updateMyProfile(userId: string, d: ProfileUpdate): Promise
   if (!d.strasse.trim()) e.strasse = "Straße und Hausnummer fehlt";
   if (!/^\d{5}$/.test(d.plz.trim())) e.plz = "Bitte 5-stellige PLZ";
   if (!d.ort.trim()) e.ort = "Ort fehlt";
-  if (!d.kontoinhaber.trim()) e.kontoinhaber = "Kontoinhaber fehlt";
   const newIban = d.iban.trim() ? normalizeIban(d.iban) : null;
+  /* Kontoinhaber nur nötig, wenn eine IBAN angegeben ist (das Formular zeigt eine gespeicherte IBAN mit an) */
+  if (!d.kontoinhaber.trim() && newIban) e.kontoinhaber = "Kontoinhaber fehlt";
   if (newIban && !isValidIban(newIban)) e.iban = "IBAN ist ungültig – bitte prüfen";
   if (Object.keys(e).length) return { ok: false, errors: e };
 
@@ -111,6 +112,9 @@ export async function updateMyProfile(userId: string, d: ProfileUpdate): Promise
     })
     .where(eq(schema.profile.userId, userId));
   await db.insert(schema.auditLog).values({ actorId: userId, action: ibanChanged ? "profile.update_iban" : "profile.update", targetUserId: userId });
+  /* Abrechnungen, die wegen fehlender IBAN gehalten wurden: Hinweis entfernen */
+  if (ibanChanged && newIban)
+    await db.update(schema.payout).set({ hinweis: null }).where(and(eq(schema.payout.userId, userId), eq(schema.payout.status, "pruefung"), eq(schema.payout.hinweis, "IBAN fehlt")));
 
   if (ibanChanged && newIban) {
     /* Schutz vor Konto-Übernahme: Person und Admins erfahren sofort von der neuen Bankverbindung */

@@ -5,6 +5,8 @@ import { PROV } from "@/lib/domain";
 import { nextRun } from "@/lib/payouts";
 import { isAdmin, parseRoles } from "@/lib/roles";
 import type { Payout, PayoutItem, PayoutStatusKey, ProvisionItem } from "@/lib/types";
+import { appUrl, mailLayout, sendMail } from "./mail";
+import { isOwnLeadId, syncOwnLead, updateOwnLead } from "./own-leads";
 import { db, schema } from "./db";
 import type { Viewer } from "./workspace";
 
@@ -40,6 +42,26 @@ async function adminIds() {
 async function notify(userIds: string[], text: string) {
   const ids = [...new Set(userIds)].filter(Boolean);
   if (ids.length) await db.insert(schema.notification).values(ids.map((userId) => ({ userId, text: clean(text, 400), status: null })));
+}
+
+/** Eigene Leads (MB-…): Stand nach Pipedrive schreiben – optional mit neuem Status (Verlauf + Stufe). Fehler brechen nichts ab:
+ *  der Lead merkt sich den Fehler und wird im täglichen Lauf erneut übertragen. */
+async function pushOwnLead(leadId: string, change?: { status: "ausgezahlt" | "verloren"; text: string; reason?: string; note?: string; actorId?: string | null }) {
+  if (!isOwnLeadId(leadId)) return;
+  try {
+    if (!change) return void (await syncOwnLead(leadId));
+    await db.insert(schema.leadActivity).values({
+      leadId,
+      userId: change.actorId ?? null,
+      role: "admin",
+      kind: "status",
+      text: change.text,
+      data: JSON.stringify({ status: change.status, reason: change.reason ?? "", note: change.note ?? "" }),
+    });
+    await updateOwnLead(leadId, { status: change.status, reason: change.reason ?? null, reasonNote: change.note ?? null });
+  } catch {
+    /* wird beim nächsten Abgleich erneut versucht */
+  }
 }
 
 /* ---------- Entstehen (bei Statuswechsel) ---------- */
@@ -80,6 +102,7 @@ export async function markTbk(v: Viewer, leadId: string) {
   must(rows.length > 0, "Für diesen Kunden wartet keine Provision auf TBK");
   for (const r of rows) await notify([r.userId], `${r.kunde}: TBK – deine Provision ${r.betrag.toLocaleString("de-DE")} € ist fest und kommt in die nächste Abrechnung`);
   await db.insert(schema.auditLog).values({ actorId: v.id, action: "provision.tbk", detail: `${leadId}: ${rows.length} Posten fest` });
+  await pushOwnLead(leadId); /* Feld „TBK am“ */
   return rows.length;
 }
 
@@ -105,6 +128,7 @@ export async function storno(v: Viewer, leadId: string, grund: string) {
   }
   must(n > 0, "Keine Provision zum Stornieren");
   await db.insert(schema.auditLog).values({ actorId: v.id, action: "provision.storno", detail: `${leadId}: ${n} Posten – ${g}` });
+  await pushOwnLead(leadId, { status: "verloren", text: `Storno – ${g}`, reason: "Storno", note: g, actorId: v.id }); /* Deal „verloren“ mit Grund */
   return n;
 }
 
@@ -161,6 +185,7 @@ export async function runSettlement(stichtag = berlinToday()) {
     await db.update(schema.provision).set({ payoutId: id }).where(inArray(schema.provision.id, list.map((r) => r.id)));
     await notify([userId], `Deine Abrechnung zum ${de(stichtag)} ist erstellt: ${(netto + ust).toLocaleString("de-DE")} € – Auszahlung am ${de(zahltag)}${hinweis ? ` (${hinweis} – bitte in den Stammdaten ergänzen)` : ""}`);
     created.push(id);
+    if (hinweis) await mailMissingIban(userId, `Deine Abrechnung zum ${de(stichtag)} (${(netto + ust).toLocaleString("de-DE")} €) kann erst ausgezahlt werden, wenn deine IBAN in den Stammdaten hinterlegt ist.`);
   }
   if (created.length) await notify(await adminIds(), `${created.length} ${created.length === 1 ? "Abrechnung" : "Abrechnungen"} zum ${de(stichtag)} warten auf Freigabe`);
   return created;
@@ -177,14 +202,65 @@ export async function markPaid(today = berlinToday()) {
     await db.update(schema.payout).set({ status: "ausgezahlt" }).where(eq(schema.payout.id, p.id));
     await notify([p.userId], `Ausgezahlt: ${p.betrag.toLocaleString("de-DE")} € (${p.periode})`);
   }
+  await markLeadsPaid(due.map((p) => p.id));
   return due.length;
 }
 
-/** Täglicher Lauf: am 1. und 15. abrechnen, freigegebene am Auszahlungstag auszahlen */
+async function mailMissingIban(userId: string, intro: string) {
+  const [u] = await db.select({ name: schema.user.name, email: schema.user.email }).from(schema.user).where(eq(schema.user.id, userId));
+  if (!u) return;
+  await sendMail(
+    u.email,
+    "Bitte hinterlege deine IBAN für die Auszahlung",
+    mailLayout({ title: `Hallo ${u.name.split(" ")[0]}, uns fehlt noch deine IBAN`, intro, button: "Stammdaten ergänzen", url: `${appUrl()}/?view=stammdaten` }),
+  );
+}
+
+/** Am Tag vor dem Stichtag: alle mit festen oder wartenden Provisionen, aber ohne IBAN, noch einmal erinnern
+    (Glocke + E-Mail) – sonst wird ihre Abrechnung gehalten. */
+export async function remindMissingBankData(now = new Date()) {
+  const tomorrow = berlinToday(new Date(now.getTime() + 24 * 36e5));
+  if (tomorrow.getDate() !== 1 && tomorrow.getDate() !== 15) return 0;
+  const rows = await db
+    .select({ userId: schema.provision.userId })
+    .from(schema.provision)
+    .where(and(inArray(schema.provision.status, ["tbk", "fest"]), isNull(schema.provision.payoutId)));
+  const ids = [...new Set(rows.map((r) => r.userId))];
+  let n = 0;
+  for (const userId of ids) {
+    const [p] = await db.select({ iban: schema.profile.ibanEnc }).from(schema.profile).where(eq(schema.profile.userId, userId));
+    if (p?.iban) continue;
+    const text = `Morgen ist Abrechnungs-Stichtag, aber deine IBAN fehlt noch. Bitte in den Stammdaten ergänzen, sonst wird deine Auszahlung gehalten.`;
+    await notify([userId], text);
+    await mailMissingIban(userId, text);
+    n++;
+  }
+  return n;
+}
+
+/** Sind alle festen Posten eines Leads ausgezahlt, rückt der Lead auf „Ausgezahlt“ (Pipedrive: Stufe 9 + „Ausgezahlt am“). */
+async function markLeadsPaid(payoutIds: string[]) {
+  if (!payoutIds.length) return;
+  const touched = await db.select({ leadId: schema.provision.leadId }).from(schema.provision).where(inArray(schema.provision.payoutId, payoutIds));
+  for (const leadId of [...new Set(touched.map((t) => t.leadId))].filter(isOwnLeadId)) {
+    const open = await db
+      .select({ payoutId: schema.provision.payoutId })
+      .from(schema.provision)
+      .where(and(eq(schema.provision.leadId, leadId), inArray(schema.provision.role, ["setter", "presetter", "closer"]), inArray(schema.provision.status, ["tbk", "fest"])));
+    const ids = open.map((o) => o.payoutId);
+    if (ids.some((x) => !x)) continue; /* noch nicht abgerechnet */
+    const paid = await db.select({ id: schema.payout.id }).from(schema.payout).where(and(inArray(schema.payout.id, ids as string[]), eq(schema.payout.status, "ausgezahlt")));
+    if (paid.length !== new Set(ids).size) continue;
+    await pushOwnLead(leadId, { status: "ausgezahlt", text: "Provisionen ausgezahlt" });
+  }
+}
+
+/** Täglicher Lauf: am 1. und 15. abrechnen, freigegebene am Auszahlungstag auszahlen, vorher an fehlende IBAN erinnern */
 export async function dailyPayoutRun(now = new Date()) {
   const today = berlinToday(now);
+  const ibanErinnerungen = await remindMissingBankData(now);
   const abrechnungen = today.getDate() === 1 || today.getDate() === 15 ? (await runSettlement(today)).length : 0;
-  return { abrechnungen, ausgezahlt: await markPaid(today) };
+  return { abrechnungen, ausgezahlt: await markPaid(today), ibanErinnerungen };
 }
 
 /** Admin: Abrechnung freigeben – nicht bei fehlender IBAN */
@@ -202,6 +278,23 @@ export async function releasePayout(v: Viewer, payoutId: string) {
   await db.insert(schema.auditLog).values({ actorId: v.id, action: "payout.release", targetUserId: p.userId, detail: `${p.periode}: ${p.betrag} €` });
   await notify([p.userId], `Deine Abrechnung ${p.periode} wurde freigegeben (${p.betrag.toLocaleString("de-DE")} €) – Auszahlung am ${p.datum}`);
   return { periode: p.periode, userId: p.userId };
+}
+
+/** Admin: alle Abrechnungen „in Prüfung“ freigeben. Ohne IBAN geht es nicht – diese bleiben liegen und werden gezählt. */
+export async function releaseAllPayouts(v: Viewer) {
+  must(isAdmin(v.roles));
+  const rows = await db.select({ id: schema.payout.id }).from(schema.payout).where(eq(schema.payout.status, "pruefung"));
+  let released = 0,
+    skipped = 0;
+  for (const r of rows) {
+    try {
+      await releasePayout(v, r.id);
+      released++;
+    } catch {
+      skipped++;
+    }
+  }
+  return { released, skipped };
 }
 
 /* ---------- Laden ---------- */

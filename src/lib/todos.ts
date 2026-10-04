@@ -1,15 +1,18 @@
 /* To-Dos je Rolle (wie in Tims Vorlage): links was zu tun ist, rechts um wen es geht.
    group: over (überfällig) · today (heute) · later (demnächst). Reine Funktionen. */
 
-import { feedbackDue, kindLabel, pendingFeedback, reservationOf } from "./appointments";
+import { closerPaused, feedbackDue, kindLabel, pendingFeedback, reservationOf } from "./appointments";
 import { STATUS } from "./domain";
-import { dkey, fmtDay, fmtDue, fmtHour } from "./format";
+import { dkey, eur, fmtDay, fmtDue, fmtHour } from "./format";
 import { ageH, apptStart, callbackLate, callbackStale, dueAt, isCalling, isCallback, isLost, isOverdue, leadsForUser, urgencySort } from "./leads";
-import type { Appointment, Lead, Person, PersonKey, Role, Slot } from "./types";
+import type { Appointment, Lead, MbStats, Payout, Person, PersonKey, ProvisionItem, Role, Slot } from "./types";
 
 export type TodoGroup = "over" | "today" | "later";
 export type TodoTone = "bad" | "warn" | "info" | "ok" | "good";
-export type TodoAction = { kind: "view"; view: string } | { kind: "call"; id: string } | { kind: "feedback"; id: string } | { kind: "lead"; id: string };
+export type TodoAction = { kind: "view"; view: string } | { kind: "call"; id: string } | { kind: "feedback"; id: string } | { kind: "lead"; id: string } | { kind: "team"; key: PersonKey };
+
+/** Bereiche der Admin-To-Dos (Filter) */
+export const TODO_CATS: [string, string][] = [["anruf", "Terminierung"], ["closer", "Closer"], ["epp", "EPP"], ["geld", "Auszahlungen"], ["vertrag", "Verträge"], ["team", "Team"]];
 
 export interface Todo {
   key: string;
@@ -20,6 +23,9 @@ export interface Todo {
   who: string;
   where?: string;
   act: TodoAction;
+  /** nur Admin-To-Dos: Bereich und betroffene Mitarbeitende (für die Filter) */
+  cat?: string;
+  mb?: PersonKey[];
 }
 
 /** Was passiert gerade mit dem Lead – in Klartext */
@@ -67,6 +73,15 @@ export interface TodoInput {
   /** Leads heute (Setter) und Tagesziel */
   leadsToday?: number;
   dayGoal?: number;
+  /** nur Admin: alles, was für die Handlungsliste gebraucht wird */
+  admin?: {
+    payouts: Record<PersonKey, Payout[]>;
+    provisions: ProvisionItem[];
+    mbStats: MbStats[];
+    contracts: { openAll: number; questions: number } | null;
+    /** Personen mit Closer-Rolle */
+    closers: PersonKey[];
+  };
 }
 
 const ORDER: Record<TodoGroup, number> = { over: 0, today: 1, later: 2 };
@@ -172,7 +187,88 @@ export function todoItems(x: TodoInput): Todo[] {
       T.push({ key: `t-${a.id}`, group: a.date === today ? "today" : "later", tone: "ok", what: kindLabel(a), when: `${fmtDay(a.date)} ${fmtHour(a.start)}`, who: l?.kunde ?? "Kunde", where: a.ort, act: { kind: "view", view: "termine" } });
     }
   }
+  if (role === "admin" && x.admin) T.push(...adminTodos(x, x.admin));
   return T.sort((a, b) => ORDER[a.group] - ORDER[b.group]);
+}
+
+/** Admin: alles, wo er eingreifen muss – gleiche Zeilen wie bei den MBs (links was, rechts um wen es geht), Filter nach Bereich und Person */
+function adminTodos(x: TodoInput, A: NonNullable<TodoInput["admin"]>): Todo[] {
+  const { now, appts, person } = x;
+  const T: Todo[] = [];
+  const add = (type: string, ref: string, t: Omit<Todo, "key" | "mb"> & { mb?: (PersonKey | null | undefined)[] }) =>
+    T.push({ ...t, key: `${type}:${ref}`, mb: (t.mb ?? []).filter((k): k is PersonKey => !!k) });
+  const presName = (l: Lead) => (l.presetter ? person(l.presetter).first : "kein Presetter");
+
+  for (const k of A.closers)
+    for (const a of pendingFeedback(appts, k, now)) {
+      const l = x.leads.find((y) => y.id === a.lead),
+        paused = closerPaused(appts, k, now);
+      add(paused ? "k_pause" : "k_fb", a.id, {
+        group: paused ? "over" : "today",
+        tone: paused ? "bad" : "warn",
+        what: paused ? `${person(k).first} pausiert – Rückmeldung fehlt` : `Rückmeldung offen · ${person(k).first}`,
+        when: `${kindLabel(a)} am ${fmtDay(a.date)}${paused ? " · Slots gesperrt" : ""}`,
+        who: l?.kunde ?? "Kunde",
+        where: l?.ort,
+        cat: "closer",
+        mb: [k],
+        act: { kind: "team", key: k },
+      });
+    }
+
+  for (const l of x.leads.filter((y) => isCalling(y.status))) {
+    const r = reservationOf(appts, l.id);
+    if (isOverdue(l, now) || callbackLate(l, now)) {
+      const st = leadStatus(l, now, appts, person);
+      add(callbackLate(l, now) ? "k_rr" : "k_erst", l.id, { group: "over", tone: "bad", what: `${st.what} · ${presName(l)}`, when: st.when, who: l.kunde, where: l.ort, cat: "anruf", mb: [l.presetter], act: { kind: "lead", id: l.id } });
+    } else if (r)
+      add("k_vorgemerkt", l.id, { group: "today", tone: "warn", what: `Vorgemerkt, noch nicht bestätigt · ${presName(l)}`, when: `Termin ${fmtDay(r.date)} ${fmtHour(r.start)}`, who: l.kunde, where: l.ort, cat: "anruf", mb: [l.presetter, l.setter], act: { kind: "lead", id: l.id } });
+    if (l.attempts >= 5)
+      add("k_5plus", l.id, { group: "today", tone: "warn", what: "5× nicht erreicht", when: "absagen oder weiter versuchen?", who: l.kunde, where: l.ort, cat: "anruf", mb: [l.presetter], act: { kind: "lead", id: l.id } });
+  }
+
+  for (const l of eppMissing(x.leads, appts)) {
+    const a = appts.filter((y) => y.lead === l.id && y.kind === "erst" && !y.reserved).sort((p, q) => apptStart(q).getTime() - apptStart(p).getTime())[0];
+    const h = a ? (apptStart(a).getTime() - now.getTime()) / 36e5 : 99;
+    add("k_eppid", l.id, {
+      group: h < 24 ? "over" : "today",
+      tone: h < 24 ? "bad" : "warn",
+      what: `Noch nicht im EPP · ${presName(l)}`,
+      when: `Termin bestätigt – anlegen + an ${l.closer ? person(l.closer).first : "Closer"} übertragen`,
+      who: l.kunde,
+      where: l.ort,
+      cat: "epp",
+      mb: [l.presetter],
+      act: { kind: "lead", id: l.id },
+    });
+  }
+
+  /* freie Slots in der kommenden Kalenderwoche (Mo–So) */
+  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ((8 - now.getDay()) % 7 || 7)),
+    sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+  for (const k of A.closers) {
+    const n = x.slots.filter((s) => s.closer === k && s.date >= dkey(mon) && s.date <= dkey(sun)).length;
+    if (n < 4) add("k_slots", k, { group: "today", tone: "warn", what: "Zu wenige freie Slots", when: `${n} von 4 für nächste Woche`, who: person(k).first, where: `Closer · ${fmtDay(dkey(mon))} – ${fmtDay(dkey(sun))}`, cat: "closer", mb: [k], act: { kind: "team", key: k } });
+  }
+
+  for (const [k, ps] of Object.entries(A.payouts))
+    for (const p of ps) {
+      if (p.status === "ausgezahlt") continue;
+      if (p.hinweis) add("k_iban", p.id, { group: "today", tone: "warn", what: "Auszahlung gehalten", when: p.hinweis, who: person(k).first, where: `${eur(p.betrag)} · ${p.periode}`, cat: "geld", mb: [k], act: { kind: "view", view: "auszahlungen" } });
+      else if (p.status === "pruefung")
+        add("frei", p.id, { group: "later", tone: "info", what: "Abrechnung freigeben", when: `Auszahlung am ${p.datum}`, who: person(k).first, where: eur(p.betrag), cat: "geld", mb: [k], act: { kind: "view", view: "auszahlungen" } });
+    }
+  for (const q of A.provisions.filter((y) => y.frage && !y.antwort))
+    add("frage", q.id, { group: "today", tone: "warn", what: "Rückfrage zur Auszahlung", when: q.frage ?? "", who: person(q.user).first, where: `${q.kunde} · ${eur(q.betrag)}`, cat: "geld", mb: [q.user], act: { kind: "view", view: "auszahlungen" } });
+
+  if (A.contracts?.questions)
+    add("q_vertrag", "alle", { group: "today", tone: "warn", what: `${A.contracts.questions} ${A.contracts.questions === 1 ? "Rückfrage" : "Rückfragen"} zu Verträgen`, when: "unter Verträge beantworten", who: "Verträge", cat: "vertrag", act: { kind: "view", view: "vertraege" } });
+  if (A.contracts?.openAll)
+    add("k_vertrag", "alle", { group: "later", tone: "info", what: `${A.contracts.openAll} ${A.contracts.openAll === 1 ? "Vertrag" : "Verträge"} nicht unterschrieben`, when: "Erinnerung kommt nach 7 Tagen automatisch", who: "Verträge", cat: "vertrag", act: { kind: "view", view: "vertraege" } });
+
+  for (const m of A.mbStats.filter((y) => y.days >= 3))
+    add("k_inaktiv", m.key, { group: "later", tone: m.days >= 5 ? "bad" : "warn", what: `Seit ${m.days} Tagen kein Lead`, when: `letzter am ${m.last}`, who: person(m.key).first, where: "Setter", cat: "team", mb: [m.key], act: { kind: "team", key: m.key } });
+  return T;
 }
 
 /** Leads mit Aufmaßtermin, aber noch ohne EPP-ID (presetter = nur die eigenen) */

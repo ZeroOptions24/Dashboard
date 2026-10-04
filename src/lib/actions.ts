@@ -17,6 +17,7 @@ import {
   markNotificationsReadAction,
   postEventAction,
   publishBoardAction,
+  releaseAllPayoutsAction,
   releasePayoutAction,
   removeSlotAction,
   saveFeedbackAction,
@@ -78,6 +79,22 @@ export function releasePayout(who: PersonKey, id: string) {
   rerender();
   persist(() => releasePayoutAction(id));
   return p;
+}
+
+/** Admin: alle Abrechnungen in Prüfung freigeben (ohne IBAN bleiben sie liegen) */
+export function releaseAllPayouts(done: (r: { released: number; skipped: number }) => void) {
+  if (!LIVE) {
+    let n = 0;
+    for (const ps of Object.values(d().PAYOUTS))
+      for (const p of ps)
+        if (p.status === "pruefung") {
+          p.status = "freigegeben";
+          n++;
+        }
+    rerender();
+    return done({ released: n, skipped: 0 });
+  }
+  persist(() => releaseAllPayoutsAction(), { reload: true, onOk: done });
 }
 
 /* ---------- Enpal-Partnerportal (EPP) ---------- */

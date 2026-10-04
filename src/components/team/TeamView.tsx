@@ -574,11 +574,11 @@ function MemberRow({ r, onReload }: { r: OnboardingRow; onReload: () => void }) 
           </div>
           <div>
             <dt>IBAN</dt>
-            <dd className="mono">{r.data.iban}</dd>
+            <dd className="mono">{r.data.iban || "– (nicht angegeben)"}</dd>
           </div>
           <div>
             <dt>Kontoinhaber</dt>
-            <dd>{r.data.kontoinhaber}</dd>
+            <dd>{r.data.kontoinhaber || "–"}</dd>
           </div>
           <div>
             <dt>Steuernummer</dt>

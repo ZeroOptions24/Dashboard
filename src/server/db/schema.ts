@@ -429,3 +429,46 @@ export const outbox = pgTable("outbox", {
   sentAt: timestamp("sent_at"),
   error: text("error"),
 });
+
+/* =====================================================================
+   Akademie: Lernfortschritt, Rollen-Freischaltung per Test, Videos
+   ===================================================================== */
+
+/** Erledigtes Modul (Wissenscheck richtig beantwortet) */
+export const academyProgress = pgTable(
+  "academy_progress",
+  {
+    userId: userRef("user_id"),
+    moduleId: text("module_id").notNull(),
+    doneAt: timestamp("done_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.moduleId] })],
+);
+
+/** Stand je Person und Rolle. Ohne Zeile = noch nicht getestet (Ansicht gesperrt).
+ *  status: bestanden (Ansicht frei) | nicht_bestanden (Wiederholung nur nach Freigabe durch den Admin).
+ *  via: test (bestanden) | bestand (bestehende MAs, beim Einführen freigeschaltet) | admin (von Hand freigeschaltet) */
+export const academyRole = pgTable(
+  "academy_role",
+  {
+    userId: userRef("user_id"),
+    role: text("role").notNull(),
+    status: text("status").notNull(),
+    via: text("via").notNull().default("test"),
+    score: integer("score"),
+    total: integer("total"),
+    tries: integer("tries").notNull().default(0),
+    /** Admin hat die Wiederholung freigegeben */
+    retry: boolean("retry").notNull().default(false),
+    passedAt: timestamp("passed_at"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.role] })],
+);
+
+/** Video-Link je Modul (vom Admin gepflegt; die Texte selbst liegen im Code) */
+export const academyVideo = pgTable("academy_video", {
+  moduleId: text("module_id").primaryKey(),
+  url: text("url").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

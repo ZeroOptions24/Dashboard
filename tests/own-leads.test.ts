@@ -232,3 +232,62 @@ describe("Pipeline aus der ersten Einrichtung (4 Stufen)", () => {
     expect((await setup.ensurePipeline("u-admin")).created).toEqual([]);
   });
 });
+
+describe("Tims A02/A04/A11/A12: Felder und Stufen aus Provision und Kontrollen", () => {
+  const admin = { id: "u-admin", roles: ["admin" as const], name: "Ada Admin" };
+  const deToday = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
+
+  it("Kontrollen: Erstanruf nach 24 Std. überfällig, „liegt zu lange“ 7 Tage nach dem 5. Versuch", () => {
+    const base = { status: "eingereicht", createdAt: new Date("2026-10-04T10:00:00Z"), rueckrufDatum: null, rueckrufUhrzeit: null } as never;
+    expect(own.leadFlags(base, [], new Date("2026-10-05T09:00:00Z")).erstanruf).toBe(false);
+    expect(own.leadFlags(base, [], new Date("2026-10-05T11:00:00Z")).erstanruf).toBe(true);
+    expect(own.leadFlags(base, [{ kind: "attempt", createdAt: new Date("2026-10-05T08:00:00Z") }], new Date("2026-10-06T11:00:00Z")).erstanruf).toBe(false);
+    /* Wunschtermin „morgen 8:00“ zählt, nicht der Zeitpunkt der Erfassung */
+    const wish = { ...(base as object), rueckrufDatum: "2026-10-10", rueckrufUhrzeit: "08:00" } as never;
+    expect(own.leadFlags(wish, [], new Date("2026-10-09T12:00:00Z")).erstanruf).toBe(false);
+    const stage4 = { ...(base as object), status: "terminierung" } as never;
+    const five = Array.from({ length: 5 }, (_, i) => ({ kind: "attempt", createdAt: new Date(`2026-10-0${i + 1}T10:00:00Z`) }));
+    expect(own.leadFlags(stage4, five, new Date("2026-10-11T09:00:00Z")).zuLange).toBe(false);
+    expect(own.leadFlags(stage4, five, new Date("2026-10-12T11:00:00Z")).zuLange).toBe(true);
+  });
+
+  it("an der Tür beantwortete Fragen, TBK am, Storno, Stufe „Auszahlung“ + Ausgezahlt am", async () => {
+    await setup.ensurePipeline("u-admin"); /* legt die neuen Felder an */
+    const cfg = (await setup.getPipelineConfig())!;
+    const prov = await import("@/server/provisions");
+    const r = await own.createOwnLead("u-sara", values, null);
+    const id = r.id;
+    pd.patchDeal.mockClear();
+
+    /* Tür: Setter speichert eine Antwort → Feld „Von der Tür beantwortet“ */
+    await la.recordLeadAction(sara, "setter", id, { type: "vq", answers: { wohnflaeche: "120" } });
+    expect(pd.patchDeal).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ custom_fields: expect.objectContaining({ [cfg.fields.door!]: "wohnflaeche" }) }));
+
+    /* Verkauf → Provision wartet auf TBK; Admin setzt TBK → Feld „TBK am“ */
+    await own.updateOwnLead(id, { status: "verkauft" });
+    await db.insert(schema.provision).values({ id: `pv-${id}`, userId: "u-sara", role: "setter", leadId: id, kunde: "Erik Beispiel", anlass: "Verkauf", betrag: 1000, status: "tbk" });
+    await prov.markTbk(admin, id);
+    expect(pd.patchDeal).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ custom_fields: expect.objectContaining({ [cfg.fields.tbkAm!]: deToday }) }));
+
+    /* Abrechnung, Freigabe, Auszahlungstag → Lead „Ausgezahlt“ = Stufe 9 + „Ausgezahlt am“ */
+    const [prof] = await db.select().from(schema.profile).where(eq(schema.profile.userId, "u-sara"));
+    expect(prof).toBeTruthy();
+    await db.update(schema.profile).set({ ibanEnc: "verschluesselt", ibanLast4: "1234" }).where(eq(schema.profile.userId, "u-sara"));
+    const [payoutId] = await prov.runSettlement(new Date(Date.now() + 864e5));
+    await prov.releasePayout(admin, payoutId);
+    const spaeter = new Date(Date.now() + 40 * 864e5);
+    await prov.markPaid(new Date(spaeter.getFullYear(), spaeter.getMonth(), spaeter.getDate()));
+    expect((await own.getOwnLead(id))!.status).toBe("ausgezahlt");
+    expect(pd.patchDeal).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ status: "won", stage_id: cfg.stages.auszahlung, custom_fields: expect.objectContaining({ [cfg.fields.ausgezahltAm!]: expect.stringMatching(/^\d{2}\.\d{2}\.\d{4}$/) }) }));
+  });
+
+  it("Storno: Deal wird „verloren“ mit Grund", async () => {
+    const prov = await import("@/server/provisions");
+    const r = await own.createOwnLead("u-sara", values, null);
+    await own.updateOwnLead(r.id, { status: "verkauft" });
+    await db.insert(schema.provision).values({ id: `pv2-${r.id}`, userId: "u-sara", role: "setter", leadId: r.id, kunde: "Erik Beispiel", anlass: "Verkauf", betrag: 1000, status: "tbk" });
+    await prov.storno(admin, r.id, "Widerruf innerhalb 14 Tagen");
+    expect(pd.patchDeal).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ status: "lost", lost_reason: "Storno – Widerruf innerhalb 14 Tagen" }));
+    expect((await own.getOwnLead(r.id))!.status).toBe("verloren");
+  });
+});

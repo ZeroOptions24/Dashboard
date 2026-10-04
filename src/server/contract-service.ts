@@ -146,7 +146,7 @@ export async function resolveQuestion(id: string, adminId: string) {
 }
 
 /** Erinnerung an die Unterschrift (eigene E-Mail; Yousign erinnert zusätzlich selbst) */
-export async function remindContract(id: string, adminId: string) {
+export async function remindContract(id: string, adminId: string | null, now = new Date()) {
   const [row] = await db
     .select({ c: schema.contract, u: schema.user })
     .from(schema.contract)
@@ -163,8 +163,26 @@ export async function remindContract(id: string, adminId: string) {
       url: `${appUrl()}/?view=vertraege`,
     }),
   );
-  await db.update(schema.contract).set({ lastReminderAt: new Date() }).where(eq(schema.contract.id, id));
+  await db.update(schema.contract).set({ lastReminderAt: now }).where(eq(schema.contract.id, id));
   await audit(adminId, "contract.reminded", row.u.id, id);
+}
+
+/* Automatische Erinnerung (Tims A15): offener Vertrag nach 7 Tagen, danach wöchentlich, höchstens 3 Mal.
+   Ab der letzten Erinnerung ohne Unterschrift landet der Name im Bericht für die Admins. */
+const CONTRACT_REMIND_AFTER_DAYS = 7;
+const CONTRACT_MAX_REMINDERS = 3;
+export async function remindOverdueContracts(now = new Date()) {
+  const rows = await db.select().from(schema.contract).where(eq(schema.contract.status, "offen"));
+  const reminded: string[] = [];
+  for (const c of rows) {
+    const age = (now.getTime() - c.sentAt.getTime()) / 864e5;
+    if (age < CONTRACT_REMIND_AFTER_DAYS) continue;
+    if (c.lastReminderAt && (now.getTime() - c.lastReminderAt.getTime()) / 864e5 < CONTRACT_REMIND_AFTER_DAYS) continue;
+    if (age >= CONTRACT_REMIND_AFTER_DAYS * (CONTRACT_MAX_REMINDERS + 1)) continue; /* 28 Tage: jetzt ist ein Mensch dran */
+    await remindContract(c.id, null, now);
+    reminded.push(c.id);
+  }
+  return reminded;
 }
 
 /** Aktive Personen für „Vertrag senden“ (Admin) */

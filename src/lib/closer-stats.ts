@@ -29,6 +29,8 @@ export interface CloserStats {
   /** Anteil Aufmaß → Checks an stattgefundenen Aufmaßterminen in % */
   checksQuote: number | null;
   teamChecksQuote: number | null;
+  /** stattgefundene Aufmaßtermine im laufenden Monat */
+  heldMonth: number;
 }
 
 const KIND_LABEL: Record<string, string> = { erst: "Aufmaßtermin", closing: "Verkaufstermin" };
@@ -57,11 +59,11 @@ export function closerStats(appts: CloserAppt[], userId: PersonKey, now: Date): 
 
   const quotes = (who?: string) => {
     const held = appts.filter((a) => a.kind === "erst" && a.date.startsWith(month) && (!who || a.closerId === who) && a.feedbackResult && a.feedbackResult !== "nicht_angetroffen");
-    if (!held.length) return { v: null, c: null };
+    if (!held.length) return { v: null, c: null, n: 0 };
     const leads = new Set(held.map((a) => a.leadId));
     const sold = new Set(appts.filter((a) => a.feedbackResult === "verkauft" && leads.has(a.leadId)).map((a) => a.leadId));
     const checks = held.filter((a) => a.feedbackResult === "checks" || a.feedbackResult === "verkauft").length;
-    return { v: Math.round((sold.size / leads.size) * 100), c: Math.round((checks / held.length) * 100) };
+    return { v: Math.round((sold.size / leads.size) * 100), c: Math.round((checks / held.length) * 100), n: held.length };
   };
   const me = quotes(userId),
     team = quotes();
@@ -76,6 +78,7 @@ export function closerStats(appts: CloserAppt[], userId: PersonKey, now: Date): 
     teamVerkaufQuote: team.v,
     checksQuote: me.c,
     teamChecksQuote: team.c,
+    heldMonth: me.n,
   };
 }
 

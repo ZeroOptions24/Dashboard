@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AngelDrawer from "@/components/engel/AngelDrawer";
 import { assignSetterAction, deleteOwnLeadAction } from "@/app/actions/team";
 import { reloadLeads } from "@/lib/live";
 import AppointmentCard from "@/components/closer/AppointmentCard";
@@ -21,7 +22,7 @@ import { useDashboard } from "@/lib/useDashboard";
 
 const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
 
-function DrawerHead({ title, sub }: { title: string; sub?: string }) {
+export function DrawerHead({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="ee-drawer__head">
       <div>
@@ -614,6 +615,8 @@ function DrawerContent({ d }: { d: Drawer }) {
       return <TeamDrawer key={d.key} memberKey={d.key} />;
     case "objections":
       return <ObjectionsDrawer id={d.id} />;
+    case "angel":
+      return <AngelDrawer />;
   }
 }
 

@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import AkademieView from "@/components/academy/AkademieView";
+import EngelButton from "@/components/engel/EngelCanvas";
+import EngelTour from "@/components/engel/EngelTour";
 import DataSource from "@/components/DataSource";
 import KalenderView from "@/components/closer/KalenderView";
 import TermineView from "@/components/closer/TermineView";
@@ -41,6 +44,7 @@ const VIEWS: Record<string, () => React.ReactNode> = {
   events: () => <EventsView />,
   stammdaten: () => <StammdatenView />,
   team: () => <TeamView />,
+  akademie: () => <AkademieView />,
   neu: () => <NeuView />,
 };
 
@@ -54,8 +58,11 @@ export default function AppShell({
   view,
   isAdmin,
   banner,
+  locked = [],
 }: {
   roles: Role[];
+  /** Rollen, deren Ansicht per Akademie-Test noch gesperrt ist */
+  locked?: Role[];
   startRole: Role;
   name: string;
   view?: string;
@@ -65,14 +72,16 @@ export default function AppShell({
   const { session, ui, overlay } = useStore();
 
   const rolesKey = roles.join(",");
+  const lockedKey = locked.join(",");
   useEffect(() => {
     if (LIVE && !store.session) clearDemoData();
-    store.session = { name, roles: rolesKey.split(",") as Role[] };
+    const lockedRoles = (lockedKey ? lockedKey.split(",") : []) as Role[];
+    store.session = { name, roles: rolesKey.split(",") as Role[], locked: lockedRoles };
     store.ui.role = startRole;
-    store.ui.view = allowedView(startRole, view ?? store.ui.view);
+    store.ui.view = allowedView(startRole, view ?? store.ui.view, lockedRoles);
     notify();
     void refreshContractSummary();
-  }, [name, rolesKey, startRole, view]);
+  }, [name, rolesKey, lockedKey, startRole, view]);
 
   /* Escape schließt Seitenleisten und Menüs */
   useEffect(() => {
@@ -101,13 +110,7 @@ export default function AppShell({
           </div>
           {ready && <SideNav />}
           <div className="ee-side__foot">
-            <div className="ee-mascot" data-component="MascotSlot">
-              Maskottchen
-              <br />
-              Chibi-Engel
-              <br />
-              (Platzhalter)
-            </div>
+            <EngelButton variant="side" />
             {ready && <SideMe />}
           </div>
         </aside>
@@ -126,6 +129,7 @@ export default function AppShell({
           <MoreSheet />
           <NotifPanel />
           <DrawerHost />
+          <EngelTour />
           <Toasts />
           <DataSource />
         </>

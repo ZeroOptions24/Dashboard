@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ToneChip } from "@/components/ui/Chips";
 import Icon from "@/components/ui/Icon";
 import { Kpi, PageHead } from "@/components/ui/Kpi";
-import { answerProvision, askProvision, markTbk, releasePayout, runSettlementNow, stornoLead } from "@/lib/actions";
+import { answerProvision, askProvision, markTbk, releaseAllPayouts, releasePayout, runSettlementNow, stornoLead } from "@/lib/actions";
 import { PAYOUT_STATUS } from "@/lib/domain";
 import { eur, maskIban } from "@/lib/format";
 import { deDate, nextRun } from "@/lib/payouts";
@@ -315,49 +315,240 @@ function AnswerRow({ x }: { x: ProvisionItem }) {
   );
 }
 
-function AdminPayouts() {
+const dkey = (d: string) => d.split(".").reverse().join("");
+const postenSum = (p: Payout) => {
+  const n = (st: string) => p.posten.filter((x) => x.status === st).length;
+  return [n("fest") && `${n("fest")} fest`, n("storno") && `${n("storno")} Storno`].filter(Boolean).join(" · ") || "–";
+};
+
+/** Eine Abrechnungstabelle (MB, Posten, Betrag, Status, Aktion) mit aufklappbaren Posten */
+function RunTable({ title, rows }: { title: string; rows: (Payout & { who: string })[] }) {
   const { data, person, toast } = useDashboard();
+  const [openId, setOpenId] = useState<string | null>(null);
+  return (
+    <section className="ee-card ee-card--flush" data-component="PayoutTable">
+      <div className="ee-card__head">
+        <h2>{title}</h2>
+      </div>
+      <div className="ee-table-wrap">
+        <table className="ee-table ee-table--stack">
+          <thead>
+            <tr>
+              <th>MB</th>
+              <th>Posten</th>
+              <th className="r">Auszahlbar</th>
+              <th>Status</th>
+              <th className="r">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <Fragment key={r.id}>
+                <tr>
+                  <td>
+                    <div className="who">{person(r.who).name}</div>
+                    <div className="sub">
+                      {ROLE_LABEL[person(r.who).role]} · <span className="mono">{r.ibanLast4 ? `•••• ${r.ibanLast4}` : maskIban(data.PROFILES[r.who]?.iban ?? "")}</span>
+                    </div>
+                  </td>
+                  <td className="sub">{postenSum(r)}</td>
+                  <td className="r num">
+                    <b className="is-money">{eur(r.betrag)}</b>
+                    {r.ust ? <div className="sub">inkl. {eur(r.ust)} USt</div> : null}
+                  </td>
+                  <td>
+                    {r.hinweis && r.status === "pruefung" ? <ToneChip label="Gehalten" tone="warn" /> : <ToneChip label={PAYOUT_STATUS[r.status].label} tone={PAYOUT_STATUS[r.status].tone} />}
+                    {r.hinweis ? <div className="sub is-bad">{r.hinweis}</div> : null}
+                  </td>
+                  <td className="r" data-span="">
+                    <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
+                      <button className="ee-btn ee-btn--sm" aria-expanded={openId === r.id} onClick={() => setOpenId(openId === r.id ? null : r.id)}>
+                        Posten
+                      </button>
+                      <GutschriftLink p={r} />
+                      {r.status === "pruefung" ? (
+                        <button
+                          className="ee-btn ee-btn--primary ee-btn--sm"
+                          title={r.hinweis ? `${r.hinweis} – Freigabe klappt, sobald die IBAN eingetragen ist` : undefined}
+                          onClick={() => {
+                            const p = releasePayout(r.who, r.id);
+                            if (p) toast(`${p.periode} für ${person(r.who).first} freigegeben`);
+                          }}
+                        >
+                          Freigeben
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+                {openId === r.id && (
+                  <tr>
+                    <td colSpan={5} style={{ background: "var(--surface-2)" }}>
+                      <div className="stack" style={{ gap: 6 }}>
+                        {r.posten.map((x, i) => (
+                          <div className="row row--between" key={x.provisionId ?? i}>
+                            <span>
+                              <b>{x.kunde}</b> <span className="sub">· {x.anlass}{x.grund ? ` · ${x.grund}` : ""} · {x.datum}</span>
+                            </span>
+                            <span className="row" style={{ gap: 8 }}>
+                              <ToneChip label={x.status === "storno" ? "Storno" : "Fest · TBK"} tone={x.status === "storno" ? "bad" : "ok"} />
+                              <b className={x.betrag < 0 ? "num is-bad" : "num"}>{eur(x.betrag)}</b>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function AdminPayouts() {
+  const { data, now, person, toast } = useDashboard();
   const rows = Object.entries(data.PAYOUTS).flatMap(([who, ps]) => ps.map((p) => ({ ...p, who })));
   const open = rows.filter((r) => r.status !== "ausgezahlt");
   const waiting = data.PROVISIONS.filter((x) => x.status === "tbk");
   const byLead = [...new Set(waiting.map((x) => x.lead))].map((id) => ({ id, items: waiting.filter((x) => x.lead === id) }));
   const questions = data.PROVISIONS.filter((x) => x.frage && !x.antwort);
+
+  /* aktueller Lauf = früheste offene Abrechnung (Auszahlungstag); weitere offene Läufe stehen darunter */
+  const runDatum = open.map((r) => r.datum).sort((a, b) => dkey(a).localeCompare(dkey(b)))[0];
+  const run = open.filter((r) => r.datum === runDatum);
+  const others = open.filter((r) => r.datum !== runDatum);
+  const held = run.filter((r) => r.status === "pruefung" && r.hinweis);
+  const sum = run.filter((r) => !(r.status === "pruefung" && r.hinweis)).reduce((s, r) => s + r.betrag, 0);
+  const released = run.filter((r) => r.status === "freigegeben").length;
+  const reviewable = run.filter((r) => r.status === "pruefung" && !r.hinweis).length;
+  const waitSum = waiting.reduce((s, x) => s + x.betrag, 0);
+  const stornos = run.flatMap((r) => r.posten.filter((x) => x.status === "storno").map((x) => ({ ...x, who: r.who })));
+  const [d, m, y] = (runDatum ?? "").split(".").map(Number);
+  const daysTo = runDatum ? Math.max(0, Math.ceil((new Date(y, m - 1, d).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 864e5)) : 0;
+  const stichtag = runDatum ? `${d <= 10 ? "01" : "15"}.${String(m).padStart(2, "0")}.` : "";
+  const next = nextRun(now);
+
+  /* frühere Läufe: bereits ausgezahlt, je Auszahlungstag */
+  const hist = new Map<string, (typeof rows)[number][]>();
+  for (const r of rows.filter((x) => x.status === "ausgezahlt")) hist.set(r.datum, [...(hist.get(r.datum) ?? []), r]);
+  const histRuns = [...hist.entries()].sort((a, b) => dkey(b[0]).localeCompare(dkey(a[0])));
+
   return (
     <>
       <PageHead
         title="Auszahlungen"
         actions={
-          LIVE ? (
-            <button
-              className="ee-btn"
-              onClick={() => {
-                if (!window.confirm("Abrechnung zum heutigen Tag jetzt erstellen? (Sonst automatisch am 1. und 15.)")) return;
-                runSettlementNow((n) => toast(n ? `${n} ${n === 1 ? "Abrechnung" : "Abrechnungen"} erstellt` : "Keine festen Provisionen offen", n ? "check" : "info"));
-              }}
-            >
-              <Icon name="euro" small /> Abrechnung jetzt erstellen
-            </button>
-          ) : null
+          <>
+            <span className="ee-chip ee-chip--info" title="Bis 1. fest → am 10. · bis 15. fest → am 25.">
+              Auszahlung am 10. und 25.
+            </span>
+            {LIVE ? (
+              <button
+                className="ee-btn"
+                onClick={() => {
+                  if (!window.confirm("Abrechnung zum heutigen Tag jetzt erstellen? (Sonst automatisch am 1. und 15.)")) return;
+                  runSettlementNow((n) => toast(n ? `${n} ${n === 1 ? "Abrechnung" : "Abrechnungen"} erstellt` : "Keine festen Provisionen offen", n ? "check" : "info"));
+                }}
+              >
+                <Icon name="euro" small /> Abrechnung jetzt erstellen
+              </button>
+            ) : null}
+          </>
         }
       />
-      <div className="ee-grid g-kpi">
-        <Kpi label="Wartet auf TBK" value={eur(waiting.reduce((s, x) => s + x.betrag, 0))} meta={`${byLead.length} ${byLead.length === 1 ? "Kunde" : "Kunden"}`} tone="money" />
-        <Kpi label="Rückfragen offen" value={questions.length} tone={questions.length ? "bad" : ""} />
-        <Kpi label="In Prüfung" value={open.filter((r) => r.status === "pruefung").length} meta={eur(open.filter((r) => r.status === "pruefung").reduce((s, r) => s + r.betrag, 0))} />
-        <Kpi label="Freigegeben" value={eur(open.filter((r) => r.status === "freigegeben").reduce((s, r) => s + r.betrag, 0))} meta="wird am Auszahlungstag ausgezahlt" tone="money" />
-      </div>
-      {questions.length ? (
-        <section className="ee-card" data-component="PayoutQuestions">
-          <div className="ee-card__head">
-            <h2>Rückfragen</h2>
-            <span className="ee-count is-bad">{questions.length}</span>
+      <section className="ee-card ee-card--forest ee-hero ee-payrun" data-component="PayoutRun">
+        <div className="ee-card__head">
+          <span className="eyebrow">{runDatum ? `Aktueller Lauf · Stichtag ${stichtag} (Auszahlung in ${daysTo} ${daysTo === 1 ? "Tag" : "Tagen"})` : "Kein offener Lauf"}</span>
+          <span className="eyebrow">{runDatum ? `Auszahlung am ${runDatum}` : `Nächster Stichtag ${deDate(next.stichtag).slice(0, 6)}`}</span>
+        </div>
+        <div className="ee-payrun__main">
+          <div className="ee-daygoal__num">
+            <b className="num">{eur(sum)}</b>
+            <span>
+              auszahlbar · {run.length - held.length} {run.length - held.length === 1 ? "MB" : "MBs"}
+            </span>
           </div>
-          <div className="ee-list">
-            {questions.map((x) => (
-              <AnswerRow key={x.id} x={x} />
-            ))}
+          <div className="ee-payrun__stats">
+            <div>
+              <b className="num">
+                {released} / {run.length}
+              </b>
+              <span>freigegeben</span>
+            </div>
+            <div>
+              <b className="num">{eur(waitSum)}</b>
+              <span>warten auf TBK → späterer Lauf</span>
+            </div>
+            <div>
+              <b className="num">{held.length}</b>
+              <span>gehalten (IBAN fehlt)</span>
+            </div>
           </div>
-        </section>
+        </div>
+        <div className="ee-today__foot">
+          <p className="ee-daygoal__streak">
+            <span>Nur feste Provisionen (Kunde TBK) werden ausgezahlt; Stornos werden verrechnet. Am Auszahlungstag gilt die Abrechnung automatisch als ausgezahlt.</span>
+          </p>
+          <div className="row" style={{ gap: 8 }}>
+            {reviewable ? (
+              <button
+                className="ee-btn ee-btn--accent ee-btn--sm"
+                onClick={() => releaseAllPayouts((r) => toast(`${r.released} freigegeben${r.skipped ? `, ${r.skipped} ohne IBAN übersprungen` : ""}`, r.released ? "check" : "info"))}
+              >
+                <Icon name="check" small /> Alle {reviewable} prüfbaren freigeben
+              </button>
+            ) : null}
+            {LIVE ? (
+              <a className="ee-btn ee-btn--sm" href="/api/admin/export?liste=ueberweisungen" title="Freigegebene Abrechnungen mit IBAN – wird im Protokoll festgehalten">
+                <Icon name="doc" small /> Überweisungsliste (CSV)
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </section>
+      {run.length ? <RunTable title="Abrechnungen in diesem Lauf" rows={run} /> : null}
+      {others.length ? <RunTable title="Weitere offene Abrechnungen" rows={others} /> : null}
+      {!open.length ? <div className="ee-empty">Noch keine Abrechnungen – die erste entsteht am 1. bzw. 15. aus den festen Provisionen.</div> : null}
+      {questions.length || stornos.length ? (
+        <div className="ee-grid g-2" style={{ alignItems: "start" }}>
+          {questions.length ? (
+            <section className="ee-card" data-component="PayoutQuestions">
+              <div className="ee-card__head">
+                <h2>Rückfragen</h2>
+                <span className="ee-count is-bad">{questions.length}</span>
+              </div>
+              <div className="ee-list">
+                {questions.map((x) => (
+                  <AnswerRow key={x.id} x={x} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+          {stornos.length ? (
+            <section className="ee-card" data-component="PayoutStornos">
+              <div className="ee-card__head">
+                <h2>Stornos in diesem Lauf</h2>
+              </div>
+              <div className="stack" style={{ gap: 8 }}>
+                {stornos.map((x, i) => (
+                  <div className="row row--between" key={x.provisionId ?? i}>
+                    <span>
+                      <b>{x.kunde}</b>{" "}
+                      <span className="sub">
+                        · {person(x.who).first} · {x.grund ?? ""}
+                      </span>
+                    </span>
+                    <b className="num is-bad">{eur(x.betrag)}</b>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
       ) : null}
       <section className="ee-card ee-card--flush" data-component="TbkList">
         <div className="ee-card__head">
@@ -367,6 +558,7 @@ function AdminPayouts() {
               Ist der Kunde nach der Montagevorbereitung TBK, werden alle Provisionen fest. Widerruf oder nicht baubar → Storno mit Grund.
             </div>
           </div>
+          {byLead.length ? <span className="muted">{eur(waitSum)} · {byLead.length} {byLead.length === 1 ? "Kunde" : "Kunden"}</span> : null}
         </div>
         {byLead.length ? (
           <div className="ee-table-wrap">
@@ -390,69 +582,25 @@ function AdminPayouts() {
           <div className="ee-empty">Nichts offen</div>
         )}
       </section>
-      <section className="ee-card ee-card--flush" data-component="PayoutTable">
-        <div className="ee-card__head">
-          <h2>Abrechnungen</h2>
-        </div>
-        {rows.length ? (
-          <div className="ee-table-wrap">
-            <table className="ee-table ee-table--stack">
-              <thead>
-                <tr>
-                  <th>MB</th>
-                  <th>Zeitraum</th>
-                  <th>Status</th>
-                  <th className="r">Betrag</th>
-                  <th className="r">Aktion</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <div className="who">{person(r.who).name}</div>
-                      <div className="sub">
-                        {ROLE_LABEL[person(r.who).role]} · <span className="mono">{r.ibanLast4 ? `•••• ${r.ibanLast4}` : maskIban(data.PROFILES[r.who]?.iban ?? "")}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="sub">{r.periode}</div>
-                      <div className="sub">Auszahlung {r.datum}</div>
-                    </td>
-                    <td>
-                      <ToneChip label={PAYOUT_STATUS[r.status].label} tone={PAYOUT_STATUS[r.status].tone} />
-                      {r.hinweis ? <div className="sub is-bad">{r.hinweis}</div> : null}
-                    </td>
-                    <td className="r num">
-                      <b className="is-money">{eur(r.betrag)}</b>
-                      {r.ust ? <div className="sub">inkl. {eur(r.ust)} USt</div> : null}
-                    </td>
-                    <td className="r" data-span="">
-                      <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                        <GutschriftLink p={r} />
-                        {r.status === "pruefung" ? (
-                          <button
-                            className="ee-btn ee-btn--primary ee-btn--sm"
-                            title={r.hinweis ? `${r.hinweis} – Freigabe klappt, sobald die IBAN eingetragen ist` : undefined}
-                            onClick={() => {
-                              const p = releasePayout(r.who, r.id);
-                              if (p) toast(`${p.periode} für ${person(r.who).first} freigegeben`);
-                            }}
-                          >
-                            Freigeben
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <details className="ee-card ee-payhist" data-component="PayoutHistory">
+        <summary>
+          <h2>Frühere Läufe</h2>
+          <span className="faint">{histRuns.length} {histRuns.length === 1 ? "Lauf" : "Läufe"}</span>
+        </summary>
+        {histRuns.length ? (
+          histRuns.map(([datum, rs]) => (
+            <div className="ee-payhist__run" key={datum}>
+              <div className="row row--between">
+                <b>Auszahlung {datum}</b>
+                <b className="num is-money">{eur(rs.reduce((s, r) => s + r.betrag, 0))}</b>
+              </div>
+              <div className="sub">{rs.map((r) => `${person(r.who).first} ${eur(r.betrag)}`).join(" · ")}</div>
+            </div>
+          ))
         ) : (
-          <div className="ee-empty">Noch keine Abrechnungen – die erste entsteht am 1. bzw. 15. aus den festen Provisionen.</div>
+          <div className="ee-empty">Noch keine ausgezahlten Läufe.</div>
         )}
-      </section>
+      </details>
     </>
   );
 }

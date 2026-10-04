@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { desc, eq, gte, isNotNull, isNull, or } from "drizzle-orm";
+import { desc, eq, gte, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { normStatus, STATUS } from "@/lib/domain";
 import { isCalling } from "@/lib/leads";
 import type { HistoryEntry, Lead, StatusKey } from "@/lib/types";
@@ -122,7 +122,55 @@ async function dealFields(row: Row, cfg: PipelineConfig) {
   if (f.vqAlle) custom[f.vqAlle] = vqText(vq);
   const epp = acts.find((a) => a.kind === "epp");
   if (f.eppId && epp) custom[f.eppId] = String(JSON.parse(epp.data).eppId ?? "");
+  /* an der Tür beantwortete Fragen (A02) */
+  if (f.door) {
+    const door = new Set<string>();
+    for (const a of acts.filter((x) => x.kind === "vq" && x.role === "setter"))
+      for (const [k, v] of Object.entries(JSON.parse(a.data).answers as Record<string, string>)) if (String(v ?? "").trim()) door.add(k);
+    custom[f.door] = [...door].join(", ");
+  }
+  /* Kontrollen (A04) – werden täglich neu berechnet, siehe refreshOwnLeadFlags() */
+  const flags = leadFlags(row, acts);
+  if (f.erstanrufUeberfaellig) custom[f.erstanrufUeberfaellig] = flags.erstanruf ? "ja" : "";
+  if (f.liegtZuLange) custom[f.liegtZuLange] = flags.zuLange ? "ja" : "";
+  /* Provision: TBK am (A11) und Ausgezahlt am (A12) */
+  if (f.tbkAm || f.ausgezahltAm) {
+    const provs = await db.select().from(schema.provision).where(eq(schema.provision.leadId, row.id));
+    const own = provs.filter((p) => ["setter", "presetter", "closer"].includes(p.role) && p.status === "fest");
+    const tbk = own.map((p) => p.festAt).filter((d): d is Date => !!d).sort((a, b) => a.getTime() - b.getTime())[0];
+    if (f.tbkAm) custom[f.tbkAm] = tbk ? deDate(tbk) : "";
+    if (f.ausgezahltAm) {
+      const ids = [...new Set(own.map((p) => p.payoutId).filter((x): x is string => !!x))];
+      const paid = ids.length ? await db.select().from(schema.payout).where(inArray(schema.payout.id, ids)) : [];
+      const dates = paid.filter((p) => p.status === "ausgezahlt").map((p) => p.datum.split(".").reverse().join("-")).sort();
+      custom[f.ausgezahltAm] = dates.length ? dates[dates.length - 1].split("-").reverse().join(".") : "";
+    }
+  }
   return custom;
+}
+
+const deDate = (d: Date) => new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+
+/** Tims A04: Erstanruf seit 24 Std. überfällig / Kunde reagiert 7 Tage nach Stufe „5. Anruf +“ nicht */
+export function leadFlags(row: Row, acts: { kind: string; createdAt: Date }[], now = new Date()) {
+  const attempts = acts.filter((a) => a.kind === "attempt");
+  const called = attempts.length > 0 || acts.some((a) => a.kind === "callback");
+  /* Anrufzeitpunkt: gewünschtes Datum (8:00, falls ohne Uhrzeit), sonst Zeitpunkt der Erfassung */
+  const wish = row.rueckrufDatum ? new Date(`${row.rueckrufDatum}T${row.rueckrufUhrzeit || "08:00"}:00`) : null;
+  const due = wish && Number.isFinite(wish.getTime()) ? wish : row.createdAt;
+  const erstanruf = normStatus(row.status) === "eingereicht" && !called && now.getTime() - due.getTime() >= 24 * 36e5;
+  const last = attempts.map((a) => a.createdAt.getTime()).sort((a, b) => b - a)[0];
+  const zuLange = normStatus(row.status) === "terminierung" && attempts.length >= 5 && !!last && now.getTime() - last >= 7 * 864e5;
+  return { erstanruf, zuLange };
+}
+
+/** Täglich: Leads, die noch im Anruf-Abschnitt stehen, neu abgleichen, damit „überfällig“/„liegt zu lange“ in Pipedrive stimmen
+ *  (und zurückgesetzt werden, sobald angerufen wurde). */
+export async function refreshOwnLeadFlags() {
+  const rows = await db.select({ id: schema.ownLead.id, status: schema.ownLead.status }).from(schema.ownLead).where(inArray(schema.ownLead.status, ["eingereicht", "terminierung"]));
+  let n = 0;
+  for (const r of rows) if (!(await syncOwnLead(r.id)).error) n++;
+  return n;
 }
 
 /** Stufe/Status in Pipedrive aus dem Dashboard-Status */

@@ -10,7 +10,7 @@ import type { CloserStats } from "./closer-stats";
 import type { PresetterStats } from "./lead-activity";
 import type { FormValues } from "./vq";
 import type { IconName } from "./icons";
-import type { AdminKpi, Appointment, Lead, MbStats, PersonKey, Role, StatusKey } from "./types";
+import type { AdminKpi, Appointment, CloserRow, Lead, MbStats, PersonKey, PresetterRow, Role, StatusKey } from "./types";
 import type { Workspace } from "@/server/workspace";
 import { setMoneyGoalAction } from "@/app/actions/workspace";
 
@@ -65,7 +65,9 @@ export type Drawer =
   | { kind: "appt"; id: string }
   | { kind: "team"; key: PersonKey }
   /** Einwände mit Antworten (Telefonleitfaden), id = Lead für Namen im Text */
-  | { kind: "objections"; id: string };
+  | { kind: "objections"; id: string }
+  /** „Frag den Engel“: Rundgang + häufige Fragen */
+  | { kind: "angel" };
 
 export interface Toast {
   id: number;
@@ -91,6 +93,8 @@ export const store = {
   /* drawer bleibt nach dem Schließen gesetzt, damit der Inhalt beim Herausgleiten sichtbar bleibt */
   overlay: { drawer: null as Drawer | null, drawerOpen: false, more: false, notif: false },
   toasts: [] as Toast[],
+  /** Rundgang des Engels: an/aus, aktueller Schritt, Bild des Engels für die Sprechblase */
+  tour: { on: false, i: 0, img: "" },
   /** Zähler aus der Datenbank (null = noch nicht geladen) */
   live: {
     contracts: null as { openMine: number; openAll: number; questions: number } | null,
@@ -104,7 +108,7 @@ export const store = {
     closers: null as PersonKey[] | null,
   },
   /** Angemeldete Person (aus der Sitzung) */
-  session: null as { name: string; roles: Role[] } | null,
+  session: null as { name: string; roles: Role[]; /** Rollen, deren Ansicht per Akademie-Test noch gesperrt ist */ locked: Role[] } | null,
 };
 
 let version = 0;
@@ -148,7 +152,7 @@ const replaceAll = <T,>(arr: T[], items: T[]) => arr.splice(0, arr.length, ...it
 export function clearDemoData() {
   const d = store.data;
   d.NOW.setTime(Date.now());
-  for (const arr of [d.LEADS, d.PROVISIONS, d.APPTS, d.SLOTS, d.EVENTS, d.CONTRACTS, d.BOARD_ARCHIVE, d.TEAM, d.WEEKLY, d.LOSS_STATS, d.MB_STATS, d.BOARD.rows, d.SETTER_BOARD.rows, d.DAY_GOAL.week]) arr.splice(0);
+  for (const arr of [d.LEADS, d.PROVISIONS, d.APPTS, d.SLOTS, d.EVENTS, d.CONTRACTS, d.BOARD_ARCHIVE, d.TEAM, d.WEEKLY, d.LOSS_STATS, d.MB_STATS, d.PRESETTER_ROWS, d.CLOSER_ROWS, d.BOARD.rows, d.SETTER_BOARD.rows, d.DAY_GOAL.week]) arr.splice(0);
   for (const rec of [d.PEOPLE, d.PAYOUTS, d.NOTIFS, d.PROFILES, d.MONEY_GOAL, d.ROLE_USER] as Record<string, unknown>[]) for (const k of Object.keys(rec)) delete rec[k];
   Object.assign(d.ADMIN_KPI, { leads: 0, leadsVormonat: 0, termin: 0, checks: 0, verkaufstermin: 0, verkauft: 0, checksWoche: 0 });
   Object.assign(d.SETTER_BOARD, { published: "–", by: "System" });
@@ -240,12 +244,16 @@ export function applyLiveStats(s: {
   dayGoal?: LeadStats["dayGoal"][string];
   presetter?: PresetterStats;
   closer?: CloserStats;
+  presetterRows?: PresetterRow[];
+  closerRows?: CloserRow[];
 }) {
   const d = store.data;
   const setOrDrop = (k: string, v: number | null) => (v == null ? delete d.BENCH[k] : (d.BENCH[k] = v));
   if (s.adminKpi) Object.assign(d.ADMIN_KPI, s.adminKpi);
   for (const k of [...(s.mbStats ?? []).map((m) => m.key), ...(s.setterBoardRows ?? []).map((r) => r[0])]) ensureSetter(k);
   if (s.mbStats) replaceAll(d.MB_STATS, s.mbStats);
+  if (s.presetterRows) replaceAll(d.PRESETTER_ROWS, s.presetterRows);
+  if (s.closerRows) replaceAll(d.CLOSER_ROWS, s.closerRows);
   if (s.weekly) replaceAll(d.WEEKLY, s.weekly);
   if (s.lossStats) replaceAll(d.LOSS_STATS, s.lossStats);
   if (s.bench) Object.assign(d.BENCH, s.bench);

@@ -68,14 +68,22 @@ export const OWN_FIELDS = {
   vqAlle: ["MB Vorqualifizierung", "text"],
   /** Kunden-ID im Enpal-Partnerportal */
   eppId: ["MB EPP-ID", "varchar"],
+  /** Tims Ablauf A04/A10/A11/A12 */
+  door: ["MB Von der Tür beantwortet", "text"],
+  erstanrufUeberfaellig: ["MB Erstanruf überfällig", "varchar"],
+  liegtZuLange: ["MB Liegt zu lange", "varchar"],
+  tbkAm: ["MB TBK am", "varchar"],
+  ausgezahltAm: ["MB Ausgezahlt am", "varchar"],
 } as const satisfies Record<string, readonly [string, "varchar" | "text" | "double"]>;
 export type OwnField = keyof typeof OWN_FIELDS;
+/** Felder, die nach der ersten Einrichtung dazukamen – in älteren Einrichtungen fehlen sie (→ „Prüfen & ergänzen“) */
+type LateField = "vqAlle" | "eppId" | "door" | "erstanrufUeberfaellig" | "liegtZuLange" | "tbkAm" | "ausgezahltAm";
 
 export interface PipelineConfig {
   pipelineId: number;
   stages: Record<StageStatus, number>;
   /** Felder, die nach der ersten Einrichtung dazukamen, fehlen in älteren Einrichtungen (→ „Prüfen & ergänzen“) */
-  fields: Partial<Record<OwnField, string>> & Record<Exclude<OwnField, "vqAlle" | "eppId">, string> & { setter: string };
+  fields: Partial<Record<OwnField, string>> & Record<Exclude<OwnField, LateField>, string> & { setter: string };
   /** Vorqualifizierung: Dashboard-Feldname → Pipedrive-Feld (nur die, die es in Pipedrive gibt) */
   vq: Record<string, string>;
   createdAt: string;

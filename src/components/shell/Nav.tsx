@@ -2,7 +2,7 @@
 
 import Icon from "@/components/ui/Icon";
 import { pendingFeedback } from "@/lib/appointments";
-import { NAV, ROLE_LABEL, SHORT_LABEL, type NavItem } from "@/lib/nav";
+import { navFor, ROLE_LABEL, SHORT_LABEL, type NavItem } from "@/lib/nav";
 import { useStore } from "@/lib/store";
 import { go, toggleMore } from "@/lib/ui";
 import { useDashboard } from "@/lib/useDashboard";
@@ -39,10 +39,11 @@ function NavButton({ item: [v, l, i] }: { item: NavItem }) {
 /** Seitenleiste links (Desktop) */
 export function SideNav() {
   const { role } = useDashboard();
+  const { session } = useStore();
   return (
     <nav className="ee-nav" id="sideNav">
       <div className="ee-nav__label">{ROLE_LABEL[role]}</div>
-      {NAV[role].map((item) => (
+      {navFor(role, session?.locked).map((item) => (
         <NavButton key={item[0]} item={item} />
       ))}
     </nav>
@@ -81,12 +82,13 @@ export function SideMe() {
 /** Untere Leiste (Handy): vier Hauptpunkte + „Mehr“ */
 export function BottomNav() {
   const { role, ui } = useDashboard();
-  const items = NAV[role],
+  const { session } = useStore();
+  const items = navFor(role, session?.locked),
     nMain = items.some((i) => i[0] === "todos") ? 5 : 4,
     main = items.slice(0, nMain),
     rest = items.slice(nMain);
   return (
-    <nav className="ee-bottom" id="bottomNav" data-component="BottomNav" aria-label="Navigation" style={{ gridTemplateColumns: `repeat(${nMain + 1}, minmax(0, 1fr))` }}>
+    <nav className="ee-bottom" id="bottomNav" data-component="BottomNav" aria-label="Navigation" style={{ gridTemplateColumns: `repeat(${main.length + (rest.length ? 1 : 0)}, minmax(0, 1fr))` }}>
       {main.map(([v, l, i]) => (
         <button key={v} aria-current={ui.view === v ? "page" : undefined} onClick={() => go(v)}>
           <Icon name={i} />
@@ -94,22 +96,25 @@ export function BottomNav() {
           <Badge view={v} />
         </button>
       ))}
-      <button aria-current={rest.some((i) => i[0] === ui.view) ? "page" : undefined} onClick={() => toggleMore(true)}>
-        <Icon name="more" />
-        <span>Mehr</span>
-      </button>
+      {rest.length > 0 && (
+        <button aria-current={rest.some((i) => i[0] === ui.view) ? "page" : undefined} onClick={() => toggleMore(true)}>
+          <Icon name="more" />
+          <span>Mehr</span>
+        </button>
+      )}
     </nav>
   );
 }
 
 /** „Mehr“-Menü (Handy) mit den übrigen Punkten */
 export function MoreSheet() {
-  const { overlay } = useStore();
+  const { overlay, session } = useStore();
   const { role } = useDashboard();
+  const items = navFor(role, session?.locked);
   return (
     <div className={overlay.more ? "ee-more is-open" : "ee-more"} id="moreSheet" data-component="MoreSheet" role="dialog" aria-label="Weitere Bereiche">
       <div className="ee-more__grip" />
-      {NAV[role].slice(NAV[role].some((i) => i[0] === "todos") ? 5 : 4).map((item) => (
+      {items.slice(items.some((i) => i[0] === "todos") ? 5 : 4).map((item) => (
         <NavButton key={item[0]} item={item} />
       ))}
     </div>

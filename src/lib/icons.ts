@@ -35,6 +35,8 @@ export const ICONS = {
   edit:'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
   ext:'M14 4h6v6M20 4l-9 9M18 14v6H4V6h6',
   shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  grad:'M2 9l10-5 10 5-10 5zM6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5M22 9v6',
+  play:'M8 5v14l11-7z',
 };
 
 export type IconName = keyof typeof ICONS;

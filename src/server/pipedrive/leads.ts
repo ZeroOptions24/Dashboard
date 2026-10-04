@@ -227,6 +227,8 @@ export const enrichLeads = (leads: Lead[], ctx: LeadContext) =>
  *  - Presetter: gemeinsamer Pool aller offenen Leads + Leads, die sie selbst bearbeitet haben – volle Nummer
  *  - Closer: Leads mit Termin bei ihnen – volle Nummer */
 export async function loadLeadsForUser(user: LeadUser, ctx: LeadContext): Promise<LeadsForUser> {
+  /* ohne wirksame Rolle (z. B. Akademie-Test noch nicht bestanden) gibt es nichts */
+  if (!user.roles.length) return { leads: [], keys: {} };
   const all = enrichLeads(await loadLeadsFromPipedrive(), ctx);
   const closerLeadIds = ctx.closerLeadIds ?? new Set<string>();
   const activities = ctx.activities ?? [];

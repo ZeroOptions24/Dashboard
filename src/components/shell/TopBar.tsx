@@ -2,10 +2,11 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import UserMenu from "@/components/auth/UserMenu";
+import EngelButton from "@/components/engel/EngelCanvas";
 import Icon from "@/components/ui/Icon";
 import { StatusChip } from "@/components/ui/Chips";
 import { markAllNotifRead, simulatePipedriveUpdate } from "@/lib/actions";
-import { NAV, ROLE_LABEL } from "@/lib/nav";
+import { navFor, ROLE_LABEL } from "@/lib/nav";
 import { useStore, LIVE } from "@/lib/store";
 import { setRole, toast, toggleNotif } from "@/lib/ui";
 import { useDashboard } from "@/lib/useDashboard";
@@ -142,13 +143,12 @@ export function NotifPanel() {
 /** switchable: Rollen, zwischen denen die Person wechseln darf (Admins: alle, sonst die eigenen) */
 export default function TopBar({ switchable, name, demo }: { switchable: Role[]; name: string; demo: boolean }) {
   const { role, ui } = useDashboard();
-  const cur = NAV[role].find((i) => i[0] === ui.view);
+  const { session } = useStore();
+  const cur = navFor(role, session?.locked).find((i) => i[0] === ui.view);
   return (
     <header className="ee-top" data-component="TopBar">
       <div className="ee-top__brand">
-        <div className="ee-brand__mark" aria-hidden="true">
-          E
-        </div>
+        <EngelButton variant="top" />
       </div>
       <div className="ee-top__title" id="topTitle">
         {cur ? cur[1] : ""}

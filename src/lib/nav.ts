@@ -17,6 +17,7 @@ export const NAV: Record<Role, NavItem[]> = {
     ["vertraege", "Verträge", "doc"],
     ["events", "Events", "flag"],
     ["stammdaten", "Stammdaten", "user"],
+    ["akademie", "Akademie", "grad"],
     ["neu", "Weitere Funktion", "plus"],
   ],
   presetter: [
@@ -29,6 +30,7 @@ export const NAV: Record<Role, NavItem[]> = {
     ["vertraege", "Verträge", "doc"],
     ["events", "Events", "flag"],
     ["stammdaten", "Stammdaten", "user"],
+    ["akademie", "Akademie", "grad"],
     ["neu", "Weitere Funktion", "plus"],
   ],
   closer: [
@@ -41,11 +43,14 @@ export const NAV: Record<Role, NavItem[]> = {
     ["vertraege", "Verträge", "doc"],
     ["events", "Events", "flag"],
     ["stammdaten", "Stammdaten", "user"],
+    ["akademie", "Akademie", "grad"],
     ["neu", "Weitere Funktion", "plus"],
   ],
   admin: [
     ["uebersicht", "Übersicht", "home"],
+    ["todos", "To-Dos", "todo"],
     ["team", "Team & Setter", "team"],
+    ["akademie", "Akademie", "grad"],
     ["leads", "Pipeline", "list"],
     ["rangliste", "Ranglisten", "trophy"],
     ["events", "Events", "flag"],
@@ -61,5 +66,13 @@ export const ROLE_LABEL: Record<Role, string> = { setter: "Setter", presetter: "
 /** Kurzbeschriftung in der unteren Leiste (Handy) */
 export const SHORT_LABEL: Record<string, string> = { "Team & Setter": "Team", "Lead erfassen": "Erfassen" };
 
-/** Gibt es die Ansicht für diese Rolle? Sonst Übersicht. */
-export const allowedView = (role: Role, view: string) => (NAV[role].some((i) => i[0] === view) ? view : "uebersicht");
+/** Gesperrte Rolle (Akademie-Test noch nicht bestanden): nur Akademie, Verträge, Events und Stammdaten */
+const LOCKED_VIEWS = ["akademie", "vertraege", "events", "stammdaten"];
+
+/** Navigation für eine Rolle; locked = Rollen, deren Ansicht noch gesperrt ist */
+export const navFor = (role: Role, locked: readonly Role[] = []): NavItem[] =>
+  locked.includes(role) ? LOCKED_VIEWS.map((v) => NAV[role].find((i) => i[0] === v)).filter((i): i is NavItem => !!i) : NAV[role];
+
+/** Gibt es die Ansicht für diese Rolle? Sonst Übersicht (bei gesperrter Rolle: Akademie). */
+export const allowedView = (role: Role, view: string, locked: readonly Role[] = []) =>
+  navFor(role, locked).some((i) => i[0] === view) ? view : locked.includes(role) ? "akademie" : "uebersicht";

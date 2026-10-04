@@ -9,7 +9,7 @@ import { AFTER_TERMIN, PAYOUT_STATUS, PROV } from "@/lib/domain";
 import { WD, eur } from "@/lib/format";
 import { leadsForUser } from "@/lib/leads";
 import { perfTone, rankOf, ranked } from "@/lib/ranking";
-import { setMoneyGoal, LIVE, useStore } from "@/lib/store";
+import { setMoneyGoal, LIVE, store, useStore } from "@/lib/store";
 import { openTodoCount, todoItems, type Todo } from "@/lib/todos";
 import { callLead, openDrawer } from "@/lib/ui";
 import { useDashboard, type DashboardCtx } from "@/lib/useDashboard";
@@ -40,6 +40,16 @@ export function useTodos(): Todo[] {
     openContracts,
     leadsToday: role === "setter" ? leadsTodayOf(ctx).length : undefined,
     dayGoal: data.DAY_GOAL.goal,
+    admin:
+      role === "admin"
+        ? {
+            payouts: data.PAYOUTS,
+            provisions: data.PROVISIONS,
+            mbStats: data.MB_STATS,
+            contracts: live.contracts ? { openAll: live.contracts.openAll, questions: live.contracts.questions } : null,
+            closers: live.closers ?? [...new Set(data.APPTS.map((a) => a.closer))],
+          }
+        : undefined,
   });
 }
 
@@ -49,6 +59,12 @@ export function runTodo(t: Todo, go: (v: string) => void) {
   if (t.act.kind === "view") go(t.act.view);
   else if (t.act.kind === "call") callLead(t.act.id);
   else if (t.act.kind === "feedback") openDrawer({ kind: "feedback", id: t.act.id });
+  else if (t.act.kind === "team") {
+    /* Beispieldaten: Seitenleiste mit Stammdaten; echte Daten: Team-Verwaltung */
+    const key = t.act.key;
+    if (store.data.PROFILES[key]) openDrawer({ kind: "team", key });
+    else go("team");
+  }
   else openDrawer({ kind: "lead", id: t.act.id });
 }
 
